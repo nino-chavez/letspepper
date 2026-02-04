@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Bebas_Neue, Inter, Space_Mono } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const bebasNeue = Bebas_Neue({
@@ -79,6 +80,9 @@ export default function RootLayout({
 
         {/* Main Content */}
         {children}
+
+        {/* Vercel Web Analytics */}
+        <Analytics />
       </body>
     </html>
   )
