@@ -134,66 +134,60 @@ export function PepperBelle() {
             </div>
           </motion.div>
 
-          {/* Visual */}
+          {/* Visual - Mascot */}
           <motion.div
             className="relative"
-            initial={{ opacity: 0, x: 30 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, scale: 0.8, rotate: -10 }}
+            whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
             viewport={MOTION.viewport.once}
             transition={{ duration: 0.8, ease: MOTION.ease.outExpo, delay: 0.2 }}
           >
-            {/* Card Stack Effect */}
-            <div className="relative aspect-[3/4] max-w-md mx-auto">
-              {/* Back Card */}
+            {/* Mascot Container */}
+            <div className="relative aspect-square max-w-md mx-auto">
+              {/* Glow behind mascot */}
               <div
-                className="absolute inset-4 rounded-3xl bg-belle-primary/5 border border-belle-primary/10 rotate-6"
+                className="absolute inset-0 rounded-full bg-belle-primary/20 blur-3xl scale-75"
                 aria-hidden="true"
               />
 
-              {/* Middle Card */}
+              {/* Pepper Belle Mascot */}
+              <Image
+                src="/images/mascots/pepper-belle-action.png"
+                alt="Pepper Belle mascot - pink bell pepper playing volleyball"
+                fill
+                className="object-contain drop-shadow-2xl"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+              />
+
+              {/* Decorative ring */}
               <div
-                className="absolute inset-2 rounded-3xl bg-belle-primary/10 border border-belle-primary/20 rotate-3"
+                className="absolute inset-8 rounded-full border-2 border-dashed border-belle-primary/30"
                 aria-hidden="true"
               />
 
-              {/* Front Card with Image */}
-              <div className="heat-card heat-card-belle relative rounded-3xl overflow-hidden h-full">
-                {/* Player Image - Krush Reverse Co-Ed grass volleyball */}
-                <Image
-                  src="https://photos.smugmug.com/Sports/Volleyball/Grass/Krush-Reverse-Co-Ed-2-20250817/i-tDWZwkq/0/NcLvqJqcQMgLPZnNvQQsBdxRx8tCjWMc9djtmKkz6/L/krush-reverse-coed-2-97-L.jpg"
-                  alt="Grass volleyball spike action - competitive women's tournament"
-                  fill
-                  className="object-cover object-center"
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                />
-
-                {/* Gradient Overlay */}
-                <div
-                  className="absolute inset-0 bg-gradient-to-t from-pepper-black/90 via-pepper-black/20 to-transparent"
-                  aria-hidden="true"
-                />
-
-                {/* Text Overlay */}
-                <div className="absolute bottom-0 left-0 right-0 p-8 text-center">
-                  <p className="font-display text-4xl sm:text-5xl uppercase text-white mb-2">
-                    Pepper Belle
-                  </p>
-                  <p className="font-accent text-sm text-belle-primary uppercase tracking-wider">
-                    Women&apos;s 3v3 Series
-                  </p>
-                </div>
-
-                {/* Decorative Elements */}
-                <div
-                  className="absolute top-6 right-6 w-12 h-12 border-t-2 border-r-2 border-belle-primary/50 rounded-tr-xl"
-                  aria-hidden="true"
-                />
-                <div
-                  className="absolute bottom-24 left-6 w-12 h-12 border-b-2 border-l-2 border-belle-primary/50 rounded-bl-xl"
-                  aria-hidden="true"
-                />
-              </div>
+              {/* Corner accents */}
+              <div
+                className="absolute top-4 right-4 w-16 h-16 border-t-2 border-r-2 border-belle-primary/50 rounded-tr-2xl"
+                aria-hidden="true"
+              />
+              <div
+                className="absolute bottom-4 left-4 w-16 h-16 border-b-2 border-l-2 border-belle-primary/50 rounded-bl-2xl"
+                aria-hidden="true"
+              />
             </div>
+
+            {/* Floating badge */}
+            <motion.div
+              className="absolute -bottom-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full bg-pepper-charcoal border border-belle-primary/30"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={MOTION.viewport.once}
+              transition={{ delay: 0.5 }}
+            >
+              <p className="font-display text-xl uppercase text-white whitespace-nowrap">
+                Pepper <span className="text-belle-primary">Belle</span>
+              </p>
+            </motion.div>
           </motion.div>
         </div>
       </div>
