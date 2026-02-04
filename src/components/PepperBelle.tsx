@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { MOTION } from '@/lib/motion'
+import { MOTION, useReducedMotion } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 export function PepperBelle() {
   const [email, setEmail] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const prefersReducedMotion = useReducedMotion()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,13 +34,13 @@ export function PepperBelle() {
       <motion.div
         className="absolute top-1/2 left-1/4 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl opacity-10"
         style={{ background: 'radial-gradient(circle, var(--belle-primary), transparent)' }}
-        animate={{
+        animate={prefersReducedMotion ? {} : {
           scale: [1, 1.3, 1],
           opacity: [0.1, 0.2, 0.1],
         }}
         transition={{
           duration: 10,
-          repeat: Infinity,
+          repeat: prefersReducedMotion ? 0 : Infinity,
           ease: 'easeInOut',
         }}
         aria-hidden="true"

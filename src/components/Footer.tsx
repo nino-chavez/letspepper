@@ -8,6 +8,7 @@ const socialLinks = [
   {
     name: 'Instagram',
     href: 'https://instagram.com/letspepper',
+    ariaLabel: 'Follow Let\'s Pepper on Instagram (opens in new tab)',
     icon: (
       <svg
         className="w-5 h-5"
@@ -26,6 +27,7 @@ const socialLinks = [
   {
     name: 'Flickday Media',
     href: 'https://flickdaymedia.com',
+    ariaLabel: 'Visit Flickday Media photography website (opens in new tab)',
     icon: (
       <svg
         className="w-5 h-5"
@@ -128,7 +130,7 @@ export function Footer() {
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label={social.name}
+                  aria-label={social.ariaLabel}
                   className={cn(
                     'w-11 h-11 flex items-center justify-center rounded-full',
                     'bg-zinc-800/50 border border-zinc-700/50',
@@ -161,6 +163,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-zinc-500 hover:text-heat-jalapeno transition-colors"
+                aria-label="Flickday Media photography (opens in new tab)"
               >
                 Flickday Media
               </a>

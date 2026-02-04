@@ -136,7 +136,7 @@ function FAQAccordion({ item, isOpen, onToggle }: { item: FAQItem; isOpen: boole
       <button
         type="button"
         onClick={onToggle}
-        className="w-full py-5 flex items-center justify-between text-left group"
+        className="w-full py-5 flex items-center justify-between text-left group cursor-pointer"
         aria-expanded={isOpen}
       >
         <span className="text-lg text-white group-hover:text-heat-jalapeno transition-colors pr-4">
@@ -271,6 +271,7 @@ export default function FAQPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-primary"
+                  aria-label="Contact us on Instagram @letspepper.open (opens in new tab)"
                 >
                   <span>@letspepper.open</span>
                   <span aria-hidden="true">↗</span>

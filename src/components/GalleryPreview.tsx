@@ -73,6 +73,7 @@ export function GalleryPreview() {
             target="_blank"
             rel="noopener noreferrer"
             className="btn-secondary"
+            aria-label="View full Let's Pepper photo gallery (opens in new tab)"
           >
             <span>View Full Gallery</span>
             <span aria-hidden="true">↗</span>
@@ -149,6 +150,7 @@ export function GalleryPreview() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-zinc-400 hover:text-heat-jalapeno transition-colors"
+              aria-label="Flickday Media photography (opens in new tab)"
             >
               Flickday Media
             </a>

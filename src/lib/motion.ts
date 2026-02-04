@@ -89,3 +89,12 @@ export const MOTION = {
 // Type exports
 export type MotionVariant = keyof typeof MOTION.variants
 export type MotionSpring = keyof typeof MOTION.spring
+
+/**
+ * Hook to detect user's reduced motion preference
+ * Returns true if user prefers reduced motion
+ */
+export function useReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
