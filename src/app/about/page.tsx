@@ -13,7 +13,7 @@ const galleryImages = [
     alt: 'Grass volleyball action at Bell Pepper Open',
   },
   {
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/LPO/GrassLaunch2025/i-D7bdVqs/0/KB3dP9WsQPwtx7rHqhrFKvhRxrtWLzhKd6DP4bDq6/L/grass-triples-018-L.jpg',
+    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/KrushSuburbanSlam2025/i-V5b7DfL/0/NHcnwG9P2kjf9Mq3HjnnMPG4cLZwXTFCcJ4Vn23XF/L/krush-suburban-slam-028-L.jpg',
     alt: 'Diving save on grass court',
   },
   {

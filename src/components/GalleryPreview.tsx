@@ -39,9 +39,9 @@ const galleryImages = [
   },
   {
     id: 6,
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/LPO/GrassLaunch2025/i-D7bdVqs/0/KB3dP9WsQPwtx7rHqhrFKvhRxrtWLzhKd6DP4bDq6/L/grass-triples-018-L.jpg',
-    alt: 'Grass Launch 2025 - athletic dive for the ball',
-    event: 'Grass Launch 2025'
+    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/Krush-Reverse-Co-Ed-2-20250817/i-tDWZwkq/0/NcLvqJqcQMgLPZnNvQQsBdxRx8tCjWMc9djtmKkz6/L/krush-reverse-coed-2-97-L.jpg',
+    alt: 'Krush Reverse Co-Ed 2 - athletic play',
+    event: 'Krush Reverse Co-Ed 2'
   },
 ]
 
