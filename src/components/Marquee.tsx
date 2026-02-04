@@ -30,12 +30,12 @@ interface MarqueeProps {
 const variantStyles = {
   belle: {
     bg: 'bg-belle-primary/90',
-    text: 'text-pepper-black',
-    highlight: 'text-white',
+    text: 'text-white',
+    highlight: 'text-yellow-300',
     gradientFrom: 'from-belle-primary/90',
     gradientVia: 'via-belle-primary/90',
-    buttonBg: 'bg-pepper-black/20 hover:bg-pepper-black/30',
-    buttonText: 'text-pepper-black',
+    buttonBg: 'bg-white/20 hover:bg-white/30',
+    buttonText: 'text-white',
   },
   jalapeno: {
     bg: 'bg-heat-jalapeno/90',
