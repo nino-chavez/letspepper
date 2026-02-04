@@ -129,6 +129,7 @@ export function EthosSection() {
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-3 group"
+            aria-label="Visit Flickday Media photography website (opens in new tab)"
           >
             <CameraIcon size={28} className="text-zinc-400 group-hover:text-heat-jalapeno transition-colors" />
             <span className="font-display text-2xl uppercase text-zinc-400 group-hover:text-heat-jalapeno transition-colors">

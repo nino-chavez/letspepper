@@ -396,6 +396,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-secondary"
+                  aria-label="View Let's Pepper photo gallery (opens in new tab)"
                 >
                   <span>View Gallery</span>
                   <span aria-hidden="true">↗</span>

@@ -378,6 +378,7 @@ export default function AboutPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-secondary"
+                  aria-label="View Let's Pepper photo gallery (opens in new tab)"
                 >
                   <span>View Gallery</span>
                   <span aria-hidden="true">↗</span>
@@ -392,6 +393,7 @@ export default function AboutPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-zinc-500 hover:text-heat-jalapeno transition-colors"
+                  aria-label="Flickday Media photography (opens in new tab)"
                 >
                   Flickday Media
                 </a>
