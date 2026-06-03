@@ -19,6 +19,26 @@ export default function AwardsPage() {
   const [votes, setVotes] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState(false)
   const [tallies, setTallies] = useState<Record<string, Record<string, number>>>({})
+  // Objective categories (MVP, Most Improved) pull live nominees from Rally HQ;
+  // brand metadata and subjective categories (sportsmanship, fun) stay local.
+  const [categories, setCategories] = useState(awardCategories)
+
+  useEffect(() => {
+    const RHQ_BY_LP: Record<string, string> = { mvp: 'mvp', improved: 'most_improved' }
+    fetch('/api/awards-candidates')
+      .then((r) => r.json())
+      .then((data) => {
+        const derived = data?.candidates as Record<string, { id: string; name: string; reason: string }[]> | undefined
+        if (!derived) return
+        setCategories((prev) =>
+          prev.map((cat) => {
+            const nominees = derived[RHQ_BY_LP[cat.id]]
+            return nominees && nominees.length > 0 ? { ...cat, nominees } : cat
+          }),
+        )
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const saved = getStoredValue<VoteState>(STORAGE_KEYS.AWARDS_VOTES, {
@@ -33,14 +53,14 @@ export default function AwardsPage() {
   // Fetch live tallies when submitted or on mount if already submitted
   useEffect(() => {
     if (!submitted) return
-    const scopes = awardCategories.map((c) => `awards:${c.id}`).join(',')
+    const scopes = categories.map((c) => `awards:${c.id}`).join(',')
     fetch(`/api/votes?scopes=${scopes}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.tallies) setTallies(data.tallies)
       })
       .catch(() => {})
-  }, [submitted])
+  }, [submitted, categories])
 
   function handleVote(categoryId: string, nomineeId: string) {
     if (submitted) return
@@ -57,7 +77,7 @@ export default function AwardsPage() {
     setSubmitted(true)
 
     // Submit all votes in parallel
-    const promises = awardCategories.map((category) => {
+    const promises = categories.map((category) => {
       const choice = votes[category.id]
       if (!choice) return Promise.resolve()
       return fetch('/api/votes', {
@@ -73,7 +93,7 @@ export default function AwardsPage() {
     await Promise.all(promises)
 
     // Fetch tallies after submitting
-    const scopes = awardCategories.map((c) => `awards:${c.id}`).join(',')
+    const scopes = categories.map((c) => `awards:${c.id}`).join(',')
     fetch(`/api/votes?scopes=${scopes}`)
       .then((r) => r.json())
       .then((data) => {
@@ -118,7 +138,7 @@ export default function AwardsPage() {
               animate="animate"
               transition={{ staggerChildren: 0.15 }}
             >
-              {awardCategories.map((category) => {
+              {categories.map((category) => {
                 const heat = HEAT_CONFIG[category.heat as HeatLevel]
                 const selectedNominee = votes[category.id]
                 const scopeTallies = tallies[`awards:${category.id}`] || {}
@@ -199,15 +219,15 @@ export default function AwardsPage() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={votedCount < awardCategories.length}
+                  disabled={votedCount < categories.length}
                   className={cn(
                     'btn-primary',
-                    votedCount < awardCategories.length && 'opacity-50 cursor-not-allowed'
+                    votedCount < categories.length && 'opacity-50 cursor-not-allowed'
                   )}
                 >
-                  Submit Votes ({votedCount}/{awardCategories.length})
+                  Submit Votes ({votedCount}/{categories.length})
                 </button>
-                {votedCount < awardCategories.length && (
+                {votedCount < categories.length && (
                   <p className="text-xs text-zinc-600 mt-2">Vote in all categories to submit</p>
                 )}
               </div>

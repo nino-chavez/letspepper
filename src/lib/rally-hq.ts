@@ -174,3 +174,34 @@ export async function getSeasonLeaderboard(
       trend: r.trend,
     }))
 }
+
+export interface AwardNominee {
+  id: string
+  name: string
+  reason: string
+}
+
+interface RhqAwardCategory {
+  id: string
+  label: string
+  candidates: { playerKey: string; displayName: string; reason: string }[]
+}
+
+/**
+ * Rally HQ-derived award candidates (ADR-0006), keyed by RHQ category id
+ * (`mvp`, `most_improved`, `iron`). These are computed from match results — the
+ * reasons ("200 season points · 9-0", "5th → 1st (+4)") are the platform's, never
+ * hand-typed, so the objective awards can't go stale. Subjective categories
+ * (sportsmanship, fun) have no derivable truth and stay editorial.
+ */
+export async function getAwardCandidates(eventSlug: string): Promise<Record<string, AwardNominee[]>> {
+  const data = await call<{ categories: RhqAwardCategory[] }>(
+    `/api/v1/events/${eventSlug}/award-candidates`,
+    { method: 'GET' },
+  )
+  const out: Record<string, AwardNominee[]> = {}
+  for (const cat of data?.categories ?? []) {
+    out[cat.id] = cat.candidates.map((c) => ({ id: c.playerKey, name: c.displayName, reason: c.reason }))
+  }
+  return out
+}
