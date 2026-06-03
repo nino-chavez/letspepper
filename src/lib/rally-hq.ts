@@ -205,3 +205,99 @@ export async function getAwardCandidates(eventSlug: string): Promise<Record<stri
   }
   return out
 }
+
+export interface RallyTournamentResult {
+  id: string
+  event: string
+  date: string
+  location: string
+  heat: 'bell' | 'jalapeno' | 'poblano'
+  results: { place: number; players: string[]; tied?: boolean }[]
+}
+
+/** Let's Pepper brand heat per event, derived from the name; defaults to bell. */
+function heatFromName(name: string): 'bell' | 'jalapeno' | 'poblano' {
+  const n = name.toLowerCase()
+  if (n.includes('jalape')) return 'jalapeno'
+  if (n.includes('poblano')) return 'poblano'
+  return 'bell'
+}
+
+/** '2025-05-31' → 'May 31, 2025' (UTC, so no off-by-one from local tz). */
+function formatDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return y && m && d ? `${MONTHS[m - 1]} ${d}, ${y}` : iso
+}
+
+interface RhqResults {
+  results: { placements: { teamId: string; teamName: string; placement: number }[] }
+}
+
+/**
+ * The series' tournament results, derived by Rally HQ — placements joined with
+ * full team rosters (the v1 teams read now carries `roster`). Replaces the
+ * hand-maintained results table so it stays correct and auto-includes future
+ * events the moment Rally HQ resolves their brackets. Venue stays local (it's a
+ * series constant, not derived truth).
+ */
+export async function getSeasonResults(
+  eventSlug: string,
+  location = 'Aurora, IL',
+): Promise<RallyTournamentResult[]> {
+  // The tournament list (slug/name/date) is enumerable from the rankings finishes.
+  const ranks = await call<{ rankings: { finishes: { tournamentSlug: string; tournamentName: string; date: string }[] }[] }>(
+    `/api/v1/events/${eventSlug}/rankings?scope=all_time`,
+    { method: 'GET' },
+  )
+  const tourneys = new Map<string, { name: string; date: string }>()
+  for (const r of ranks?.rankings ?? []) {
+    for (const f of r.finishes) tourneys.set(f.tournamentSlug, { name: f.tournamentName, date: f.date })
+  }
+
+  const out = await Promise.all(
+    Array.from(tourneys.entries()).map(async ([slug, meta]) => {
+      // Placements + the roster join (the v1 teams read now carries `roster`).
+      const [resultsData, rosterTeams] = await Promise.all([
+        call<RhqResults>(`/api/v1/tournaments/${slug}/results`, { method: 'GET' }),
+        call<{ id: string; name: string; roster: string[] | null }[]>(
+          `/api/v1/tournaments/${slug}/teams?per_page=100`,
+          { method: 'GET' },
+        ),
+      ])
+      const rosterById = new Map<string, string[]>()
+      for (const t of rosterTeams ?? []) {
+        // Fall back to the team label if a roster isn't recorded.
+        rosterById.set(t.id, t.roster && t.roster.length > 0 ? t.roster : [t.name])
+      }
+
+      const byPlace = new Map<number, string[][]>()
+      for (const p of resultsData?.results?.placements ?? []) {
+        const players = rosterById.get(p.teamId) ?? [p.teamName]
+        const list = byPlace.get(p.placement) ?? []
+        list.push(players)
+        byPlace.set(p.placement, list)
+      }
+      const results = Array.from(byPlace.entries())
+        .sort((a, b) => a[0] - b[0])
+        .flatMap(([place, teamsAtPlace]) =>
+          teamsAtPlace.map((players) => ({ place, players, tied: teamsAtPlace.length > 1 })),
+        )
+
+      return {
+        iso: meta.date,
+        result: {
+          id: slug,
+          event: meta.name,
+          date: formatDate(meta.date),
+          location,
+          heat: heatFromName(meta.name),
+          results,
+        } satisfies RallyTournamentResult,
+      }
+    }),
+  )
+
+  // Most recent event first — sort on the ISO date, not the display string.
+  return out.sort((a, b) => (a.iso < b.iso ? 1 : -1)).map((o) => o.result)
+}

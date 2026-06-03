@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
@@ -107,9 +107,22 @@ function TournamentResultCard({ tournament }: { tournament: TournamentResult }) 
 
 export default function StandingsPage() {
   const [selectedSeason] = useState('2025')
+  // Results derive from Rally HQ (placements + rosters), so they stay correct and
+  // auto-include future events. The local data is the initial paint + offline
+  // fallback (it also still feeds the player/team views elsewhere).
+  const [allResults, setAllResults] = useState<TournamentResult[]>(tournamentResults)
+
+  useEffect(() => {
+    fetch('/api/standings-results')
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.results) && d.results.length > 0) setAllResults(d.results)
+      })
+      .catch(() => {})
+  }, [])
 
   // Group tournaments by season (for future multi-season support)
-  const seasonTournaments = tournamentResults.filter(t => t.date.includes(selectedSeason))
+  const seasonTournaments = allResults.filter(t => t.date.includes(selectedSeason))
 
   return (
     <>
