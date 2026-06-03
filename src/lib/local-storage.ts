@@ -12,6 +12,9 @@ export const STORAGE_KEYS = {
   BINGO_SEED: 'lp_bingo_seed',
   // Predictions
   PREDICTIONS_PREFIX: 'lp_predictions_',
+  // Champion pick (Rally HQ-backed) + shared cross-surface nickname
+  CHAMPION_PREFIX: 'lp_champion_',
+  FAN_NICKNAME: 'lp_fan_nickname',
   // Awards
   AWARDS_VOTES: 'lp_awards_votes',
   // MVP Vote

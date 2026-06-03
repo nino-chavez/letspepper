@@ -78,3 +78,46 @@ export function updateFanName(fanToken: string, displayName: string | null): Pro
     body: JSON.stringify({ displayName }),
   })
 }
+
+export interface RallyTeam {
+  id: string
+  name: string
+  seed: number | null
+}
+
+/** Fetch a tournament's teams — the champion-pick options (RHQ is the source of
+ *  truth for who's actually entered). */
+export async function getTournamentTeams(slug: string): Promise<RallyTeam[]> {
+  const teams = await call<Array<{ id: string; name: string; seed: number | null }>>(
+    `/api/v1/tournaments/${slug}/teams`,
+    { method: 'GET' },
+  )
+  return (teams ?? []).map((t) => ({ id: t.id, name: t.name, seed: t.seed ?? null }))
+}
+
+/**
+ * Submit a fan's champion pick to Rally HQ — the one canonical store that
+ * auto-grades off the bracket. Returns the RHQ error message on a rejected write
+ * (locked bracket, team not in tournament) so the UI can surface the real reason.
+ */
+export async function submitChampionPick(
+  slug: string,
+  fanToken: string,
+  predictedTeamId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const cfg = config()
+  if (!cfg) return { ok: false, error: 'Rally HQ is not configured.' }
+  try {
+    const res = await fetch(`${cfg.url}/api/v1/tournaments/${slug}/predictions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fanToken, predictedTeamId }),
+    })
+    if (res.ok) return { ok: true }
+    const body = (await res.json().catch(() => null)) as RallyEnvelope<unknown> | null
+    return { ok: false, error: body?.error?.message ?? 'Could not submit your pick.' }
+  } catch (err) {
+    console.error('Rally HQ champion pick threw:', err)
+    return { ok: false, error: 'Rally HQ is unreachable — try again.' }
+  }
+}

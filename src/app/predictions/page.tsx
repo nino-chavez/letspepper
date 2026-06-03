@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
-import { Header, Footer } from '@/components'
+import { Header, Footer, ChampionPick } from '@/components'
 import { cn } from '@/lib/utils'
 import { predictionEvents, calculatePredictionScore, type PropHeat } from '@/lib/predictions-data'
 import { HEAT_CONFIG, type HeatLevel } from '@/lib/heat-config'
@@ -212,6 +212,17 @@ export default function PredictionsPage() {
             </div>
           </section>
         )}
+
+        {/* Champion pick (Rally HQ-backed) — the "who wins" call, auto-scored off the bracket */}
+        <section className="section-padding pt-0">
+          <div className="section-container">
+            <ChampionPick
+              tournament={event.id}
+              tournamentName={event.event}
+              deadline={event.deadline}
+            />
+          </div>
+        </section>
 
         {/* Props */}
         <section className="section-padding pt-0">

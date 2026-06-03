@@ -36,31 +36,28 @@ export function getPointsForHeat(heat: PropHeat): number {
 
 export const predictionEvents: PredictionEvent[] = [
   {
-    id: 'poblano-open-2026',
-    event: 'Poblano Pepper Open 2026',
-    deadline: '2026-05-01T09:00:00-05:00',
+    // Targets the upcoming series tournament. `id` MUST match the Rally HQ
+    // tournament slug — the champion card + scoring resolve against it.
+    id: 'bell-pepper-open-2026',
+    event: 'Bell Pepper Open 2026',
+    deadline: '2026-06-07T08:00:00-05:00',
     isLocked: false,
     resultsRevealed: false,
+    // NOTE: the "who wins" pick is now the Rally HQ-backed ChampionPick card
+    // (real teams, auto-scored). The props below are the bespoke culture quiz —
+    // SCAFFOLD copy retargeted from Poblano; rewrite in Nino's voice for Bell Pepper.
     props: [
       {
-        id: 'winner',
-        question: 'Who wins the Poblano Pepper Open?',
-        options: ['Podgorny / Meyer squad', 'Maas / Zediker / Sauer', 'Maruyama / Solomon / Geist', 'A new team'],
-        heat: 'bell',
-        points: 1,
-        category: 'matchup',
-      },
-      {
         id: 'three-peat',
-        question: 'Will any player three-peat as champion?',
-        options: ['Yes — Podgorny & Meyer run it back', 'No — new blood takes over'],
+        question: 'Will any player repeat as champion this season?',
+        options: ['Yes — a title defense holds', 'No — new blood takes over'],
         heat: 'jalapeno',
         points: 3,
         category: 'matchup',
       },
       {
         id: 'upset',
-        question: 'Biggest upset: a 9th-place team from Bell Pepper finishes top 3?',
+        question: 'Biggest upset: does a bottom-half seed finish top 3?',
         options: ['Yes', 'No way'],
         heat: 'reaper',
         points: 5,
@@ -68,7 +65,7 @@ export const predictionEvents: PredictionEvent[] = [
       },
       {
         id: 'total-teams',
-        question: 'How many teams enter the Poblano Open?',
+        question: 'How many teams check in for the Bell Pepper Open?',
         options: ['8 or fewer', '9-12', '13-16', '17+'],
         heat: 'bell',
         points: 1,
