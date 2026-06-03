@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
@@ -8,6 +9,20 @@ import { PowerRankingCard } from '@/components/rankings/PowerRankingCard'
 import { HeadToHead } from '@/components/rankings/HeadToHead'
 
 export default function RankingsPage() {
+  // Power Rankings are editorial (the Scoville ranking + blurbs are the brand's
+  // voice). Only the factual "events completed" derives from Rally HQ's resolved
+  // tournaments so it can't go stale; the rest stays hand-authored.
+  const [eventsCompleted, setEventsCompleted] = useState(SEASON_STATS.eventsCompleted)
+
+  useEffect(() => {
+    fetch('/api/standings-results')
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.results) && d.results.length > 0) setEventsCompleted(d.results.length)
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <>
       <Header />
@@ -52,7 +67,7 @@ export default function RankingsPage() {
               </div>
               <div className="bg-zinc-900/30 rounded-xl border border-zinc-800/50 p-6 text-center">
                 <p className="font-display text-4xl text-white mb-1">
-                  {SEASON_STATS.eventsCompleted}
+                  {eventsCompleted}
                 </p>
                 <p className="font-accent text-xs uppercase tracking-wider text-zinc-500">
                   Events Completed
