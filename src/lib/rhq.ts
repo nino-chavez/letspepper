@@ -17,6 +17,7 @@ import type {
   RhqTeam,
   RhqScheduleMatch,
   RhqBracketRound,
+  RhqFan,
 } from './types/rhq'
 
 const RHQ_BASE = process.env.RALLY_HQ_BASE_URL ?? 'https://rallyhq.app'
@@ -87,4 +88,57 @@ export function fetchRhqSchedule(rhqSlug: string): Promise<RhqScheduleMatch[]> {
 /** Elimination bracket, grouped by round. Empty until pool play completes. */
 export function fetchRhqBracket(rhqSlug: string): Promise<RhqBracketRound[]> {
   return rhqPublicGet<RhqBracketRound[]>(`/tournaments/${rhqSlug}/bracket`)
+}
+
+// ---------------------------------------------------------------------------
+// Authenticated writes (server-only). These hit RHQ's /api/v1 surface and
+// REQUIRE the Pro API key — it carries a global `write` scope, so only these
+// anonymous fan-token primitives (issue token, submit champion pick) are ever
+// exposed through LP routes. Never wire raw PATCH teams / score writes here.
+// ---------------------------------------------------------------------------
+
+/** Thrown when a write is attempted but RALLY_HQ_API_KEY is not configured. */
+export class RhqKeyMissingError extends Error {
+  constructor() {
+    super('RALLY_HQ_API_KEY is not set — write modules are unavailable')
+    this.name = 'RhqKeyMissingError'
+  }
+}
+
+/** Server-side authed POST to RHQ's /api/v1 surface. Returns the unwrapped data. */
+async function rhqAuthedPost<T>(path: string, body: unknown): Promise<T> {
+  const key = process.env.RALLY_HQ_API_KEY
+  if (!key) throw new RhqKeyMissingError()
+
+  const res = await fetch(`${RHQ_BASE}/api/v1${path}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    throw new RhqError(res.status, `RHQ POST ${path} -> ${res.status}`)
+  }
+  const json = (await res.json()) as { data: T }
+  return json.data
+}
+
+/** Issue an anonymous cross-surface fan identity (fan_token). */
+export function issueRhqFanToken(): Promise<RhqFan> {
+  return rhqAuthedPost<RhqFan>('/fans', {})
+}
+
+/** Submit/upsert a champion pick for a fan. Allowed until the bracket is set. */
+export function submitChampionPick(
+  rhqSlug: string,
+  fanToken: string,
+  predictedTeamId: string
+): Promise<unknown> {
+  return rhqAuthedPost(`/tournaments/${rhqSlug}/predictions`, {
+    fanToken,
+    predictedTeamId,
+  })
 }

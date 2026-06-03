@@ -62,3 +62,10 @@ export interface RhqBracketRound {
   round: string
   matches: RhqBracketMatch[]
 }
+
+/** Anonymous cross-surface fan identity (POST /api/v1/fans). */
+export interface RhqFan {
+  fanToken: string
+  displayName: string | null
+  claimed: boolean
+}

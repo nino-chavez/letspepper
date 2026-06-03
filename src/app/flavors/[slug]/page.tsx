@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
 import { RhqTeamRoster } from '@/components/rhq/RhqTeamRoster'
+import { ChampionPickControl } from '@/components/rhq/ChampionPickControl'
 import { RhqScheduleSection } from '@/components/rhq/RhqScheduleSection'
 import { RhqStandingsTable } from '@/components/rhq/RhqStandingsTable'
 import { RhqBracketPreview } from '@/components/rhq/RhqBracketPreview'
@@ -352,6 +353,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
             ordered as a tournament lifecycle. Each module renders only when it
             has data (standings anchors with a pre-tournament message). */}
         <RhqTeamRoster flavor={tournament.slug} heat={tournament.heat} />
+        <ChampionPickControl flavor={tournament.slug} heat={tournament.heat} />
         <RhqScheduleSection flavor={tournament.slug} heat={tournament.heat} />
         <RhqStandingsTable flavor={tournament.slug} heat={tournament.heat} />
         <RhqBracketPreview flavor={tournament.slug} heat={tournament.heat} />
