@@ -6,7 +6,7 @@ import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
 import { generateBingoCard, checkForBingo, type BingoSquareData } from '@/lib/bingo-data'
-import { getStoredValue, setStoredValue, STORAGE_KEYS } from '@/lib/local-storage'
+import { getStoredValue, setStoredValue, getDeviceId, STORAGE_KEYS } from '@/lib/local-storage'
 
 const CATEGORY_COLORS: Record<string, string> = {
   play: 'border-heat-bell/30',
@@ -69,8 +69,24 @@ export default function BingoPage() {
 
       // Check for bingo
       const result = checkForBingo(next)
+      const wasBingo = checkForBingo(prev).hasBingo
       setHasBingo(result.hasBingo)
       setWinningLine(result.winningLine)
+
+      // First bingo on this card earns points on Rally HQ's community board.
+      // Idempotent per card (ref = the seed), best-effort, points server-set.
+      if (result.hasBingo && !wasBingo) {
+        fetch('/api/engagement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            device_id: getDeviceId(),
+            source: 'bingo',
+            ref: `bingo:${seed}`,
+            nickname: getStoredValue<string>(STORAGE_KEYS.FAN_NICKNAME, '') || null,
+          }),
+        }).catch(() => {})
+      }
 
       return next
     })

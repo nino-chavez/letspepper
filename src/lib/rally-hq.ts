@@ -301,3 +301,30 @@ export async function getSeasonResults(
   // Most recent event first — sort on the ISO date, not the display string.
   return out.sort((a, b) => (a.iso < b.iso ? 1 : -1)).map((o) => o.result)
 }
+
+/**
+ * Award engagement points to a fan on Rally HQ (ADR-0007 stage 4) — bingo lines,
+ * award votes, etc. Idempotent on (fanToken, source, ref); Rally HQ caps the
+ * value, so this is safe. Best-effort: a failure never blocks the local play.
+ */
+export async function submitEngagementPoints(
+  fanToken: string,
+  source: string,
+  ref: string,
+  points: number,
+  eventSlug: string,
+): Promise<boolean> {
+  const cfg = config()
+  if (!cfg) return false
+  try {
+    const res = await fetch(`${cfg.url}/api/v1/engagement/points`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fanToken, source, ref, points, eventSlug }),
+    })
+    return res.ok
+  } catch (err) {
+    console.error('Rally HQ engagement points threw:', err)
+    return false
+  }
+}

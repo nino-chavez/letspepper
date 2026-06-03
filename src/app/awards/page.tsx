@@ -92,6 +92,19 @@ export default function AwardsPage() {
     })
     await Promise.all(promises)
 
+    // Voting earns points on Rally HQ's community board (idempotent per device,
+    // best-effort, points server-set). Nickname names the fan on the board.
+    fetch('/api/engagement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        device_id: deviceId,
+        source: 'award_vote',
+        ref: 'award_vote:lets-pepper-open-2026',
+        nickname: getStoredValue<string>(STORAGE_KEYS.FAN_NICKNAME, '') || null,
+      }),
+    }).catch(() => {})
+
     // Fetch tallies after submitting
     const scopes = categories.map((c) => `awards:${c.id}`).join(',')
     fetch(`/api/votes?scopes=${scopes}`)
