@@ -7,6 +7,7 @@
 
 import { supabase } from './supabase'
 import type { Photo, Video, Album } from '@/types/photo'
+import type { VotablePhoto } from './photo-vote-data'
 
 /** Columns needed for photo display (avoids fetching embeddings/heavy data) */
 const PHOTO_COLUMNS =
@@ -151,6 +152,48 @@ export async function fetchAlbumPhotos(
     photos: (data || []).map(transformRow),
     totalCount: count || 0,
   }
+}
+
+/**
+ * Photo-of-the-season vote candidates — real Let's Pepper gallery photos, not
+ * placeholders. Curated by the photography project's own classification: peak
+ * action-intensity is the season's best-moment set (no separate curation table
+ * needed). Add/curate by tagging photos `peak` in the gallery.
+ */
+export async function fetchVotablePhotos(limit = 12): Promise<VotablePhoto[]> {
+  const albumKeys = await fetchLPOAlbumKeys()
+  if (albumKeys.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('photo_metadata')
+    .select('photo_id, cf_image_id, album_name, play_type, photo_category')
+    .in('album_key', albumKeys)
+    .eq('action_intensity', 'peak')
+    .not('cf_image_id', 'is', null)
+    .not('sharpness', 'is', null)
+    .order('photo_date', { ascending: false, nullsFirst: false })
+    .limit(limit)
+
+  if (error || !data) {
+    if (error) console.error('[Gallery] Error fetching votable photos:', error.message)
+    return []
+  }
+
+  return data.map((p) => ({
+    id: p.photo_id,
+    cfImageId: p.cf_image_id,
+    // Short descriptor from the photo's own classification.
+    caption: titleCase(p.play_type) || titleCase(p.photo_category) || 'Season highlight',
+    // "Bell Pepper Open – Official Gallery - Jan 1" / "Grass Launch | Open Triples
+    // - Jan 1" → "Bell Pepper Open" / "Grass Launch" (strip the gallery suffix).
+    event: (p.album_name || 'Let\'s Pepper').split(/\s+[–|-]\s+/)[0].trim(),
+    photographer: 'Flickday Media',
+  }))
+}
+
+function titleCase(s: string | null): string {
+  if (!s) return ''
+  return s.charAt(0).toUpperCase() + s.slice(1).replace(/[-_]/g, ' ')
 }
 
 export async function fetchPhoto(photoId: string): Promise<Photo | null> {

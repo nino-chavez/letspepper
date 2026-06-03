@@ -5,7 +5,8 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
-import { votablePhotos } from '@/lib/photo-vote-data'
+import type { VotablePhoto } from '@/lib/photo-vote-data'
+import { cfImageUrl } from '@/lib/cloudflare-images'
 import { getStoredValue, setStoredValue, getDeviceId, STORAGE_KEYS } from '@/lib/local-storage'
 
 const SCOPE = 'photo:season-2025'
@@ -13,10 +14,22 @@ const SCOPE = 'photo:season-2025'
 export default function PhotoVotePage() {
   const [votedPhotoId, setVotedPhotoId] = useState<string | null>(null)
   const [tallies, setTallies] = useState<Record<string, number>>({})
+  // Real Let's Pepper gallery photos (peak action), fetched from the photography
+  // project's shared gallery — no more placeholders.
+  const [votablePhotos, setVotablePhotos] = useState<VotablePhoto[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     const saved = getStoredValue<string | null>(STORAGE_KEYS.PHOTO_VOTE, null)
     setVotedPhotoId(saved)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/photo-vote-candidates')
+      .then((r) => r.json())
+      .then((d) => setVotablePhotos(Array.isArray(d.photos) ? d.photos : []))
+      .catch(() => setVotablePhotos([]))
+      .finally(() => setLoaded(true))
   }, [])
 
   // Fetch tallies on mount
@@ -82,6 +95,11 @@ export default function PhotoVotePage() {
         {/* Photo Grid */}
         <section className="section-padding pt-0">
           <div className="section-container">
+            {loaded && votablePhotos.length === 0 && (
+              <p className="text-zinc-500 text-sm">
+                Voting opens once this season&apos;s gallery is live. Check back soon.
+              </p>
+            )}
             <motion.div
               className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"
               initial="initial"
@@ -105,14 +123,15 @@ export default function PhotoVotePage() {
                     )}
                     variants={MOTION.variants.slideUp}
                   >
-                    {/* Placeholder image area */}
-                    <div className="aspect-[4/3] bg-zinc-800/50 flex items-center justify-center">
-                      <div className="text-center p-4">
-                        <span className="text-3xl mb-2 block">📸</span>
-                        <p className="text-xs text-zinc-500 font-accent uppercase tracking-wider">
-                          {photo.event}
-                        </p>
-                      </div>
+                    {/* Real gallery photo (Cloudflare Images) */}
+                    <div className="aspect-[4/3] bg-zinc-800/50 overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={cfImageUrl(photo.cfImageId, 'medium')}
+                        alt={`${photo.caption} — ${photo.event}`}
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                      />
                     </div>
 
                     {/* Vote count badge */}
