@@ -37,7 +37,7 @@ export const bingoSquarePool: BingoSquareData[] = [
   { id: 'ref-dispute', text: 'Ref controversy', category: 'culture' },
 
   // Pepper-themed
-  { id: 'pepper-mention', text: 'Pepper pun by the announcer', category: 'pepper' },
+  { id: 'pepper-mention', text: 'Pepper pun overheard', category: 'pepper' },
   { id: 'heat-check', text: '"Heat check" moment', category: 'pepper' },
   { id: 'spicy-play', text: 'A play described as "spicy"', category: 'pepper' },
   { id: 'bell-pepper-ref', text: 'Bell Pepper reference', category: 'pepper' },
@@ -55,7 +55,7 @@ export const bingoSquarePool: BingoSquareData[] = [
   { id: 'upset', text: 'Major upset in bracket', category: 'wild' },
   { id: 'celebration', text: 'Over-the-top celebration', category: 'wild' },
   { id: 'food-truck', text: 'Food truck spotted', category: 'wild' },
-  { id: 'sand-dive', text: 'Full send grass dive', category: 'wild' },
+  { id: 'grass-dive', text: 'Full send grass dive', category: 'wild' },
   { id: 'lost-shoe', text: 'Someone loses a shoe', category: 'wild' },
   { id: 'delayed-start', text: 'Late start to a match', category: 'wild' },
   { id: 'double-contact', text: 'Questionable double contact', category: 'wild' },
