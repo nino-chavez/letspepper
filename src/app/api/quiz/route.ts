@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { badRequest, serverError, ok } from '../_lib/validate'
 
-const VALID_PERSONALITIES = ['bell', 'serrano', 'chipotle', 'habanero', 'reaper']
+const VALID_PERSONALITIES = ['bell', 'poblano', 'jalapeno', 'habanero', 'reaper']
 
 /** POST — increment tally for a personality */
 export async function POST(request: Request) {

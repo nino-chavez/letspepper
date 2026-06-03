@@ -17,8 +17,8 @@ interface QuizDistribution {
 
 const PERSONALITY_LABELS: Record<string, string> = {
   bell: 'Bell Pepper',
-  serrano: 'Serrano',
-  chipotle: 'Chipotle',
+  poblano: 'Poblano',
+  jalapeno: 'Jalapeño',
   habanero: 'Habanero',
   reaper: 'Carolina Reaper',
   pepperX: 'Pepper X',
@@ -26,8 +26,8 @@ const PERSONALITY_LABELS: Record<string, string> = {
 
 const PERSONALITY_COLORS: Record<string, string> = {
   bell: 'bg-heat-bell',
-  serrano: 'bg-heat-poblano',
-  chipotle: 'bg-heat-jalapeno',
+  poblano: 'bg-heat-poblano',
+  jalapeno: 'bg-heat-jalapeno',
   habanero: 'bg-heat-habanero',
   reaper: 'bg-red-600',
   pepperX: 'bg-fuchsia-500',

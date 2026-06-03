@@ -3,7 +3,7 @@
  * 7 questions with personality-based scoring.
  */
 
-export type PepperPersonality = 'bell' | 'serrano' | 'chipotle' | 'habanero' | 'reaper' | 'pepperX'
+export type PepperPersonality = 'bell' | 'poblano' | 'jalapeno' | 'habanero' | 'reaper' | 'pepperX'
 
 export interface QuizOption {
   text: string
@@ -32,8 +32,8 @@ export const quizQuestions: QuizQuestion[] = [
   {
     question: 'It\'s match point. Your team is down. What\'s your move?',
     options: [
-      { text: 'Serve it safe and let the team rally', scores: { bell: 3, chipotle: 1 } },
-      { text: 'Float serve to the weakest passer', scores: { serrano: 3, chipotle: 1 } },
+      { text: 'Serve it safe and let the team rally', scores: { bell: 3, jalapeno: 1 } },
+      { text: 'Float serve to the weakest passer', scores: { poblano: 3, jalapeno: 1 } },
       { text: 'Bomb it. Full power. No hesitation.', scores: { habanero: 3, reaper: 1 } },
       { text: 'Jump serve at 110% — it\'s all or nothing', scores: { reaper: 3, habanero: 1 } },
       { text: 'Sky ball. Straight up. Assert dominance.', scores: {}, easterEgg: 'pepperX' },
@@ -42,44 +42,44 @@ export const quizQuestions: QuizQuestion[] = [
   {
     question: 'How do you show up to a tournament?',
     options: [
-      { text: 'On time, warmed up, ready to go', scores: { chipotle: 3, serrano: 1 } },
-      { text: 'Fashionably late with matching outfits', scores: { bell: 3, chipotle: 1 } },
-      { text: 'First ones there, already stretching', scores: { habanero: 3, serrano: 1 } },
+      { text: 'On time, warmed up, ready to go', scores: { jalapeno: 3, poblano: 1 } },
+      { text: 'Fashionably late with matching outfits', scores: { bell: 3, jalapeno: 1 } },
+      { text: 'First ones there, already stretching', scores: { habanero: 3, poblano: 1 } },
       { text: 'Roll in hot, no warm-up needed', scores: { reaper: 3, bell: 1 } },
     ],
   },
   {
     question: 'Your teammate shanks an easy pass. You...',
     options: [
-      { text: '"You\'re good! Next one!"', scores: { bell: 3, chipotle: 1 } },
-      { text: 'Say nothing, adjust your positioning', scores: { serrano: 3, chipotle: 1 } },
-      { text: 'Clap it off and get locked in harder', scores: { habanero: 3, serrano: 1 } },
-      { text: '"We\'ll talk about it after the set"', scores: { chipotle: 3, habanero: 1 } },
+      { text: '"You\'re good! Next one!"', scores: { bell: 3, jalapeno: 1 } },
+      { text: 'Say nothing, adjust your positioning', scores: { poblano: 3, jalapeno: 1 } },
+      { text: 'Clap it off and get locked in harder', scores: { habanero: 3, poblano: 1 } },
+      { text: '"We\'ll talk about it after the set"', scores: { jalapeno: 3, habanero: 1 } },
     ],
   },
   {
     question: 'What\'s your ideal tournament soundtrack?',
     options: [
-      { text: 'Chill vibes — lo-fi or reggae', scores: { bell: 3, chipotle: 1 } },
-      { text: 'Whatever the DJ plays, I\'m locked in', scores: { serrano: 3, bell: 1 } },
+      { text: 'Chill vibes — lo-fi or reggae', scores: { bell: 3, jalapeno: 1 } },
+      { text: 'Whatever the DJ plays, I\'m locked in', scores: { poblano: 3, bell: 1 } },
       { text: 'Hype playlist — rap, EDM, pump-up anthems', scores: { habanero: 3, reaper: 1 } },
-      { text: 'Silence. I need to focus.', scores: { reaper: 3, serrano: 1 } },
+      { text: 'Silence. I need to focus.', scores: { reaper: 3, poblano: 1 } },
     ],
   },
   {
     question: 'Pick your post-tournament meal:',
     options: [
-      { text: 'Pizza and beers with the squad', scores: { bell: 3, chipotle: 1 } },
-      { text: 'Protein shake and recovery meal', scores: { habanero: 3, serrano: 1 } },
-      { text: 'Whatever\'s closest — I\'m starving', scores: { chipotle: 3, bell: 1 } },
+      { text: 'Pizza and beers with the squad', scores: { bell: 3, jalapeno: 1 } },
+      { text: 'Protein shake and recovery meal', scores: { habanero: 3, poblano: 1 } },
+      { text: 'Whatever\'s closest — I\'m starving', scores: { jalapeno: 3, bell: 1 } },
       { text: 'Skip food. Reviewing game film.', scores: { reaper: 3, habanero: 1 } },
     ],
   },
   {
     question: 'Your team wins the whole thing. What\'s the celebration?',
     options: [
-      { text: 'Group photo and high fives all around', scores: { bell: 3, serrano: 1 } },
-      { text: 'Cool head nod — you knew it was coming', scores: { serrano: 3, chipotle: 1 } },
+      { text: 'Group photo and high fives all around', scores: { bell: 3, poblano: 1 } },
+      { text: 'Cool head nod — you knew it was coming', scores: { poblano: 3, jalapeno: 1 } },
       { text: 'Full chest bump, let the crowd know', scores: { habanero: 3, reaper: 1 } },
       { text: '"When\'s the next tournament?"', scores: { reaper: 3, habanero: 1 } },
     ],
@@ -87,10 +87,10 @@ export const quizQuestions: QuizQuestion[] = [
   {
     question: 'What matters most to you about volleyball?',
     options: [
-      { text: 'The community and friendships', scores: { bell: 3, chipotle: 2 } },
-      { text: 'Getting better every time I play', scores: { serrano: 3, habanero: 1 } },
+      { text: 'The community and friendships', scores: { bell: 3, jalapeno: 2 } },
+      { text: 'Getting better every time I play', scores: { poblano: 3, habanero: 1 } },
       { text: 'The competition — winning matters', scores: { habanero: 3, reaper: 1 } },
-      { text: 'The craft — clean plays, smart ball', scores: { chipotle: 3, serrano: 1 } },
+      { text: 'The craft — clean plays, smart ball', scores: { jalapeno: 3, poblano: 1 } },
     ],
   },
 ]
@@ -106,9 +106,9 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
     color: 'text-heat-bell',
     bgColor: 'bg-heat-bell',
   },
-  serrano: {
-    id: 'serrano',
-    title: 'Serrano',
+  poblano: {
+    id: 'poblano',
+    title: 'Poblano',
     tagline: 'Sneaky dangerous',
     description: 'Quiet confidence, deadly execution. You don\'t need to be the loudest on the court — your game speaks for itself. Opponents underestimate you once. Never twice.',
     traits: ['Calculated', 'Clutch performer', 'Under the radar', 'Smart player'],
@@ -117,11 +117,11 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
     color: 'text-heat-poblano',
     bgColor: 'bg-heat-poblano',
   },
-  chipotle: {
-    id: 'chipotle',
-    title: 'Chipotle',
+  jalapeno: {
+    id: 'jalapeno',
+    title: 'Jalapeño',
     tagline: 'Smooth veteran',
-    description: 'You\'ve seen it all and done it all. Your game is refined, your touch is clean, and you make everyone around you better. The smoky veteran who never panics.',
+    description: 'You\'ve seen it all and done it all. Your game is refined, your touch is clean, and you make everyone around you better. The seasoned veteran who never panics.',
     traits: ['Experienced', 'Composed', 'Versatile', 'Leader'],
     heatLevel: 3,
     color: 'text-heat-jalapeno',
@@ -163,8 +163,8 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
 export function calculateResult(answers: number[]): PepperPersonality {
   const scores: Record<PepperPersonality, number> = {
     bell: 0,
-    serrano: 0,
-    chipotle: 0,
+    poblano: 0,
+    jalapeno: 0,
     habanero: 0,
     reaper: 0,
     pepperX: 0,
@@ -181,7 +181,7 @@ export function calculateResult(answers: number[]): PepperPersonality {
   })
 
   // Priority order for tie-breaking
-  const priority: PepperPersonality[] = ['reaper', 'habanero', 'chipotle', 'serrano', 'bell']
+  const priority: PepperPersonality[] = ['reaper', 'habanero', 'jalapeno', 'poblano', 'bell']
 
   let maxScore = 0
   let result: PepperPersonality = 'bell'
