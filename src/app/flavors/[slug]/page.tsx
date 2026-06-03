@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
+import { RhqStandingsTable } from '@/components/rhq/RhqStandingsTable'
 import { cn } from '@/lib/utils'
 
 interface TournamentDetail {
@@ -343,6 +344,9 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
             </motion.div>
           </div>
         </section>
+
+        {/* Live Standings — Rally HQ embed (branded server-fetch) */}
+        <RhqStandingsTable flavor={tournament.slug} heat={tournament.heat} />
 
         {/* Media Perks Section */}
         <section className="section-padding">
