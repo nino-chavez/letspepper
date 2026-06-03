@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { tournamentResults, type TournamentResult } from '@/lib/standings-data'
 import { HEAT_CONFIG } from '@/lib/heat-config'
 import { PlaceBadge } from '@/components/standings/PlaceBadge'
+import { SeasonLeaderboard } from '@/components/standings/SeasonLeaderboard'
 
 function TournamentResultCard({ tournament }: { tournament: TournamentResult }) {
   const config = HEAT_CONFIG[tournament.heat]
@@ -171,6 +172,9 @@ export default function StandingsPage() {
             </motion.div>
           </div>
         </section>
+
+        {/* Season Leaderboard — live from Rally HQ */}
+        <SeasonLeaderboard />
 
         {/* Tournament Results */}
         <section className="section-padding pt-0">

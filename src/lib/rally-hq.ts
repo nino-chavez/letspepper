@@ -121,3 +121,56 @@ export async function submitChampionPick(
     return { ok: false, error: 'Rally HQ is unreachable — try again.' }
   }
 }
+
+export interface SeasonLeaderEntry {
+  rank: number
+  tied: boolean
+  name: string
+  points: number
+  events: number
+  /** Tournament wins (1st-place finishes), not match wins. */
+  titles: number
+  podiums: number
+  bestFinish: number
+  trend: 'up' | 'down' | 'steady' | 'new'
+}
+
+interface RhqRankingEntry {
+  displayName: string
+  seasonPoints: number
+  rank: number
+  tied: boolean
+  tournamentsPlayed: number
+  trend: 'up' | 'down' | 'steady' | 'new'
+  finishes: { placement: number }[]
+}
+
+/**
+ * The live season leaderboard, derived by Rally HQ from match results — the
+ * single source of truth, so it never drifts from the brackets. Aggregated across
+ * the series via the event's `all_time` scope. Players with no scored finish yet
+ * (e.g. registered-but-unplayed) are filtered out.
+ */
+export async function getSeasonLeaderboard(
+  eventSlug: string,
+  scope: 'season' | 'all_time' = 'all_time',
+): Promise<SeasonLeaderEntry[]> {
+  const data = await call<{ rankings: RhqRankingEntry[] }>(
+    `/api/v1/events/${eventSlug}/rankings?scope=${scope}`,
+    { method: 'GET' },
+  )
+  const rankings = data?.rankings ?? []
+  return rankings
+    .filter((r) => r.tournamentsPlayed > 0)
+    .map((r) => ({
+      rank: r.rank,
+      tied: r.tied,
+      name: r.displayName,
+      points: r.seasonPoints,
+      events: r.tournamentsPlayed,
+      titles: r.finishes.filter((f) => f.placement === 1).length,
+      podiums: r.finishes.filter((f) => f.placement <= 3).length,
+      bestFinish: r.finishes.length > 0 ? Math.min(...r.finishes.map((f) => f.placement)) : 0,
+      trend: r.trend,
+    }))
+}
