@@ -12,7 +12,12 @@
  * through here with a Bearer from RALLY_HQ_API_KEY.
  */
 
-import type { RhqPool } from './types/rhq'
+import type {
+  RhqPool,
+  RhqTeam,
+  RhqScheduleMatch,
+  RhqBracketRound,
+} from './types/rhq'
 
 const RHQ_BASE = process.env.RALLY_HQ_BASE_URL ?? 'https://rallyhq.app'
 
@@ -67,4 +72,19 @@ async function rhqPublicGet<T>(path: string): Promise<T> {
 /** Pool standings (wins/losses/point-diff per team, grouped by pool). */
 export function fetchRhqPools(rhqSlug: string): Promise<RhqPool[]> {
   return rhqPublicGet<RhqPool[]>(`/tournaments/${rhqSlug}/pools`)
+}
+
+/** Registered teams (name, pool, seed, status) — no captain identity in public view. */
+export function fetchRhqTeams(rhqSlug: string): Promise<RhqTeam[]> {
+  return rhqPublicGet<RhqTeam[]>(`/tournaments/${rhqSlug}/teams`)
+}
+
+/** Match schedule (court, matchup, status) ordered by the tournament's own ordering. */
+export function fetchRhqSchedule(rhqSlug: string): Promise<RhqScheduleMatch[]> {
+  return rhqPublicGet<RhqScheduleMatch[]>(`/tournaments/${rhqSlug}/schedule`)
+}
+
+/** Elimination bracket, grouped by round. Empty until pool play completes. */
+export function fetchRhqBracket(rhqSlug: string): Promise<RhqBracketRound[]> {
+  return rhqPublicGet<RhqBracketRound[]>(`/tournaments/${rhqSlug}/bracket`)
 }

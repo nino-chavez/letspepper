@@ -1,23 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { RhqPool, RhqPoolTeam } from '@/lib/types/rhq'
-
-type Heat = 'bell' | 'poblano' | 'jalapeno'
-
-const heatText: Record<Heat, string> = {
-  bell: 'text-heat-bell',
-  poblano: 'text-heat-poblano',
-  jalapeno: 'text-heat-jalapeno',
-}
-const heatBg: Record<Heat, string> = {
-  bell: 'bg-heat-bell',
-  poblano: 'bg-heat-poblano',
-  jalapeno: 'bg-heat-jalapeno',
-}
+import { type Heat, heatText, heatBg } from './heat'
+import { useRhqModule } from './useRhqModule'
 
 interface Props {
   /** LP flavor slug (/flavors/[slug]) — mapped to an RHQ tournament server-side. */
@@ -32,29 +20,11 @@ function rankTeams(teams: RhqPoolTeam[]): RhqPoolTeam[] {
 
 /**
  * Live pool standings from Rally HQ, rendered in Let's Pepper's own brand.
- * Branded server-fetch: this client component calls LP's /api/rhq/pools handler,
- * which holds any key and proxies RHQ's public API — the key never reaches here.
+ * Branded server-fetch: the useRhqModule hook calls LP's /api/rhq/pools handler,
+ * which proxies RHQ's public API server-side — the key never reaches the browser.
  */
 export function RhqStandingsTable({ flavor, heat }: Props) {
-  const [pools, setPools] = useState<RhqPool[] | null>(null)
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    let active = true
-    setPools(null)
-    setFailed(false)
-    fetch(`/api/rhq/pools?flavor=${encodeURIComponent(flavor)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((d) => {
-        if (active) setPools((d.pools ?? []) as RhqPool[])
-      })
-      .catch(() => {
-        if (active) setFailed(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [flavor])
+  const { data: pools, failed } = useRhqModule<RhqPool[]>('pools', flavor, 'pools')
 
   // Network/server error — stay silent rather than show a broken section.
   if (failed) return null
@@ -62,7 +32,7 @@ export function RhqStandingsTable({ flavor, heat }: Props) {
   const hasStandings = pools !== null && pools.length > 0
 
   return (
-    <section className="section-padding bg-pepper-charcoal/30">
+    <section className="section-padding">
       <div className="section-container">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
