@@ -13,9 +13,12 @@ const TREND_GLYPH: Record<SeasonLeaderEntry['trend'], { mark: string; cls: strin
   new: { mark: '•', cls: 'text-heat-jalapeno' },
 }
 
+const TOP_N = 10
+
 export function SeasonLeaderboard() {
   const [entries, setEntries] = useState<SeasonLeaderEntry[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     fetch('/api/standings')
@@ -72,7 +75,7 @@ export function SeasonLeaderboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((e, i) => {
+                  {(showAll ? entries : entries.slice(0, TOP_N)).map((e, i) => {
                     const trend = TREND_GLYPH[e.trend]
                     return (
                       <tr
@@ -102,6 +105,15 @@ export function SeasonLeaderboard() {
                   })}
                 </tbody>
               </table>
+              {entries.length > TOP_N && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll((v) => !v)}
+                  className="w-full px-4 py-3 border-t border-zinc-800/50 font-accent text-xs uppercase tracking-wider text-zinc-400 hover:text-white hover:bg-zinc-800/20 transition-colors"
+                >
+                  {showAll ? 'Show top 10' : `Show all ${entries.length}`}
+                </button>
+              )}
             </div>
           )}
         </motion.div>
