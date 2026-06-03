@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { resolveFanToken } from '@/lib/fan-bridge'
 import { isValidUUID, badRequest, serverError, ok } from '../_lib/validate'
 
 /** POST — submit or update prediction picks + optional nickname */
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
     ? nickname.trim().slice(0, 30)
     : null
 
+  // Bespoke culture props stay local; the pick is the record of record here.
   const { error } = await supabase
     .from('lp_prediction_picks')
     .upsert(
@@ -28,7 +30,12 @@ export async function POST(request: Request) {
     return serverError()
   }
 
-  return ok({ success: true })
+  // Establish the cross-surface Rally HQ identity (ADR-0007). Best-effort: a
+  // bridge failure must not fail a saved pick, so we surface fan_token when we
+  // have it and otherwise return success without it.
+  const fanToken = await resolveFanToken(device_id, nick)
+
+  return ok({ success: true, fan_token: fanToken })
 }
 
 /** GET — leaderboard (if scored) or entry count + own picks */
