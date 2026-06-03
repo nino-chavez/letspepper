@@ -19,11 +19,16 @@ export interface RallyFan {
   claimed: boolean
 }
 
+const DEFAULT_RALLY_HQ_URL = 'https://rallyhq.app'
+
 function config(): { url: string; key: string } | null {
-  const url = process.env.RALLY_HQ_API_URL
+  // The API key is the only required secret. The base URL is a constant that
+  // defaults to production and is overridable only for local/staging — making it
+  // a mandatory second var bought nothing but an extra way for activation to fail.
   const key = process.env.RALLY_HQ_API_KEY
-  if (!url || !key) return null
-  return { url: url.replace(/\/+$/, ''), key }
+  if (!key) return null
+  const url = (process.env.RALLY_HQ_API_URL || DEFAULT_RALLY_HQ_URL).replace(/\/+$/, '')
+  return { url, key }
 }
 
 interface RallyEnvelope<T> {
