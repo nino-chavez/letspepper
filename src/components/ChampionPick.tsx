@@ -4,7 +4,15 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
+import { type Heat, heatBg } from '@/components/rhq/heat'
 import { getStoredValue, setStoredValue, getDeviceId, STORAGE_KEYS } from '@/lib/local-storage'
+
+/** Full static class strings per heat so Tailwind keeps them (no runtime templating). */
+const HEAT_TINT: Record<Heat, { text: string; selBorder: string; selBg: string; panelBorder: string; panelBg: string; ring: string }> = {
+  bell: { text: 'text-heat-bell', selBorder: 'border-heat-bell/60', selBg: 'bg-heat-bell/10', panelBorder: 'border-heat-bell/30', panelBg: 'bg-heat-bell/5', ring: 'focus:ring-heat-bell' },
+  poblano: { text: 'text-heat-poblano', selBorder: 'border-heat-poblano/60', selBg: 'bg-heat-poblano/10', panelBorder: 'border-heat-poblano/30', panelBg: 'bg-heat-poblano/5', ring: 'focus:ring-heat-poblano' },
+  jalapeno: { text: 'text-heat-jalapeno', selBorder: 'border-heat-jalapeno/60', selBg: 'bg-heat-jalapeno/10', panelBorder: 'border-heat-jalapeno/30', panelBg: 'bg-heat-jalapeno/5', ring: 'focus:ring-heat-jalapeno' },
+}
 
 interface Team {
   id: string
@@ -21,9 +29,12 @@ interface ChampionPickProps {
   deadline: string
   /** Champion team name once the bracket resolves — grades the fan's pick (post). */
   champion?: string | null
+  /** Event heat — themes the accent + CTA (defaults to bell). */
+  heat?: Heat
 }
 
-export function ChampionPick({ tournament, tournamentName, deadline, champion }: ChampionPickProps) {
+export function ChampionPick({ tournament, tournamentName, deadline, champion, heat = 'bell' }: ChampionPickProps) {
+  const tint = HEAT_TINT[heat]
   const storageKey = `${STORAGE_KEYS.CHAMPION_PREFIX}${tournament}`
   const [teams, setTeams] = useState<Team[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -102,11 +113,11 @@ export function ChampionPick({ tournament, tournamentName, deadline, champion }:
     >
       <div className="flex items-start justify-between gap-4 mb-1">
         <div>
-          <span className="block font-accent text-[0.62rem] font-bold uppercase tracking-[0.14em] text-heat-bell mb-2">
+          <span className={cn('block font-accent text-[0.62rem] font-bold uppercase tracking-[0.14em] mb-2', tint.text)}>
             Second Screen <span className="text-zinc-500">·</span> Points, No Money
           </span>
           <h2 className="font-display text-2xl uppercase text-white">
-            Predict the <span className="text-heat-bell">Champion</span>
+            Predict the <span className={tint.text}>Champion</span>
           </h2>
         </div>
         <span className="flex-shrink-0 font-accent text-[10px] uppercase tracking-wider text-zinc-500 border border-zinc-700/60 rounded-full px-2 py-1">
@@ -167,7 +178,7 @@ export function ChampionPick({ tournament, tournamentName, deadline, champion }:
                   disabled={isLocked || submitted}
                   className={cn(
                     'flex items-center gap-2 text-left px-4 py-3 rounded-lg border text-sm transition-all',
-                    isSelected && 'border-heat-bell/60 bg-heat-bell/10 text-white',
+                    isSelected && cn(tint.selBorder, tint.selBg, 'text-white'),
                     !isSelected && 'border-zinc-800/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300',
                     (isLocked || submitted) && !isSelected && 'opacity-50 cursor-default',
                   )}
@@ -183,11 +194,11 @@ export function ChampionPick({ tournament, tournamentName, deadline, champion }:
 
           {submitted ? (
             <motion.div
-              className="mt-5 rounded-lg border border-heat-bell/30 bg-heat-bell/5 px-4 py-3"
+              className={cn('mt-5 rounded-lg border px-4 py-3', tint.panelBorder, tint.panelBg)}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              <p className="font-display text-lg uppercase text-heat-bell">Pick locked in</p>
+              <p className={cn('font-display text-lg uppercase', tint.text)}>Pick locked in</p>
               <p className="text-zinc-400 text-sm">
                 You called <span className="text-white">{pickedTeam?.name ?? 'your team'}</span> to win.
               </p>
@@ -205,7 +216,7 @@ export function ChampionPick({ tournament, tournamentName, deadline, champion }:
                     onChange={(e) => setNickname(e.target.value)}
                     maxLength={30}
                     placeholder="Anonymous"
-                    className="w-full max-w-xs bg-zinc-900/50 border border-zinc-800 rounded-lg px-4 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-heat-bell"
+                    className={cn('w-full max-w-xs bg-zinc-900/50 border border-zinc-800 rounded-lg px-4 py-2 text-white text-sm placeholder:text-zinc-600 focus:outline-none focus:ring-2', tint.ring)}
                   />
                 </div>
               )}
@@ -214,7 +225,7 @@ export function ChampionPick({ tournament, tournamentName, deadline, champion }:
                 type="button"
                 onClick={submit}
                 disabled={!pick || isLocked || busy}
-                className={cn('btn-primary', (!pick || isLocked || busy) && 'opacity-50 cursor-not-allowed')}
+                className={cn('btn-heat', heatBg[heat], (!pick || isLocked || busy) && 'opacity-50 cursor-not-allowed')}
               >
                 {isLocked ? 'Picks Closed' : busy ? 'Locking…' : 'Lock In Champion'}
               </button>

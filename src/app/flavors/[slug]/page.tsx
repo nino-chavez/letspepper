@@ -395,7 +395,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
         {(isPre || isLive) && (
           <section id="predict" className="section-padding">
             <div className="section-container">
-              <ChampionPick tournament={tournament.rhqSlug} tournamentName={tournament.name} deadline={tournament.startsAt} champion={champion} />
+              <ChampionPick tournament={tournament.rhqSlug} tournamentName={tournament.name} deadline={tournament.startsAt} champion={champion} heat={tournament.heat} />
             </div>
           </section>
         )}
