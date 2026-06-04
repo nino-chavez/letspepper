@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { RhqMatch } from '@/lib/rhq-types'
-import { type Heat, heatText, heatBg } from './heat'
+import { type Heat, heatText } from './heat'
 import { useRhqModule } from './useRhqModule'
 import type { EventPhase } from './usePhase'
 
@@ -30,10 +30,11 @@ export function LiveScorebug({ match, heat }: { match: RhqMatch; heat: Heat }) {
         <span
           className={cn(
             'inline-flex items-center gap-1.5 font-accent text-[0.6rem] uppercase tracking-[0.12em]',
-            live ? heatText[heat] : done ? 'text-zinc-500' : 'text-zinc-400'
+            !live && (done ? 'text-zinc-500' : 'text-zinc-400')
           )}
+          style={live ? { color: 'var(--live)' } : undefined}
         >
-          {live && <span className={cn('h-1.5 w-1.5 rounded-full animate-pulse', heatBg[heat])} aria-hidden="true" />}
+          {live && <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: 'var(--live)' }} aria-hidden="true" />}
           {live ? 'Live' : done ? 'Final' : 'Up Next'}
         </span>
       </div>
@@ -54,7 +55,7 @@ export function LiveScorebug({ match, heat }: { match: RhqMatch; heat: Heat }) {
           </span>
           <span
             className={cn(
-              'font-display text-2xl leading-none tabular-nums ml-3',
+              'font-display text-[2.1rem] leading-none tabular-nums ml-3',
               row.lead ? heatText[heat] : hasScore ? 'text-white' : 'text-zinc-700'
             )}
           >

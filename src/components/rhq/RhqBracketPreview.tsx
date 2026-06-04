@@ -46,7 +46,10 @@ export function RhqBracketPreview({ slug, heat }: Props) {
           </div>
 
           <div className="grid gap-6 md:grid-flow-col md:auto-cols-fr overflow-x-auto">
-            {rounds.map((round) => (
+            {rounds.map((round) => {
+              // Victory rounds light the winner gold (prototype .br-champ); earlier rounds use the heat accent.
+              const goldRound = /final|champ/i.test(round.round)
+              return (
               <div key={round.round} className="min-w-[220px] space-y-4">
                 <h3 className="font-accent text-[0.6rem] uppercase tracking-[0.12em] text-zinc-500">
                   {round.round}
@@ -59,14 +62,17 @@ export function RhqBracketPreview({ slug, heat }: Props) {
                     {[
                       { id: m.team1_id, name: m.team1_name },
                       { id: m.team2_id, name: m.team2_name },
-                    ].map((side, s) => (
+                    ].map((side, s) => {
+                      const win = isWinner(m, side.id)
+                      return (
                       <div
                         key={s}
                         className={cn(
                           'flex items-center justify-between px-3 py-2 text-sm',
                           s === 0 && 'border-b border-zinc-800',
-                          isWinner(m, side.id) ? cn(heatText[heat], 'font-bold') : 'text-zinc-400'
+                          win ? cn(!goldRound && heatText[heat], 'font-bold') : 'text-zinc-400'
                         )}
+                        style={win && goldRound ? { color: 'var(--gold)' } : undefined}
                       >
                         <span>{side.name}</span>
                         {m.score && (
@@ -75,11 +81,13 @@ export function RhqBracketPreview({ slug, heat }: Props) {
                           </span>
                         )}
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ))}
               </div>
-            ))}
+              )
+            })}
           </div>
         </motion.div>
       </div>

@@ -6,11 +6,14 @@ import { cn } from '@/lib/utils'
 import type { RhqPool, RhqPoolTeam } from '@/lib/rhq-types'
 import { type Heat, heatText, heatBg, heatBorder } from './heat'
 import { useRhqModule } from './useRhqModule'
+import type { EventPhase } from './usePhase'
 
 interface Props {
   /** RHQ tournament slug (supplied by the flavor page from its rhqSlug field). */
   slug: string
   heat: Heat
+  /** Live = "Live Standings" + heat leader; post = "Final Standings" + gold champion. */
+  phase?: EventPhase
   /** Set (e.g. 60000) to live-poll standings while the event is in progress. */
   pollMs?: number
 }
@@ -25,12 +28,13 @@ function rankTeams(teams: RhqPoolTeam[]): RhqPoolTeam[] {
  * Branded server-fetch: the useRhqModule hook calls LP's /api/rhq/pools handler,
  * which proxies RHQ's public API server-side — the key never reaches the browser.
  */
-export function RhqStandingsTable({ slug, heat, pollMs }: Props) {
+export function RhqStandingsTable({ slug, heat, phase, pollMs }: Props) {
   const { data: pools, failed } = useRhqModule<RhqPool[]>('pools', slug, 'pools', pollMs)
 
   // Network/server error — stay silent rather than show a broken section.
   if (failed) return null
 
+  const isPost = phase === 'post'
   const hasStandings = pools !== null && pools.length > 0
 
   return (
@@ -43,7 +47,7 @@ export function RhqStandingsTable({ slug, heat, pollMs }: Props) {
           transition={{ duration: 0.6 }}
         >
           <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
-            <h2 className="block-heading">Live Standings</h2>
+            <h2 className="block-heading">{isPost ? 'Final Standings' : 'Live Standings'}</h2>
             <span className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500">
               <span className={heatText[heat]}>powered by Rally HQ</span>
             </span>
@@ -93,14 +97,16 @@ export function RhqStandingsTable({ slug, heat, pollMs }: Props) {
                         key={team.team_id}
                         className={cn(
                           'grid grid-cols-[1.8rem_1fr_auto_3ch] gap-3 items-center px-4 py-2.5 border-l-2 border-transparent',
-                          i === 0 && cn('bg-zinc-900/40', heatBorder[heat])
+                          i === 0 && cn('bg-zinc-900/40', !isPost && heatBorder[heat])
                         )}
+                        style={i === 0 && isPost ? { borderLeftColor: 'var(--gold)' } : undefined}
                       >
                         <span
                           className={cn(
-                            'font-display text-lg leading-none tabular-nums',
-                            i === 0 ? heatText[heat] : 'text-zinc-600'
+                            'font-display text-xl leading-none tabular-nums',
+                            i === 0 ? heatText[heat] : 'text-zinc-500'
                           )}
+                          style={i === 0 && isPost ? { color: 'var(--gold)' } : undefined}
                         >
                           {i + 1}
                         </span>

@@ -93,15 +93,20 @@ export function ChampionPick({ tournament, tournamentName, deadline }: ChampionP
 
   return (
     <motion.div
-      className="bg-zinc-900/40 rounded-xl border border-heat-bell/30 p-6 max-w-3xl"
+      className="bg-zinc-900/40 rounded-xl border border-zinc-800 p-6 max-w-3xl"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: MOTION.ease.outExpo }}
     >
       <div className="flex items-start justify-between gap-4 mb-1">
-        <h2 className="font-display text-2xl uppercase text-white">
-          Predict the <span className="text-heat-bell">Champion</span>
-        </h2>
+        <div>
+          <span className="block font-accent text-[0.62rem] font-bold uppercase tracking-[0.14em] text-heat-bell mb-2">
+            Second Screen <span className="text-zinc-500">·</span> Points, No Money
+          </span>
+          <h2 className="font-display text-2xl uppercase text-white">
+            Predict the <span className="text-heat-bell">Champion</span>
+          </h2>
+        </div>
         <span className="flex-shrink-0 font-accent text-[10px] uppercase tracking-wider text-zinc-500 border border-zinc-700/60 rounded-full px-2 py-1">
           Powered by Rally HQ
         </span>
