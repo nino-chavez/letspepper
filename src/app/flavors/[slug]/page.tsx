@@ -195,7 +195,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
   const tournament = tournaments[params.slug]
   const override = usePhaseOverride()
   // Hooks must run before any early return.
-  const { phase, champion } = usePhase(tournament?.rhqSlug ?? '', override)
+  const { phase, champion, currentPhase } = usePhase(tournament?.rhqSlug ?? '', override)
 
   if (!tournament) {
     notFound()
@@ -281,7 +281,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                     className={cn('h-2 w-2 rounded-full bg-zinc-500', isLive && 'animate-pulse')}
                     style={isLive ? { background: 'var(--live)' } : isPost ? { background: 'var(--gold)' } : undefined}
                   />
-                  {isLive ? 'Live · Pool Play' : isPost ? 'Final' : shortDate(tournament.date)}
+                  {isLive ? `Live · ${currentPhase ?? 'Pool Play'}` : isPost ? 'Final' : shortDate(tournament.date)}
                 </span>
               </div>
 
@@ -395,7 +395,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
         {(isPre || isLive) && (
           <section id="predict" className="section-padding">
             <div className="section-container">
-              <ChampionPick tournament={tournament.rhqSlug} tournamentName={tournament.name} deadline={tournament.startsAt} />
+              <ChampionPick tournament={tournament.rhqSlug} tournamentName={tournament.name} deadline={tournament.startsAt} champion={champion} />
             </div>
           </section>
         )}

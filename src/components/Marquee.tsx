@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from '@/lib/motion'
 
@@ -18,7 +18,7 @@ interface MarqueeProps {
   /** Additional CSS classes */
   className?: string
   /** Color variant */
-  variant?: 'belle' | 'jalapeno' | 'bell' | 'poblano'
+  variant?: 'belle' | 'jalapeno' | 'bell' | 'poblano' | 'live'
   /** Whether to pause on hover (default: true for accessibility) */
   pauseOnHover?: boolean
   /** Whether to show gradient fade on edges */
@@ -28,6 +28,15 @@ interface MarqueeProps {
 }
 
 const variantStyles = {
+  live: {
+    bg: 'bg-[var(--live)]/90',
+    text: 'text-pepper-black',
+    highlight: 'text-white',
+    gradientFrom: 'from-[var(--live)]/90',
+    gradientVia: 'via-[var(--live)]/90',
+    buttonBg: 'bg-pepper-black/20 hover:bg-pepper-black/30',
+    buttonText: 'text-pepper-black',
+  },
   belle: {
     bg: 'bg-belle-primary/90',
     text: 'text-white',
@@ -203,19 +212,33 @@ export function Marquee({
 }
 
 const upcomingEvents = [
-  { name: 'Bell Pepper Open', date: '2026-06-07', displayDate: 'June 7', variant: 'bell' as const },
-  { name: 'Jalapeño Open', date: '2026-07-18', displayDate: 'July 18', variant: 'jalapeno' as const },
-  { name: 'Poblano Open', date: '2026-08-01', displayDate: 'Aug 1', variant: 'poblano' as const },
+  { name: 'Bell Pepper Open', slug: 'bell-pepper-open-2026', date: '2026-06-07', displayDate: 'June 7', variant: 'bell' as const },
+  { name: 'Jalapeño Open', slug: 'jalapeno-open-2026', date: '2026-07-18', displayDate: 'July 18', variant: 'jalapeno' as const },
+  { name: 'Poblano Open', slug: 'poblano-open-2026', date: '2026-08-01', displayDate: 'Aug 1', variant: 'poblano' as const },
 ]
 
 /**
  * Dynamic "Next Up" announcement marquee
- * Shows the next upcoming event, or Pepper Belle fallback in the off-season
- * WCAG 2.2.2 compliant with pause controls and reduced motion support
+ * Shows the next upcoming event, or Pepper Belle fallback in the off-season.
+ * Progressive enhancement: checks /api/rhq/summary for is_live and upgrades
+ * the banner to a LIVE NOW state (--live coral) when the event is active.
+ * Falls back to date-gated logic if the fetch fails.
+ * WCAG 2.2.2 compliant with pause controls and reduced motion support.
  */
 export function NextEventMarquee({ className }: { className?: string }) {
   const today = new Date().toISOString().split('T')[0]
   const next = upcomingEvents.find((e) => e.date >= today)
+  const [isLive, setIsLive] = useState(false)
+
+  useEffect(() => {
+    if (!next) return
+    fetch(`/api/rhq/summary?slug=${encodeURIComponent(next.slug)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.is_live === true) setIsLive(true)
+      })
+      .catch(() => {/* fall back to date logic */})
+  }, [next?.slug])
 
   if (!next) {
     // Off-season fallback
@@ -229,6 +252,26 @@ export function NextEventMarquee({ className }: { className?: string }) {
         ]}
         variant="belle"
         speed={25}
+        rotation={-3}
+        className={className}
+      />
+    )
+  }
+
+  if (isLive) {
+    // Live state — coral background, LIVE NOW label
+    return (
+      <Marquee
+        items={[
+          { text: 'Live Now', highlight: true },
+          { text: '〰️' },
+          { text: next.name, highlight: true },
+          { text: '〰️' },
+          { text: 'Aurora, IL' },
+          { text: '〰️' },
+        ]}
+        variant="live"
+        speed={20}
         rotation={-3}
         className={className}
       />
