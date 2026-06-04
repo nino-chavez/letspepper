@@ -146,7 +146,7 @@ function TopPerformers({ entries }: { entries: SeasonLeaderEntry[] }) {
           {byTitles.filter(e => e.titles > 0).map((e) => (
             <div key={e.name} className="flex items-center justify-between">
               <span className="text-zinc-300">{e.name}</span>
-              <span className="font-accent text-sm text-heat-jalapeno">
+              <span className="font-accent text-sm text-zinc-400">
                 {e.titles} {e.titles === 1 ? 'win' : 'wins'}
               </span>
             </div>
@@ -169,7 +169,7 @@ function TopPerformers({ entries }: { entries: SeasonLeaderEntry[] }) {
           {byPodiums.filter(e => e.podiums > 0).map((e) => (
             <div key={e.name} className="flex items-center justify-between">
               <span className="text-zinc-300">{e.name}</span>
-              <span className="font-accent text-sm text-heat-poblano">
+              <span className="font-accent text-sm text-zinc-400">
                 {e.podiums}x podium{e.bestFinish > 0 && ` · best ${e.bestFinish}`}
               </span>
             </div>
