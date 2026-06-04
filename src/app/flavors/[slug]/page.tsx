@@ -6,10 +6,16 @@ import { notFound } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
+import { RhqTeamRoster } from '@/components/rhq/RhqTeamRoster'
+import { RhqScheduleSection } from '@/components/rhq/RhqScheduleSection'
+import { RhqStandingsTable } from '@/components/rhq/RhqStandingsTable'
+import { RhqBracketPreview } from '@/components/rhq/RhqBracketPreview'
 import { cn } from '@/lib/utils'
 
 interface TournamentDetail {
   slug: string
+  /** RHQ tournament slug — the source of truth for the live event-page embed. */
+  rhqSlug: string
   name: string
   heat: 'bell' | 'poblano' | 'jalapeno'
   mascot: string
@@ -30,6 +36,7 @@ interface TournamentDetail {
 const tournaments: Record<string, TournamentDetail> = {
   'bell-pepper-open': {
     slug: 'bell-pepper-open',
+    rhqSlug: 'bell-pepper-open-2026',
     name: 'The Bell Pepper Open',
     heat: 'bell',
     mascot: '/images/mascots/bell-pepper-action.png',
@@ -56,6 +63,7 @@ const tournaments: Record<string, TournamentDetail> = {
   },
   'jalapeno-open': {
     slug: 'jalapeno-open',
+    rhqSlug: 'jalapeno-open-2026',
     name: 'The Jalapeño Open',
     heat: 'jalapeno',
     mascot: '/images/mascots/jalapeno-action.png',
@@ -82,6 +90,7 @@ const tournaments: Record<string, TournamentDetail> = {
   },
   'poblano-open': {
     slug: 'poblano-open',
+    rhqSlug: 'poblano-open-2026',
     name: 'The Poblano Pepper Open',
     heat: 'poblano',
     mascot: '/images/mascots/poblano-pepper-action.png',
@@ -343,6 +352,14 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
             </motion.div>
           </div>
         </section>
+
+        {/* Rally HQ embed — live tournament data (server-fetch via rally-hq.ts),
+            ordered as a tournament lifecycle. Each module renders only when it
+            has data (standings anchors with a pre-tournament message). */}
+        <RhqTeamRoster slug={tournament.rhqSlug} heat={tournament.heat} />
+        <RhqScheduleSection slug={tournament.rhqSlug} heat={tournament.heat} />
+        <RhqStandingsTable slug={tournament.rhqSlug} heat={tournament.heat} />
+        <RhqBracketPreview slug={tournament.rhqSlug} heat={tournament.heat} />
 
         {/* Media Perks Section */}
         <section className="section-padding">
