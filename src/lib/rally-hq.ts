@@ -184,6 +184,57 @@ export async function getSeasonLeaderboard(
     }))
 }
 
+/** A row on the unified community board — predictions + engagement, one identity. */
+export interface CommunityEntry {
+  rank: number
+  tied: boolean
+  name: string
+  /** Total community points: prediction calls + engagement (bingo/votes). */
+  points: number
+  predictionPoints: number
+  ledgerPoints: number
+  correct: number
+  picks: number
+}
+
+interface RhqCommunityEntry {
+  rank: number
+  tied: boolean
+  displayName: string
+  points: number
+  predictionPoints: number
+  ledgerPoints: number
+  correct: number
+  picks: number
+  accuracy: number
+}
+
+/**
+ * The unified community leaderboard — champion-prediction points unioned with
+ * engagement points (bingo lines, award votes) per cross-surface fan identity.
+ * This is the read side of the loop the site's bingo/vote/predict surfaces feed
+ * (GET /api/v1/events/:slug/community, added to Rally HQ for exactly this).
+ */
+export async function getCommunityLeaderboard(
+  eventSlug: string,
+  scope: 'season' | 'all_time' = 'all_time',
+): Promise<CommunityEntry[]> {
+  const data = await call<{ leaderboard: RhqCommunityEntry[] }>(
+    `/api/v1/events/${eventSlug}/community?scope=${scope}`,
+    { method: 'GET' },
+  )
+  return (data?.leaderboard ?? []).map((e) => ({
+    rank: e.rank,
+    tied: e.tied,
+    name: e.displayName,
+    points: e.points,
+    predictionPoints: e.predictionPoints,
+    ledgerPoints: e.ledgerPoints,
+    correct: e.correct,
+    picks: e.picks,
+  }))
+}
+
 export interface AwardNominee {
   id: string
   name: string
