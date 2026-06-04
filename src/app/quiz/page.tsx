@@ -8,6 +8,8 @@ import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
 import { quizQuestions, pepperResults, calculateResult, type PepperPersonality } from '@/lib/quiz-data'
 import { getStoredValue, setStoredValue, STORAGE_KEYS } from '@/lib/local-storage'
+import { heatText, heatBg, type Heat } from '@/components/rhq/heat'
+import { HeatMeter } from '@/components/rhq/HeatMeter'
 
 interface QuizDistribution {
   personality: string
@@ -24,13 +26,22 @@ const PERSONALITY_LABELS: Record<string, string> = {
   pepperX: 'Pepper X',
 }
 
+// Off-ramp personalities (habanero/reaper/pepperX) don't own a series event heat.
+// Use zinc neutrals for their bar chart fill so red-600/fuchsia don't collide with --live coral.
 const PERSONALITY_COLORS: Record<string, string> = {
   bell: 'bg-heat-bell',
   poblano: 'bg-heat-poblano',
   jalapeno: 'bg-heat-jalapeno',
-  habanero: 'bg-heat-habanero',
-  reaper: 'bg-red-600',
-  pepperX: 'bg-fuchsia-500',
+  habanero: 'bg-zinc-400',
+  reaper: 'bg-zinc-300',
+  pepperX: 'bg-zinc-500',
+}
+
+// Personalities that own a series event heat (heat.ts supports only these three)
+const SERIES_HEATS: Partial<Record<PepperPersonality, Heat>> = {
+  bell: 'bell',
+  poblano: 'poblano',
+  jalapeno: 'jalapeno',
 }
 
 function QuizProgress({ current, total }: { current: number; total: number }) {
@@ -210,7 +221,7 @@ export default function QuizPage() {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.6, ease: MOTION.ease.outExpo }}
                 >
-                  <p className="text-section-heading mb-4">Personality Quiz</p>
+                  <h2 className="block-heading mb-4">Personality Quiz</h2>
                   <h1 className="text-display mb-6">
                     What <span className="text-heat-jalapeno">Pepper</span> Are You?
                   </h1>
@@ -272,28 +283,35 @@ export default function QuizPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.6, ease: MOTION.ease.outExpo }}
                 >
-                  <p className="text-section-heading mb-4">Your Result</p>
+                  <h2 className="block-heading mb-4">Your Result</h2>
 
                   {/* Result Card */}
                   <div className="bg-zinc-900/30 rounded-2xl border border-zinc-800/50 p-8 sm:p-12 mb-8">
                     <div className="text-6xl mb-4">🌶️</div>
-                    <h2 className={cn('font-display text-4xl sm:text-5xl uppercase mb-2', pepperResult.color)}>
+                    <h2 className={cn(
+                      'font-display text-4xl sm:text-5xl uppercase mb-2',
+                      SERIES_HEATS[result] ? heatText[SERIES_HEATS[result]!] : 'text-zinc-300'
+                    )}>
                       {pepperResult.title}
                     </h2>
                     <p className="font-accent text-sm uppercase tracking-wider text-zinc-500 mb-6">
                       &ldquo;{pepperResult.tagline}&rdquo;
                     </p>
 
-                    {/* Heat level */}
+                    {/* Heat level — HeatMeter for series heats, pip row for off-ramp */}
                     <div className="flex justify-center gap-1 mb-6">
-                      {Array.from({ length: 5 }, (_, i) => (
-                        <span
-                          key={i}
-                          className={cn('text-lg', i < pepperResult.heatLevel ? 'opacity-100' : 'opacity-20')}
-                        >
-                          🌶️
-                        </span>
-                      ))}
+                      {SERIES_HEATS[result] ? (
+                        <HeatMeter heat={SERIES_HEATS[result]!} size="sm" />
+                      ) : (
+                        Array.from({ length: 5 }, (_, i) => (
+                          <span
+                            key={i}
+                            className={cn('text-lg', i < pepperResult.heatLevel ? 'opacity-100' : 'opacity-20')}
+                          >
+                            🌶️
+                          </span>
+                        ))
+                      )}
                     </div>
 
                     <p className="text-zinc-400 text-lg leading-relaxed mb-6">
@@ -306,9 +324,8 @@ export default function QuizPage() {
                         <span
                           key={trait}
                           className={cn(
-                            'px-3 py-1 rounded-full text-xs font-accent uppercase tracking-wider border',
-                            pepperResult.color,
-                            `border-current/30`
+                            'px-3 py-1 rounded-full text-xs font-accent uppercase tracking-wider border border-zinc-700',
+                            SERIES_HEATS[result] ? heatText[SERIES_HEATS[result]!] : 'text-zinc-400'
                           )}
                         >
                           {trait}
@@ -328,7 +345,11 @@ export default function QuizPage() {
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap justify-center gap-4 mt-8">
-                    <button type="button" onClick={handleShare} className="btn-primary">
+                    <button
+                      type="button"
+                      onClick={handleShare}
+                      className={SERIES_HEATS[result] ? cn('btn-heat', heatBg[SERIES_HEATS[result]!]) : 'btn-primary'}
+                    >
                       Share Result
                     </button>
                     <button type="button" onClick={handleRetake} className="btn-secondary">

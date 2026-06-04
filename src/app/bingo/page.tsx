@@ -7,33 +7,53 @@ import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
 import { generateBingoCard, checkForBingo, type BingoSquareData } from '@/lib/bingo-data'
 import { getStoredValue, setStoredValue, getDeviceId, STORAGE_KEYS } from '@/lib/local-storage'
+import { usePhase, type EventPhase } from '@/components/rhq/usePhase'
+import { HeatMeter } from '@/components/rhq/HeatMeter'
 
-const CATEGORY_COLORS: Record<string, string> = {
-  play: 'border-heat-bell/30',
-  culture: 'border-heat-poblano/30',
-  pepper: 'border-heat-jalapeno/30',
-  wild: 'border-heat-habanero/30',
-}
-
+// Bingo is a series-wide surface with no single owning heat tier.
+// Card-category border tinting uses subtle zinc hairlines; category mark colors
+// use low-opacity heat tints but NOT bright heat borders (per design audit).
 const CATEGORY_MARK_COLORS: Record<string, string> = {
-  play: 'bg-heat-bell/20 border-heat-bell/60',
-  culture: 'bg-heat-poblano/20 border-heat-poblano/60',
-  pepper: 'bg-heat-jalapeno/20 border-heat-jalapeno/60',
-  wild: 'bg-heat-habanero/20 border-heat-habanero/60',
+  play: 'bg-heat-bell/20 border-zinc-700',
+  culture: 'bg-heat-poblano/20 border-zinc-700',
+  pepper: 'bg-heat-jalapeno/20 border-zinc-700',
+  wild: 'bg-zinc-800/60 border-zinc-700',
 }
+
+/** Read `?phase=` override for QA — mirrors the flavors page pattern. */
+function usePhaseOverride(): EventPhase | null {
+  if (typeof window === 'undefined') return null
+  const p = new URLSearchParams(window.location.search).get('phase')
+  if (p === 'pre' || p === 'live' || p === 'post') return p
+  return null
+}
+
+// Points awarded for a bingo win — kept in sync with the write payload the
+// /api/engagement route receives. The actual server-side value is authoritative;
+// this is the client-visible confirmation label only.
+const BINGO_WIN_POINTS = 50
 
 export default function BingoPage() {
   const [seed, setSeed] = useState('lp-2025')
+  const [eventSlug, setEventSlug] = useState('')
   const [card, setCard] = useState<BingoSquareData[]>([])
   const [marks, setMarks] = useState<boolean[]>(Array(25).fill(false))
   const [hasBingo, setHasBingo] = useState(false)
   const [winningLine, setWinningLine] = useState<number[] | null>(null)
+  const [pointsEarned, setPointsEarned] = useState<number | null>(null)
+
+  const override = usePhaseOverride()
+  const { phase } = usePhase(eventSlug, override)
+  const isLive = phase === 'live'
 
   // Initialize card and load saved state
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const urlSeed = params.get('seed') || 'lp-2025'
+    // Optional ?event= param wires usePhase to a specific tournament slug.
+    const urlEvent = params.get('event') || ''
     setSeed(urlSeed)
+    setEventSlug(urlEvent)
 
     const generatedCard = generateBingoCard(urlSeed)
     setCard(generatedCard)
@@ -76,6 +96,7 @@ export default function BingoPage() {
       // First bingo on this card earns points on Rally HQ's community board.
       // Idempotent per card (ref = the seed), best-effort, points server-set.
       if (result.hasBingo && !wasBingo) {
+        setPointsEarned(BINGO_WIN_POINTS)
         fetch('/api/engagement', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -102,6 +123,7 @@ export default function BingoPage() {
     setMarks(initialMarks)
     setHasBingo(false)
     setWinningLine(null)
+    setPointsEarned(null)
     setStoredValue(STORAGE_KEYS.BINGO_MARKS, initialMarks)
     setStoredValue(STORAGE_KEYS.BINGO_SEED, newSeed)
   }
@@ -120,10 +142,18 @@ export default function BingoPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
             >
-              <p className="text-section-heading mb-4">Game Day</p>
-              <h1 className="text-display mb-6">
+              <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-4">
+                {isLive
+                  ? <span style={{ color: 'var(--live)' }}>Game Day — Live</span>
+                  : 'Game Day'
+                }
+              </p>
+              <h2 className="block-heading mb-6">
                 Pepper <span className="text-heat-jalapeno">Bingo</span>
-              </h1>
+              </h2>
+              <div className="flex justify-center mb-4">
+                <HeatMeter heat="jalapeno" size="sm" />
+              </div>
               <p className="text-xl text-zinc-400">
                 Tap squares as they happen. Get 5 in a row to win.
               </p>
@@ -163,8 +193,8 @@ export default function BingoPage() {
                       className={cn(
                         'aspect-square rounded-lg border p-1 sm:p-2 flex items-center justify-center text-center transition-all',
                         'text-[10px] sm:text-xs leading-tight',
-                        isFreeSpace && 'bg-heat-jalapeno/20 border-heat-jalapeno/60 cursor-default',
-                        !isFreeSpace && !isMarked && cn('bg-zinc-900/30 cursor-pointer hover:bg-zinc-800/50', CATEGORY_COLORS[square.category]),
+                        isFreeSpace && 'bg-heat-jalapeno/20 border-zinc-700 cursor-default',
+                        !isFreeSpace && !isMarked && 'bg-zinc-900/30 border-zinc-800 cursor-pointer hover:bg-zinc-800/50',
                         !isFreeSpace && isMarked && CATEGORY_MARK_COLORS[square.category],
                         isWinning && 'ring-2 ring-heat-jalapeno'
                       )}
@@ -204,19 +234,28 @@ export default function BingoPage() {
               exit={{ opacity: 0 }}
             >
               <motion.div
-                className="bg-zinc-900/90 border border-heat-jalapeno/50 rounded-2xl p-8 sm:p-12 text-center max-w-md mx-4"
+                className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-8 sm:p-12 text-center max-w-md mx-4"
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={MOTION.spring.bouncy}
               >
                 <div className="text-6xl mb-4">🌶️🔥🌶️</div>
-                <h2 className="font-display text-4xl uppercase text-heat-jalapeno mb-2">
+                <h2 className="block-heading mb-2" style={{ color: 'var(--gold)' }}>
                   BINGO!
                 </h2>
-                <p className="text-zinc-400 mb-6">
+                <p className="text-zinc-400 mb-3">
                   You got 5 in a row! You&apos;re officially spicy.
                 </p>
+                {pointsEarned !== null && (
+                  <p
+                    className="font-accent text-sm uppercase tracking-wider mb-6"
+                    style={{ color: 'var(--gold)' }}
+                  >
+                    +{pointsEarned} Pepper points earned
+                  </p>
+                )}
+                {pointsEarned === null && <div className="mb-6" />}
                 <button
                   type="button"
                   onClick={() => setHasBingo(false)}

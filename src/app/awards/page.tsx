@@ -7,7 +7,32 @@ import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
 import { awardCategories, AWARDS_RESULTS_REVEALED } from '@/lib/awards-data'
 import { HEAT_CONFIG, type HeatLevel } from '@/lib/heat-config'
+import { heatText, type Heat } from '@/components/rhq/heat'
+import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { getStoredValue, setStoredValue, getDeviceId, STORAGE_KEYS } from '@/lib/local-storage'
+
+/** Iron award category injected when RHQ returns iron nominees */
+const IRON_CATEGORY = {
+  id: 'iron',
+  name: 'Iron Player',
+  pepperName: 'Iron Pepper Award',
+  description: 'The player who competed in every match — no substitutions, no breaks, no excuses.',
+  heat: 'jalapeno' as const,
+  nominees: [] as { id: string; name: string; reason: string }[],
+}
+
+/** Maps canonical Heat tiers to HeatMeter-compatible values */
+const CANONICAL_HEATS = new Set<string>(['bell', 'poblano', 'jalapeno'])
+
+function categoryHeatMeter(heat: string) {
+  if (CANONICAL_HEATS.has(heat)) return heat as Heat
+  return null
+}
+
+function categoryAccentClass(heat: string): string | null {
+  if (CANONICAL_HEATS.has(heat)) return heatText[heat as Heat]
+  return null
+}
 
 interface VoteState {
   votes: Record<string, string> // categoryId -> nomineeId
@@ -19,23 +44,35 @@ export default function AwardsPage() {
   const [votes, setVotes] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState(false)
   const [tallies, setTallies] = useState<Record<string, Record<string, number>>>({})
-  // Objective categories (MVP, Most Improved) pull live nominees from Rally HQ;
+  // Objective categories (MVP, Most Improved, Iron) pull live nominees from Rally HQ;
   // brand metadata and subjective categories (sportsmanship, fun) stay local.
   const [categories, setCategories] = useState(awardCategories)
 
   useEffect(() => {
-    const RHQ_BY_LP: Record<string, string> = { mvp: 'mvp', improved: 'most_improved' }
+    const RHQ_BY_LP: Record<string, string> = {
+      mvp: 'mvp',
+      improved: 'most_improved',
+      iron: 'iron',
+    }
     fetch('/api/awards-candidates')
       .then((r) => r.json())
       .then((data) => {
         const derived = data?.candidates as Record<string, { id: string; name: string; reason: string }[]> | undefined
         if (!derived) return
-        setCategories((prev) =>
-          prev.map((cat) => {
+        setCategories((prev) => {
+          // Update existing categories with live nominees
+          const updated = prev.map((cat) => {
             const nominees = derived[RHQ_BY_LP[cat.id]]
             return nominees && nominees.length > 0 ? { ...cat, nominees } : cat
-          }),
-        )
+          })
+          // Inject iron category if RHQ returns iron nominees and it isn't already present
+          const hasIron = updated.some((c) => c.id === 'iron')
+          const ironNominees = derived['iron']
+          if (!hasIron && ironNominees && ironNominees.length > 0) {
+            return [...updated, { ...IRON_CATEGORY, nominees: ironNominees }]
+          }
+          return updated
+        })
       })
       .catch(() => {})
   }, [])
@@ -131,9 +168,11 @@ export default function AwardsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
             >
-              <p className="text-section-heading mb-4">Fan Vote</p>
+              <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-4">
+                Fan Vote
+              </p>
               <h1 className="text-display mb-6">
-                Pepper <span className="text-heat-habanero">Awards</span>
+                Pepper <span style={{ color: 'var(--gold)' }}>Awards</span>
               </h1>
               <p className="text-xl text-zinc-400">
                 Vote for the best of the 2025 season. One vote per category. Choose wisely.
@@ -156,6 +195,8 @@ export default function AwardsPage() {
                 const selectedNominee = votes[category.id]
                 const scopeTallies = tallies[`awards:${category.id}`] || {}
                 const totalVotes = Object.values(scopeTallies).reduce((a, b) => a + b, 0)
+                const meterHeat = categoryHeatMeter(category.heat)
+                const accentClass = categoryAccentClass(category.heat)
 
                 return (
                   <motion.div
@@ -164,13 +205,17 @@ export default function AwardsPage() {
                   >
                     {/* Category Header */}
                     <div className="mb-6">
-                      <p className={cn('font-accent text-xs uppercase tracking-wider mb-1', heat.textClass)}>
-                        {category.pepperName}
-                      </p>
-                      <h2 className="font-display text-2xl sm:text-3xl uppercase text-white mb-2">
-                        {category.name}
-                      </h2>
-                      <p className="text-zinc-400 text-sm">{category.description}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        {meterHeat && <HeatMeter heat={meterHeat} size="sm" />}
+                        <p
+                          className={cn('font-accent text-[0.6rem] uppercase tracking-[0.1em]', accentClass ?? 'text-zinc-500')}
+                          style={!accentClass ? { color: 'var(--gold)' } : undefined}
+                        >
+                          {category.pepperName}
+                        </p>
+                      </div>
+                      <h2 className="block-heading">{category.name}</h2>
+                      <p className="text-zinc-400 text-sm mt-2">{category.description}</p>
                     </div>
 
                     {/* Nominees */}
@@ -189,7 +234,7 @@ export default function AwardsPage() {
                             className={cn(
                               'text-left p-4 rounded-xl border transition-all',
                               isSelected
-                                ? cn('border-l-4', heat.borderClass, 'bg-zinc-900/60')
+                                ? 'border-zinc-800 bg-zinc-900/60'
                                 : 'border-zinc-800/50 bg-zinc-900/30 hover:border-zinc-700',
                               submitted && 'cursor-default'
                             )}
@@ -198,7 +243,8 @@ export default function AwardsPage() {
                             <p className={cn('font-display text-lg uppercase mb-1', isSelected ? 'text-white' : 'text-zinc-300')}>
                               {nominee.name}
                             </p>
-                            <p className="text-xs text-zinc-500">{nominee.reason}</p>
+                            {/* Reason string is RHQ-authoritative — surface it prominently */}
+                            <p className="text-sm text-zinc-300 leading-snug">{nominee.reason}</p>
 
                             {/* Vote tally bar (shown after submission) */}
                             {submitted && totalVotes > 0 && (
@@ -250,12 +296,13 @@ export default function AwardsPage() {
             <AnimatePresence>
               {submitted && !AWARDS_RESULTS_REVEALED && (
                 <motion.div
-                  className="mt-12 bg-zinc-900/30 rounded-xl border border-heat-bell/30 p-8 text-center max-w-lg mx-auto"
+                  className="mt-12 bg-zinc-900/30 rounded-xl border p-8 text-center max-w-lg mx-auto"
+                  style={{ borderColor: 'color-mix(in srgb, var(--gold) 30%, transparent)' }}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
                   <div className="text-4xl mb-3">🏆</div>
-                  <h3 className="font-display text-2xl uppercase text-heat-bell mb-2">
+                  <h3 className="font-display text-2xl uppercase mb-2" style={{ color: 'var(--gold)' }}>
                     Votes Submitted!
                   </h3>
                   <p className="text-zinc-400 text-sm">

@@ -7,10 +7,10 @@ import { cn } from '@/lib/utils'
 import type { SeasonLeaderEntry } from '@/lib/rally-hq'
 
 const TREND_GLYPH: Record<SeasonLeaderEntry['trend'], { mark: string; cls: string }> = {
-  up: { mark: '▲', cls: 'text-heat-bell' },
-  down: { mark: '▼', cls: 'text-heat-habanero' },
+  up: { mark: '▲', cls: 'text-zinc-400' },
+  down: { mark: '▼', cls: 'text-zinc-600' },
   steady: { mark: '–', cls: 'text-zinc-600' },
-  new: { mark: '•', cls: 'text-heat-jalapeno' },
+  new: { mark: '•', cls: 'text-zinc-500' },
 }
 
 const TOP_N = 10
@@ -35,7 +35,7 @@ export function SeasonLeaderboard() {
     <section className="section-padding pt-0">
       <div className="section-container">
         <motion.div
-          className="bg-zinc-900/30 rounded-xl border border-zinc-800/50 overflow-hidden"
+          className="bg-zinc-900/30 rounded-xl border border-zinc-800 overflow-hidden"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={MOTION.viewport.once}
@@ -43,12 +43,10 @@ export function SeasonLeaderboard() {
         >
           <div className="flex items-start justify-between gap-4 p-6 border-b border-zinc-800/50">
             <div>
-              <p className="font-accent text-xs uppercase tracking-wider text-heat-jalapeno mb-1">
+              <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-1">
                 Season Leaderboard
               </p>
-              <h3 className="font-display text-2xl sm:text-3xl uppercase text-white">
-                Points Race
-              </h3>
+              <h2 className="block-heading">Points Race</h2>
               <p className="text-sm text-zinc-500 mt-1">
                 Every finish across the series, scored automatically. Ties share a rank.
               </p>
@@ -77,6 +75,7 @@ export function SeasonLeaderboard() {
                 <tbody>
                   {(showAll ? entries : entries.slice(0, TOP_N)).map((e, i) => {
                     const trend = TREND_GLYPH[e.trend]
+                    const isLeader = e.rank === 1
                     return (
                       <tr
                         key={`${e.name}-${i}`}
@@ -86,13 +85,19 @@ export function SeasonLeaderboard() {
                           <span
                             className={cn(
                               'font-display text-lg',
-                              e.rank === 1 ? 'text-heat-bell' : e.rank === 2 ? 'text-zinc-300' : e.rank === 3 ? 'text-heat-habanero' : 'text-zinc-600',
+                              e.rank === 2 ? 'text-zinc-300' : e.rank >= 3 ? 'text-zinc-600' : '',
                             )}
+                            style={isLeader ? { color: 'var(--gold)' } : undefined}
                           >
                             {e.tied ? `T${e.rank}` : e.rank}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-zinc-200">{e.name}</td>
+                        <td
+                          className="px-4 py-3 text-zinc-200"
+                          style={isLeader ? { color: 'var(--gold)' } : undefined}
+                        >
+                          {e.name}
+                        </td>
                         <td className="px-4 py-3 text-right font-accent text-heat-jalapeno">{e.points}</td>
                         <td className="px-4 py-3 text-right text-zinc-400 hidden sm:table-cell">{e.events}</td>
                         <td className="px-4 py-3 text-right text-zinc-400 hidden sm:table-cell">{e.titles}</td>

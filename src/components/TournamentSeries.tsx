@@ -1,14 +1,18 @@
 'use client'
 
 import Image from 'next/image'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
+import { heatText, heatBg, type Heat } from '@/components/rhq/heat'
+import { HeatMeter } from '@/components/rhq/HeatMeter'
 
 interface Tournament {
   id: string
   name: string
-  heat: 'bell' | 'poblano' | 'jalapeno'
+  heat: Heat
+  slug: string // RHQ event slug for live-state fetch
   mascot: string
   tagline: string
   description: string
@@ -22,6 +26,7 @@ const tournaments: Tournament[] = [
     id: 'bell-pepper',
     name: 'Bell Pepper Open',
     heat: 'bell',
+    slug: 'bell-pepper-open-2026',
     mascot: '/images/mascots/bell-pepper-action.png',
     tagline: 'Season Opener',
     description:
@@ -34,6 +39,7 @@ const tournaments: Tournament[] = [
     id: 'jalapeno',
     name: 'Jalapeño Open',
     heat: 'jalapeno',
+    slug: 'jalapeno-open-2026',
     mascot: '/images/mascots/jalapeno-action.png',
     tagline: 'Bring The Heat',
     description:
@@ -46,6 +52,7 @@ const tournaments: Tournament[] = [
     id: 'poblano',
     name: 'Poblano Open',
     heat: 'poblano',
+    slug: 'poblano-open-2026',
     mascot: '/images/mascots/poblano-pepper-action.png',
     tagline: 'Season Finale',
     description:
@@ -56,44 +63,36 @@ const tournaments: Tournament[] = [
   },
 ]
 
-const heatConfig = {
-  bell: {
-    cardClass: 'heat-card-bell',
-    dotClass: 'heat-dot-bell',
-    textClass: 'text-heat-bell',
-    level: 'Mild',
-    bars: 1,
-  },
-  poblano: {
-    cardClass: 'heat-card-poblano',
-    dotClass: 'heat-dot-poblano',
-    textClass: 'text-heat-poblano',
-    level: 'Medium',
-    bars: 2,
-  },
-  jalapeno: {
-    cardClass: 'heat-card-jalapeno',
-    dotClass: 'heat-dot-jalapeno',
-    textClass: 'text-heat-jalapeno',
-    level: 'Hot',
-    bars: 3,
-  },
+const heatCardClass: Record<Heat, string> = {
+  bell: 'heat-card-bell',
+  poblano: 'heat-card-poblano',
+  jalapeno: 'heat-card-jalapeno',
 }
 
-function HeatMeter({ level }: { level: number }) {
-  return (
-    <div className="flex gap-1" aria-label={`Heat level ${level} of 3`}>
-      {[1, 2, 3].map((bar) => (
-        <div
-          key={bar}
-          className={cn(
-            'w-2 h-4 rounded-sm transition-colors',
-            bar <= level ? 'bg-current' : 'bg-zinc-700'
-          )}
-        />
-      ))}
-    </div>
-  )
+const heatLevel: Record<Heat, string> = {
+  bell: 'Mild',
+  poblano: 'Medium',
+  jalapeno: 'Hot',
+}
+
+const heatGlowClass: Record<Heat, string> = {
+  bell: 'glow-bell',
+  poblano: 'glow-poblano',
+  jalapeno: 'glow-jalapeno',
+}
+
+/** Fetch /api/rhq/summary?slug=… and return is_live. Falls back to false on error. */
+function useLiveState(slug: string): boolean {
+  const [isLive, setIsLive] = useState(false)
+  useEffect(() => {
+    fetch(`/api/rhq/summary?slug=${encodeURIComponent(slug)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.is_live === true) setIsLive(true)
+      })
+      .catch(() => {/* fall back to date logic */})
+  }, [slug])
+  return isLive
 }
 
 function getNextEventId(tournaments: Tournament[]): string | null {
@@ -103,35 +102,39 @@ function getNextEventId(tournaments: Tournament[]): string | null {
 }
 
 function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext: boolean }) {
-  const config = heatConfig[tournament.heat]
+  const { heat } = tournament
+  const isLive = useLiveState(tournament.slug)
 
   return (
     <motion.article
       className={cn(
-        'heat-card group p-6 sm:p-8 h-full',
-        config.cardClass,
-        isNext && 'ring-2 ring-offset-2 ring-offset-pepper-black ring-[var(--heat-bell)]',
-        isNext && tournament.heat === 'jalapeno' && 'ring-[var(--heat-jalapeno)]',
-        isNext && tournament.heat === 'poblano' && 'ring-[var(--heat-poblano)]',
+        'heat-card group p-6 sm:p-8 h-full border-zinc-800',
+        heatCardClass[heat],
       )}
       variants={MOTION.variants.slideUp}
       whileHover={{ y: -8, transition: { duration: 0.2 } }}
     >
-      {/* Next Up Badge */}
-      {isNext && (
+      {/* Live / Next Up Badge — LIVE uses --live coral; Next Up is neutral */}
+      {isLive ? (
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-accent uppercase tracking-widest mb-4 bg-zinc-800 border border-zinc-700">
+          <span
+            className="relative flex h-2 w-2"
+            aria-hidden="true"
+          >
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: 'var(--live)' }} />
+            <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: 'var(--live)' }} />
+          </span>
+          <span style={{ color: 'var(--live)' }}>Live Now</span>
+        </div>
+      ) : isNext ? (
         <div className={cn(
           'inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-accent uppercase tracking-widest mb-4',
-          'bg-zinc-800 border',
-          `border-[var(--heat-${tournament.heat})]`,
-          config.textClass,
+          'bg-zinc-800 border border-zinc-700',
+          heatText[heat],
         )}>
-          <span className="relative flex h-2 w-2">
-            <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', `bg-[var(--heat-${tournament.heat})]`)} />
-            <span className={cn('relative inline-flex rounded-full h-2 w-2', `bg-[var(--heat-${tournament.heat})]`)} />
-          </span>
           Next Up · {tournament.displayDate}
         </div>
-      )}
+      ) : null}
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
@@ -149,9 +152,9 @@ function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext
         </motion.div>
 
         {/* Heat Indicator */}
-        <div className={cn('heat-indicator', config.textClass)}>
-          <HeatMeter level={config.bars} />
-          <span>{config.level}</span>
+        <div className={cn('heat-indicator', heatText[heat])}>
+          <HeatMeter heat={heat} size="sm" />
+          <span>{heatLevel[heat]}</span>
         </div>
       </div>
 
@@ -187,18 +190,10 @@ function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext
       <div className="mt-8">
         <a
           href={`/flavors/${tournament.id}-open`}
-          className={cn(
-            'inline-flex items-center gap-2 font-accent text-sm uppercase tracking-wider',
-            'text-zinc-400 hover:text-white transition-colors group/link'
-          )}
+          className={cn('btn-heat', heatBg[heat], heatGlowClass[heat])}
         >
           <span>Learn More</span>
-          <span
-            className="group-hover/link:translate-x-1 transition-transform"
-            aria-hidden="true"
-          >
-            →
-          </span>
+          <span aria-hidden="true">→</span>
         </a>
       </div>
 
@@ -208,7 +203,7 @@ function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext
           'absolute bottom-0 right-0 w-24 h-24 opacity-5',
           'bg-gradient-radial from-current to-transparent'
         )}
-        style={{ color: `var(--heat-${tournament.heat})` }}
+        style={{ color: `var(--heat-${heat})` }}
         aria-hidden="true"
       />
     </motion.article>
@@ -239,9 +234,11 @@ export function TournamentSeries() {
           viewport={MOTION.viewport.once}
           transition={{ duration: 0.6, ease: MOTION.ease.outExpo }}
         >
-          <p className="text-section-heading mb-4">Choose Your Format</p>
-          <h2 className="text-display">
-            The <span className="text-heat-jalapeno">Series</span>
+          <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-4">
+            Choose Your Format
+          </p>
+          <h2 className="block-heading text-4xl sm:text-5xl">
+            The <span className={heatText['jalapeno']}>Series</span>
           </h2>
         </motion.div>
 

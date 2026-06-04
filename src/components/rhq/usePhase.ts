@@ -15,6 +15,8 @@ interface PhaseState {
   phase: EventPhase
   /** Champion team name once the bracket has resolved (post only). */
   champion: string | null
+  /** RHQ's own phase label (e.g. "Pool Play", "Bracket") — drives the live pill. */
+  currentPhase: string | null
   /** False until the summary read resolves; hold the hero's default until then. */
   ready: boolean
 }
@@ -46,11 +48,11 @@ function championOf(summary: RhqSummary): string | null {
  * faking data — it only changes which face renders, and pauses polling.
  */
 export function usePhase(slug: string, override?: EventPhase | null): PhaseState {
-  const [state, setState] = useState<PhaseState>({ phase: 'pre', champion: null, ready: false })
+  const [state, setState] = useState<PhaseState>({ phase: 'pre', champion: null, currentPhase: null, ready: false })
 
   useEffect(() => {
     if (override) {
-      setState((s) => ({ phase: override, champion: s.champion, ready: true }))
+      setState((s) => ({ phase: override, champion: s.champion, currentPhase: s.currentPhase, ready: true }))
       return
     }
     let active = true
@@ -62,12 +64,12 @@ export function usePhase(slug: string, override?: EventPhase | null): PhaseState
           if (!active) return
           const summary = d.summary as RhqSummary | null
           if (!summary) {
-            setState({ phase: 'pre', champion: null, ready: true })
+            setState({ phase: 'pre', champion: null, currentPhase: null, ready: true })
             return
           }
           const champion = championOf(summary)
           const phase: EventPhase = champion ? 'post' : summary.is_live ? 'live' : 'pre'
-          setState({ phase, champion, ready: true })
+          setState({ phase, champion, currentPhase: summary.current_phase ?? null, ready: true })
         })
         .catch(() => {
           if (active) setState((s) => ({ ...s, ready: true }))

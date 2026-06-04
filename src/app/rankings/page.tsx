@@ -37,9 +37,9 @@ export default function RankingsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
             >
-              <p className="text-section-heading mb-4">Power Rankings</p>
+              <h2 className="block-heading mb-4">Power Rankings</h2>
               <h1 className="text-display mb-6">
-                Scoville <span className="text-heat-habanero">Rankings</span>
+                Scoville <span style={{ color: 'var(--gold)' }}>Rankings</span>
               </h1>
               <p className="text-xl text-zinc-400">
                 The definitive power rankings for the Let&apos;s Pepper series. Rated on the Scoville scale — how much heat are you bringing?
@@ -74,7 +74,7 @@ export default function RankingsPage() {
                 </p>
               </div>
               <div className="bg-zinc-900/30 rounded-xl border border-zinc-800/50 p-6 text-center">
-                <p className="font-display text-4xl text-heat-habanero mb-1">
+                <p className="font-display text-4xl mb-1" style={{ color: 'var(--gold)' }}>
                   {SEASON_STATS.teamsRanked}
                 </p>
                 <p className="font-accent text-xs uppercase tracking-wider text-zinc-500">
@@ -110,10 +110,10 @@ export default function RankingsPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={MOTION.viewport.once}
             >
-              <p className="text-section-heading mb-4">Compare</p>
-              <h2 className="text-display">
+              <h2 className="block-heading mb-4">Compare</h2>
+              <p className="text-display">
                 Head-to-<span className="text-heat-jalapeno">Head</span>
-              </h2>
+              </p>
               <p className="text-lg text-zinc-400 mt-4 max-w-xl mx-auto">
                 Pick two teams and compare their season stats side by side.
               </p>

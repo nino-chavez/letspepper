@@ -19,9 +19,11 @@ interface ChampionPickProps {
   tournamentName: string
   /** ISO deadline; picks soft-lock here client-side (RHQ hard-locks at bracket). */
   deadline: string
+  /** Champion team name once the bracket resolves — grades the fan's pick (post). */
+  champion?: string | null
 }
 
-export function ChampionPick({ tournament, tournamentName, deadline }: ChampionPickProps) {
+export function ChampionPick({ tournament, tournamentName, deadline, champion }: ChampionPickProps) {
   const storageKey = `${STORAGE_KEYS.CHAMPION_PREFIX}${tournament}`
   const [teams, setTeams] = useState<Team[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -115,6 +117,34 @@ export function ChampionPick({ tournament, tournamentName, deadline }: ChampionP
         Call the {tournamentName} winner. Auto-scored off the live bracket — and your pick
         rides the same leaderboard whether you call it here or on Rally HQ.
       </p>
+
+      {champion && (
+        <div
+          className="mb-5 rounded-lg border px-4 py-3"
+          style={
+            pickedTeam && pickedTeam.name === champion
+              ? { borderColor: 'color-mix(in srgb, var(--gold) 45%, transparent)', background: 'color-mix(in srgb, var(--gold) 8%, transparent)' }
+              : { borderColor: '#27272a' }
+          }
+        >
+          {pickedTeam && pickedTeam.name === champion ? (
+            <p className="font-display text-lg uppercase" style={{ color: 'var(--gold)' }}>
+              🏆 You called it — {champion} took the title.
+            </p>
+          ) : pick ? (
+            <p className="text-zinc-300 text-sm">
+              <span className="font-display text-lg uppercase block" style={{ color: 'var(--gold)' }}>
+                {champion} took it
+              </span>
+              You had {pickedTeam?.name ?? 'a different team'}.
+            </p>
+          ) : (
+            <p className="font-display text-lg uppercase" style={{ color: 'var(--gold)' }}>
+              {champion} took the title.
+            </p>
+          )}
+        </div>
+      )}
 
       {!loaded && <p className="text-zinc-600 text-sm font-accent uppercase tracking-wider">Loading teams…</p>}
 
