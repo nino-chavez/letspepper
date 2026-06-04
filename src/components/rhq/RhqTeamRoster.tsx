@@ -4,9 +4,8 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { RhqTeam } from '@/lib/rhq-types'
-import { type Heat, heatText, heatBg, heatBorder } from './heat'
+import { type Heat, heatText } from './heat'
 import { useRhqModule } from './useRhqModule'
-import { HeatMeter } from './HeatMeter'
 
 interface Props {
   slug: string
@@ -45,29 +44,24 @@ export function RhqTeamRoster({ slug, heat }: Props) {
           viewport={MOTION.viewport.once}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <HeatMeter heat={heat} size="sm" />
-              <h2 className={cn('text-section-heading', heatText[heat])}>The Field</h2>
-            </div>
-            <span className="font-accent text-xs uppercase tracking-[0.14em] text-zinc-600">
-              {teams.length} teams · Powered by Rally HQ
+          <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
+            <h2 className="block-heading">The Field</h2>
+            <span className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500">
+              {teams.length} teams · {pools.length} {pools.length === 1 ? 'pool' : 'pools'} ·{' '}
+              <span className={heatText[heat]}>powered by Rally HQ</span>
             </span>
           </div>
 
-          <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 gap-4">
             {pools.map(([pool, members]) => (
               <div
                 key={pool}
-                className={cn('rounded-xl border border-zinc-800 border-l-2 overflow-hidden', heatBorder[heat])}
+                className="rounded-xl border border-zinc-800 overflow-hidden"
               >
                 {!single && (
                   <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
-                    <span className={cn('font-accent text-xs font-bold uppercase tracking-[0.14em]', heatText[heat])}>
+                    <span className={cn('font-accent text-xs font-bold uppercase tracking-[0.1em]', heatText[heat])}>
                       Pool {pool}
-                    </span>
-                    <span className="font-accent text-[0.6rem] uppercase tracking-wider text-zinc-600">
-                      {members.length} teams
                     </span>
                   </div>
                 )}
@@ -75,19 +69,12 @@ export function RhqTeamRoster({ slug, heat }: Props) {
                   {members.map((team) => (
                     <li
                       key={team.id}
-                      className="grid grid-cols-[2ch_1fr_auto] gap-3 items-center px-4 py-2.5"
+                      className="grid grid-cols-[1.8rem_1fr] gap-3 items-center px-4 py-2.5"
                     >
-                      <span className="font-display text-lg leading-none text-zinc-600 tabular-nums">
+                      <span className="font-display text-xl leading-none text-zinc-500 tabular-nums">
                         {team.seed ?? '·'}
                       </span>
                       <span className="font-semibold text-white">{team.name}</span>
-                      {team.status === 'checked_in' && (
-                        <span
-                          className={cn('h-2 w-2 rounded-full', heatBg[heat])}
-                          title="Checked in"
-                          aria-label="Checked in"
-                        />
-                      )}
                     </li>
                   ))}
                 </ul>

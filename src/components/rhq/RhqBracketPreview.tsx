@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { RhqBracketRound, RhqBracketMatch } from '@/lib/rhq-types'
-import { type Heat, heatText, heatBg } from './heat'
+import { type Heat, heatText } from './heat'
 import { useRhqModule } from './useRhqModule'
 
 interface Props {
@@ -38,17 +38,17 @@ export function RhqBracketPreview({ slug, heat }: Props) {
           viewport={MOTION.viewport.once}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-baseline justify-between gap-4 flex-wrap">
-            <h2 className={cn('text-section-heading', heatText[heat])}>Bracket</h2>
-            <span className="font-accent text-xs uppercase tracking-wider text-zinc-600">
-              Powered by Rally HQ
+          <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
+            <h2 className="block-heading">Championship Bracket</h2>
+            <span className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500">
+              Champion path highlighted · <span className={heatText[heat]}>Rally HQ</span>
             </span>
           </div>
 
-          <div className="mt-8 grid gap-6 md:grid-flow-col md:auto-cols-fr overflow-x-auto">
+          <div className="grid gap-6 md:grid-flow-col md:auto-cols-fr overflow-x-auto">
             {rounds.map((round) => (
               <div key={round.round} className="min-w-[220px] space-y-4">
-                <h3 className="font-accent text-xs uppercase tracking-wider text-zinc-500">
+                <h3 className="font-accent text-[0.6rem] uppercase tracking-[0.12em] text-zinc-500">
                   {round.round}
                 </h3>
                 {round.matches.map((m, i) => (
@@ -65,18 +65,10 @@ export function RhqBracketPreview({ slug, heat }: Props) {
                         className={cn(
                           'flex items-center justify-between px-3 py-2 text-sm',
                           s === 0 && 'border-b border-zinc-800',
-                          isWinner(m, side.id) ? 'text-white font-semibold' : 'text-zinc-500'
+                          isWinner(m, side.id) ? cn(heatText[heat], 'font-bold') : 'text-zinc-400'
                         )}
                       >
-                        <span className="flex items-center gap-2">
-                          {isWinner(m, side.id) && (
-                            <span
-                              className={cn('h-1.5 w-1.5 rounded-full', heatBg[heat])}
-                              aria-hidden="true"
-                            />
-                          )}
-                          {side.name}
-                        </span>
+                        <span>{side.name}</span>
                         {m.score && (
                           <span className="font-accent text-xs text-zinc-500 tabular-nums">
                             {m.score.split('-')[s]}

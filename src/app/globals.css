@@ -112,6 +112,13 @@
     letter-spacing: 0.2em;
   }
 
+  /* Prominent section heading for the live-data spine (The Field, Schedule,
+     Bracket, court board). Matches the prototype's .block-head h2 — large white
+     display caps, not the small muted .text-section-heading label. */
+  .block-heading {
+    @apply font-display uppercase text-3xl tracking-tight text-white leading-none;
+  }
+
   /* ═══════════════════════════════════════════
      HEAT LEVEL CARDS
      ═══════════════════════════════════════════ */

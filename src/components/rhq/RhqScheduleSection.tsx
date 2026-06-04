@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils'
 import type { RhqScheduleMatch } from '@/lib/rhq-types'
 import { type Heat, heatText, heatBg } from './heat'
 import { useRhqModule } from './useRhqModule'
-import { HeatMeter } from './HeatMeter'
 
 interface Props {
   slug: string
@@ -53,17 +52,14 @@ export function RhqScheduleSection({ slug, heat, pollMs }: Props) {
           viewport={MOTION.viewport.once}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <HeatMeter heat={heat} size="sm" />
-              <h2 className={cn('text-section-heading', heatText[heat])}>Schedule</h2>
-            </div>
-            <span className="font-accent text-xs uppercase tracking-[0.14em] text-zinc-600">
-              Powered by Rally HQ
+          <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
+            <h2 className="block-heading">Schedule</h2>
+            <span className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500">
+              <span className={heatText[heat]}>live via Rally HQ</span>
             </span>
           </div>
 
-          <ul className="mt-8 rounded-xl border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
+          <ul className="rounded-xl border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
             {matches.map((m) => {
               const live = m.status === 'in_progress'
               const done = m.status === 'complete'
