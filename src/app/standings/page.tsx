@@ -7,11 +7,11 @@ import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
 import { tournamentResults, type TournamentResult } from '@/lib/standings-data'
-import { HEAT_CONFIG } from '@/lib/heat-config'
 import { heatText, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { PlaceBadge } from '@/components/standings/PlaceBadge'
 import { SeasonLeaderboard } from '@/components/standings/SeasonLeaderboard'
+import { CommunityBoard } from '@/components/standings/CommunityBoard'
 import type { SeasonLeaderEntry } from '@/lib/rally-hq'
 
 function TournamentResultCard({ tournament }: { tournament: TournamentResult }) {
@@ -301,6 +301,9 @@ export default function StandingsPage() {
 
         {/* Season Leaderboard — live from Rally HQ */}
         <SeasonLeaderboard />
+
+        {/* Community Board — the engagement loop (picks + bingo/votes) read back */}
+        <CommunityBoard />
 
         {/* Tournament Results */}
         <section className="section-padding pt-0">
