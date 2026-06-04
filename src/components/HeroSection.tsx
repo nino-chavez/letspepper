@@ -73,7 +73,7 @@ export function HeroSection() {
                       index === 3
                         ? 'var(--heat-jalapeno)'
                         : index === 2
-                        ? 'var(--heat-bell)'
+                        ? 'var(--heat-poblano)'
                         : 'var(--text-primary)',
                   }}
                 >

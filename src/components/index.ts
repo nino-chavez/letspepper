@@ -1,6 +1,7 @@
 export { Header } from './Header'
 export { HeroSection } from './HeroSection'
 export { TournamentSeries } from './TournamentSeries'
+export { StandingsCallout } from './StandingsCallout'
 export { PepperBelle } from './PepperBelle'
 export { EthosSection } from './EthosSection'
 export { GalleryPreview } from './GalleryPreview'
