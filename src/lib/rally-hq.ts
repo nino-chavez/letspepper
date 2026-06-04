@@ -13,6 +13,13 @@
  * and continue with the local-only flow.
  */
 
+import type {
+  RhqPool,
+  RhqTeam,
+  RhqScheduleMatch,
+  RhqBracketRound,
+} from './rhq-types'
+
 export interface RallyFan {
   fanToken: string
   displayName: string | null
@@ -327,4 +334,37 @@ export async function submitEngagementPoints(
     console.error('Rally HQ engagement points threw:', err)
     return false
   }
+}
+
+// ---------------------------------------------------------------------------
+// Event-page tournament views (public reads).
+//
+// These back the in-page tournament embed on /flavors/[slug] — live pool
+// standings, roster, schedule, and bracket for a SINGLE tournament during its
+// event day (distinct from the series-level season leaderboard above). They hit
+// RHQ's PUBLIC v1 surface, so no fan identity is involved; best-effort like the
+// rest (an empty array on any failure, so the section just renders its
+// pre-tournament state rather than breaking the page).
+// ---------------------------------------------------------------------------
+
+/** Live pool standings (wins/losses/point-diff per team, grouped by pool). */
+export async function getPools(slug: string): Promise<RhqPool[]> {
+  return (await call<RhqPool[]>(`/api/public/v1/tournaments/${slug}/pools`, { method: 'GET' })) ?? []
+}
+
+/** The registered field (name, pool, seed, status) — no captain identity. */
+export async function getRoster(slug: string): Promise<RhqTeam[]> {
+  return (await call<RhqTeam[]>(`/api/public/v1/tournaments/${slug}/teams`, { method: 'GET' })) ?? []
+}
+
+/** Match schedule (court, matchup, status), in the tournament's own ordering. */
+export async function getSchedule(slug: string): Promise<RhqScheduleMatch[]> {
+  return (
+    (await call<RhqScheduleMatch[]>(`/api/public/v1/tournaments/${slug}/schedule`, { method: 'GET' })) ?? []
+  )
+}
+
+/** Elimination bracket, grouped by round. Empty until pool play completes. */
+export async function getBracket(slug: string): Promise<RhqBracketRound[]> {
+  return (await call<RhqBracketRound[]>(`/api/public/v1/tournaments/${slug}/bracket`, { method: 'GET' })) ?? []
 }
