@@ -104,7 +104,13 @@ interface Props {
  * for now it reflects the load-time read.
  */
 export function CourtBoard({ slug, heat, phase }: Props) {
-  const { data: matches, failed } = useRhqModule<RhqMatch[]>('matches', slug, 'matches')
+  // Poll live scores every 60s while the event is live; static otherwise.
+  const { data: matches, failed } = useRhqModule<RhqMatch[]>(
+    'matches',
+    slug,
+    'matches',
+    phase === 'live' ? 60_000 : undefined
+  )
 
   if (phase === 'post' || failed || matches === null) return null
 

@@ -360,11 +360,11 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
 
         {(isLive || isPost) && (
           <div id="standings">
-            <RhqStandingsTable slug={tournament.rhqSlug} heat={tournament.heat} />
+            <RhqStandingsTable slug={tournament.rhqSlug} heat={tournament.heat} pollMs={isLive ? 60_000 : undefined} />
           </div>
         )}
 
-        <RhqScheduleSection slug={tournament.rhqSlug} heat={tournament.heat} />
+        <RhqScheduleSection slug={tournament.rhqSlug} heat={tournament.heat} pollMs={isLive ? 60_000 : undefined} />
 
         {(isLive || isPost) && (
           <div id="bracket">

@@ -12,6 +12,8 @@ interface Props {
   /** RHQ tournament slug (supplied by the flavor page from its rhqSlug field). */
   slug: string
   heat: Heat
+  /** Set (e.g. 60000) to live-poll standings while the event is in progress. */
+  pollMs?: number
 }
 
 /** Rank within a pool: most wins, then best point differential. */
@@ -24,8 +26,8 @@ function rankTeams(teams: RhqPoolTeam[]): RhqPoolTeam[] {
  * Branded server-fetch: the useRhqModule hook calls LP's /api/rhq/pools handler,
  * which proxies RHQ's public API server-side — the key never reaches the browser.
  */
-export function RhqStandingsTable({ slug, heat }: Props) {
-  const { data: pools, failed } = useRhqModule<RhqPool[]>('pools', slug, 'pools')
+export function RhqStandingsTable({ slug, heat, pollMs }: Props) {
+  const { data: pools, failed } = useRhqModule<RhqPool[]>('pools', slug, 'pools', pollMs)
 
   // Network/server error — stay silent rather than show a broken section.
   if (failed) return null

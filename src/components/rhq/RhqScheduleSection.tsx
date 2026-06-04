@@ -11,6 +11,8 @@ import { HeatMeter } from './HeatMeter'
 interface Props {
   slug: string
   heat: Heat
+  /** Set (e.g. 60000) to live-poll the schedule while the event is in progress. */
+  pollMs?: number
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -30,11 +32,12 @@ function orderMatches(matches: RhqScheduleMatch[]): RhqScheduleMatch[] {
 }
 
 /** The match schedule — court, matchup, and status, branded to the event heat. */
-export function RhqScheduleSection({ slug, heat }: Props) {
+export function RhqScheduleSection({ slug, heat, pollMs }: Props) {
   const { data: schedule, failed } = useRhqModule<RhqScheduleMatch[]>(
     'schedule',
     slug,
-    'schedule'
+    'schedule',
+    pollMs
   )
 
   if (failed || schedule === null || schedule.length === 0) return null
