@@ -182,6 +182,15 @@ function Countdown({ target }: { target: string }) {
   )
 }
 
+/** "Sunday, June 7, 2026" -> "Sun · Jun 7" (deterministic, no Date parsing — avoids SSR/tz drift). */
+function shortDate(date: string): string {
+  const parts = date.split(',')
+  if (parts.length < 2) return date
+  const wd = parts[0].trim().slice(0, 3)
+  const md = parts[1].trim().split(/\s+/)
+  return `${wd} · ${(md[0] || '').slice(0, 3)} ${md[1] || ''}`.trim()
+}
+
 export default function FlavorPage({ params }: { params: { slug: string } }) {
   const tournament = tournaments[params.slug]
   const override = usePhaseOverride()
@@ -245,23 +254,34 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: MOTION.ease.outExpo }}
             >
-              {/* eyebrow + heat meter + phase status */}
+              {/* eyebrow + heat meter + phase status (pill = date pre, coral live, gold post) */}
               <div className="flex items-center gap-4 flex-wrap">
-                <span className={cn('font-accent text-sm uppercase tracking-[0.16em]', config.textClass)}>
-                  Underground · {tournament.tagline}
+                <span className="font-accent text-[0.68rem] font-bold uppercase tracking-[0.16em]">
+                  <span className={config.textClass}>Underground</span>
+                  <span className="text-zinc-500"> · </span>
+                  <span className={config.textClass}>{tournament.tagline}</span>
                 </span>
-                <span className={cn('inline-flex items-center gap-2', config.textClass)}>
+                <span className="inline-flex items-center gap-2">
                   <HeatMeter heat={tournament.heat} />
-                  <span className="font-accent text-xs uppercase tracking-wider">{config.level}</span>
+                  <span className="font-accent text-[0.62rem] font-bold uppercase tracking-[0.12em] text-zinc-500">
+                    {config.level}
+                  </span>
                 </span>
                 <span
-                  className={cn(
-                    'inline-flex items-center gap-2 px-3 py-1 rounded-full border font-accent text-xs uppercase tracking-wider',
-                    isLive ? 'border-red-500/50 text-red-400' : isPost ? 'border-amber-400/50 text-amber-300' : 'border-zinc-700 text-zinc-300'
-                  )}
+                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-700 text-zinc-300 font-accent text-[0.62rem] uppercase tracking-[0.12em]"
+                  style={
+                    isLive
+                      ? { color: 'var(--live)', borderColor: 'color-mix(in srgb, var(--live) 50%, transparent)' }
+                      : isPost
+                        ? { color: 'var(--gold)', borderColor: 'color-mix(in srgb, var(--gold) 45%, transparent)' }
+                        : undefined
+                  }
                 >
-                  <span className={cn('h-2 w-2 rounded-full', isLive ? 'bg-red-500 animate-pulse' : isPost ? 'bg-amber-400' : 'bg-zinc-500')} />
-                  {isLive ? 'Live · Pool Play' : isPost ? 'Final' : 'Upcoming'}
+                  <span
+                    className={cn('h-2 w-2 rounded-full bg-zinc-500', isLive && 'animate-pulse')}
+                    style={isLive ? { background: 'var(--live)' } : isPost ? { background: 'var(--gold)' } : undefined}
+                  />
+                  {isLive ? 'Live · Pool Play' : isPost ? 'Final' : shortDate(tournament.date)}
                 </span>
               </div>
 
@@ -360,7 +380,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
 
         {(isLive || isPost) && (
           <div id="standings">
-            <RhqStandingsTable slug={tournament.rhqSlug} heat={tournament.heat} pollMs={isLive ? 60_000 : undefined} />
+            <RhqStandingsTable slug={tournament.rhqSlug} heat={tournament.heat} phase={phase} pollMs={isLive ? 60_000 : undefined} />
           </div>
         )}
 
@@ -379,6 +399,39 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
             </div>
           </section>
         )}
+
+        {/* ===================== AT THE PARK (spectator guide) ===================== */}
+        <section className="section-padding">
+          <div className="section-container">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={MOTION.viewport.once}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
+                <h2 className="block-heading">At the Park</h2>
+                <span className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500">
+                  Brand-native orientation
+                </span>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { icon: '📍', title: 'Getting there', body: tournament.location },
+                  { icon: '🗺️', title: 'On site', body: 'Grass triples on open-field courts. On-site check-in before first serve.' },
+                  { icon: '⏱️', title: 'Timing', body: `${tournament.time}. ${tournament.format}.` },
+                  { icon: '📸', title: 'Media', body: 'Photo & video by Flickday Media — taggable galleries at gallery.ninochavez.co.' },
+                ].map((c) => (
+                  <div key={c.title} className="rounded-xl border border-zinc-800 bg-pepper-charcoal/30 p-5">
+                    <div className="text-xl" aria-hidden="true">{c.icon}</div>
+                    <h3 className="font-semibold text-white mt-2">{c.title}</h3>
+                    <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">{c.body}</p>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
 
         {/* ===================== MEDIA ===================== */}
         <section className="section-padding">

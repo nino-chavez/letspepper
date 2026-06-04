@@ -20,6 +20,10 @@
     --heat-poblano-glow: #eab308;
     --heat-jalapeno: #f97316;
     --heat-jalapeno-glow: #ea580c;
+    /* Reserved status colors — never part of the heat ramp (prototype parity).
+       Coral is LIVE only; gold is victory/champion only. */
+    --live: hsl(12, 90%, 58%);
+    --gold: hsl(45, 85%, 55%);
     --heat-habanero: #ef4444;
 
     /* Pepper Belle - Royal Purple */

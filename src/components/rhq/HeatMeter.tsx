@@ -19,13 +19,14 @@ export function HeatMeter({
   className?: string
 }) {
   const filled = HEAT_BARS[heat]
-  const bar = size === 'sm' ? 'w-2 h-4' : 'w-3 h-6'
+  // Thin horizontal pips (prototype .pip = 18x6), not tall bars.
+  const bar = size === 'sm' ? 'w-3 h-1' : 'w-[18px] h-1.5'
   return (
-    <div className={cn('flex gap-1', className)} aria-label={`Heat level ${filled} of 3`}>
+    <div className={cn('flex gap-[3px]', className)} aria-label={`Heat level ${filled} of 3`}>
       {[1, 2, 3].map((i) => (
         <div
           key={i}
-          className={cn('rounded-sm transition-colors', bar, i <= filled ? heatBg[heat] : 'bg-zinc-700')}
+          className={cn('rounded-[2px] transition-colors', bar, i <= filled ? heatBg[heat] : 'bg-zinc-800')}
         />
       ))}
     </div>
