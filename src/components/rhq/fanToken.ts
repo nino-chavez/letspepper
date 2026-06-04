@@ -24,3 +24,24 @@ export async function ensureFanToken(): Promise<string> {
   window.localStorage.setItem(FAN_TOKEN_KEY, fanToken)
   return fanToken
 }
+
+/**
+ * Award engagement points for an LP action to the fan's RHQ ledger. The points
+ * amount is decided server-side; the caller only declares the source + a stable
+ * ref (RHQ dedups on fan+source+ref). Fire-and-forget — engagement points are
+ * secondary, so a failure never blocks the action that triggered it.
+ */
+export function awardEngagementPoints(source: string, ref: string): void {
+  void (async () => {
+    try {
+      const fanToken = await ensureFanToken()
+      await fetch('/api/rhq/points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fanToken, source, ref }),
+      })
+    } catch {
+      // Non-blocking: the user's action already succeeded.
+    }
+  })()
+}

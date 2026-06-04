@@ -22,6 +22,20 @@ import type {
 
 const RHQ_BASE = process.env.RALLY_HQ_BASE_URL ?? 'https://rallyhq.app'
 
+/** RHQ event the Pepper series rolls up under (engagement leaderboard grouping). */
+export const RHQ_EVENT_SLUG = 'lets-pepper-open-2026'
+
+/**
+ * Engagement points awarded per LP action source. The AMOUNT is server-owned
+ * (never sent by the browser) so a client can only claim "I did source X",
+ * never how many points it's worth. RHQ caps at 100 and dedups on (fan, source,
+ * ref). Values are intentionally flat participation rewards — tune as the
+ * engagement economy is balanced. Adding a source here makes it awardable.
+ */
+export const ENGAGEMENT_POINTS: Record<string, number> = {
+  champion_pick: 5,
+}
+
 /**
  * Maps a Let's Pepper flavor slug (/flavors/[slug]) to its Rally HQ tournament
  * slug. The three 2026 tournaments live under RHQ event `lets-pepper-open-2026`.
@@ -140,5 +154,27 @@ export function submitChampionPick(
   return rhqAuthedPost(`/tournaments/${rhqSlug}/predictions`, {
     fanToken,
     predictedTeamId,
+  })
+}
+
+/**
+ * Award engagement points to a fan in RHQ's unified ledger. RHQ caps the value
+ * (MAX_AWARD_POINTS=100) and is idempotent on (fanToken, source, ref), so a
+ * retry or a repeat action never double-counts. `eventSlug` groups the award
+ * under the Pepper series leaderboard.
+ */
+export function awardRhqPoints(input: {
+  fanToken: string
+  source: string
+  ref: string
+  points: number
+  eventSlug?: string
+}): Promise<unknown> {
+  return rhqAuthedPost('/engagement/points', {
+    fanToken: input.fanToken,
+    source: input.source,
+    ref: input.ref,
+    points: input.points,
+    eventSlug: input.eventSlug ?? RHQ_EVENT_SLUG,
   })
 }

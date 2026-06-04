@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import type { RhqTeam } from '@/lib/types/rhq'
 import { type Heat, heatText, heatBg, heatBorder } from './heat'
 import { useRhqModule } from './useRhqModule'
-import { ensureFanToken } from './fanToken'
+import { ensureFanToken, awardEngagementPoints } from './fanToken'
 
 interface Props {
   flavor: string
@@ -46,6 +46,9 @@ export function ChampionPickControl({ flavor, heat }: Props) {
       window.localStorage.setItem(`rhq_pick_${flavor}`, team.id)
       setPick(team.id)
       setSubmit('idle')
+      // Participation reward into the unified RHQ engagement ledger. Idempotent
+      // on (fan, source, ref=flavor) — changing the pick doesn't re-award.
+      awardEngagementPoints('champion_pick', flavor)
     } catch {
       setSubmit('error')
     }
