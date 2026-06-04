@@ -50,7 +50,7 @@ const tournaments: Record<string, TournamentDetail> = {
   'bell-pepper-open': {
     slug: 'bell-pepper-open',
     rhqSlug: 'bell-pepper-open-2026',
-    name: 'The Bell Pepper Open',
+    name: 'Bell Pepper Open',
     heat: 'bell',
     heroImage: '/images/heroes/bell-pepper-open.webp',
     tagline: 'Season Opener',
@@ -78,7 +78,7 @@ const tournaments: Record<string, TournamentDetail> = {
   'jalapeno-open': {
     slug: 'jalapeno-open',
     rhqSlug: 'jalapeno-open-2026',
-    name: 'The Jalapeño Open',
+    name: 'Jalapeño Open',
     heat: 'jalapeno',
     heroImage: '/images/heroes/jalapeno-open.webp',
     tagline: 'Bring The Heat',
@@ -106,7 +106,7 @@ const tournaments: Record<string, TournamentDetail> = {
   'poblano-open': {
     slug: 'poblano-open',
     rhqSlug: 'poblano-open-2026',
-    name: 'The Poblano Pepper Open',
+    name: 'Poblano Pepper Open',
     heat: 'poblano',
     heroImage: '/images/heroes/poblano-open.webp',
     tagline: 'Season Finale',
@@ -134,9 +134,9 @@ const tournaments: Record<string, TournamentDetail> = {
 }
 
 const heatConfig = {
-  bell: { color: 'var(--heat-bell)', textClass: 'text-heat-bell', borderClass: 'border-heat-bell', bgClass: 'bg-heat-bell', level: 'Mild', bars: 1 },
-  poblano: { color: 'var(--heat-poblano)', textClass: 'text-heat-poblano', borderClass: 'border-heat-poblano', bgClass: 'bg-heat-poblano', level: 'Medium', bars: 2 },
-  jalapeno: { color: 'var(--heat-jalapeno)', textClass: 'text-heat-jalapeno', borderClass: 'border-heat-jalapeno', bgClass: 'bg-heat-jalapeno', level: 'Hot', bars: 3 },
+  bell: { color: 'var(--heat-bell)', textClass: 'text-heat-bell', borderClass: 'border-heat-bell', bgClass: 'bg-heat-bell', glowClass: 'hover:bg-heat-bell-glow', level: 'Mild', bars: 1 },
+  poblano: { color: 'var(--heat-poblano)', textClass: 'text-heat-poblano', borderClass: 'border-heat-poblano', bgClass: 'bg-heat-poblano', glowClass: 'hover:bg-heat-poblano-glow', level: 'Medium', bars: 2 },
+  jalapeno: { color: 'var(--heat-jalapeno)', textClass: 'text-heat-jalapeno', borderClass: 'border-heat-jalapeno', bgClass: 'bg-heat-jalapeno', glowClass: 'hover:bg-heat-jalapeno-glow', level: 'Hot', bars: 3 },
 }
 
 /** Reads a `?phase=` preview override (pre|live|post) once on mount. Forces which
@@ -269,7 +269,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 {tournament.name}
               </h1>
 
-              <p className={cn('text-xl sm:text-2xl leading-relaxed', config.textClass)}>{tournament.headline}</p>
+              <p className="text-xl sm:text-2xl leading-relaxed text-zinc-300">{tournament.headline}</p>
 
               <div className="flex flex-wrap gap-5 font-accent text-sm text-zinc-300 pt-1">
                 <span>{tournament.division.replace(' (One Division)', '')}</span>
@@ -284,13 +284,13 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 {isPre && (
                   <>
                     <Countdown target={tournament.startsAt} />
-                    <Link href="/signup" className="btn-primary"><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
+                    <Link href="/signup" className={cn('btn-heat', config.bgClass, config.glowClass)}><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
                     <a href="#predict" className="font-accent text-sm uppercase tracking-wider text-zinc-300 hover:text-white transition-colors self-center">Predict the champ →</a>
                   </>
                 )}
                 {isLive && (
                   <>
-                    <a href={`https://rallyhq.app/t/${tournament.rhqSlug}`} target="_blank" rel="noopener noreferrer" className="btn-primary"><span>Watch Live on Rally HQ</span><span aria-hidden="true">↗</span></a>
+                    <a href={`https://rallyhq.app/t/${tournament.rhqSlug}`} target="_blank" rel="noopener noreferrer" className={cn('btn-heat', config.bgClass, config.glowClass)}><span>Watch Live on Rally HQ</span><span aria-hidden="true">↗</span></a>
                     <a href="#standings" className="font-accent text-sm uppercase tracking-wider text-zinc-300 hover:text-white transition-colors self-center">Standings →</a>
                   </>
                 )}
@@ -305,7 +305,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                         </span>
                       </span>
                     )}
-                    <a href="#bracket" className="btn-primary"><span>Full Bracket</span><span aria-hidden="true">→</span></a>
+                    <a href="#bracket" className={cn('btn-heat', config.bgClass, config.glowClass)}><span>Full Bracket</span><span aria-hidden="true">→</span></a>
                   </>
                 )}
               </div>
