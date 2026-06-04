@@ -13,6 +13,7 @@ import { RhqScheduleSection } from '@/components/rhq/RhqScheduleSection'
 import { RhqStandingsTable } from '@/components/rhq/RhqStandingsTable'
 import { RhqBracketPreview } from '@/components/rhq/RhqBracketPreview'
 import { usePhase, type EventPhase } from '@/components/rhq/usePhase'
+import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { cn } from '@/lib/utils'
 
 interface TournamentDetail {
@@ -134,16 +135,6 @@ const heatConfig = {
   jalapeno: { color: 'var(--heat-jalapeno)', textClass: 'text-heat-jalapeno', borderClass: 'border-heat-jalapeno', bgClass: 'bg-heat-jalapeno', level: 'Hot', bars: 3 },
 }
 
-function HeatMeter({ level, colorClass }: { level: number; colorClass: string }) {
-  return (
-    <div className="flex gap-1" aria-label={`Heat level ${level} of 3`}>
-      {[1, 2, 3].map((bar) => (
-        <div key={bar} className={cn('w-3 h-6 rounded-sm transition-colors', bar <= level ? colorClass : 'bg-zinc-700')} />
-      ))}
-    </div>
-  )
-}
-
 /** Reads a `?phase=` preview override (pre|live|post) once on mount. Forces which
  *  face renders for QA/preview — it never fabricates data. */
 function usePhaseOverride(): EventPhase | null {
@@ -256,7 +247,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                   Underground · {tournament.tagline}
                 </span>
                 <span className={cn('inline-flex items-center gap-2', config.textClass)}>
-                  <HeatMeter level={config.bars} colorClass={config.bgClass} />
+                  <HeatMeter heat={tournament.heat} />
                   <span className="font-accent text-xs uppercase tracking-wider">{config.level}</span>
                 </span>
                 <span

@@ -4,8 +4,9 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { RhqTeam } from '@/lib/rhq-types'
-import { type Heat, heatText, heatBg } from './heat'
+import { type Heat, heatText, heatBg, heatBorder } from './heat'
 import { useRhqModule } from './useRhqModule'
+import { HeatMeter } from './HeatMeter'
 
 interface Props {
   slug: string
@@ -44,33 +45,39 @@ export function RhqTeamRoster({ slug, heat }: Props) {
           viewport={MOTION.viewport.once}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-baseline justify-between gap-4 flex-wrap">
-            <h2 className={cn('text-section-heading', heatText[heat])}>The Field</h2>
-            <span className="font-accent text-xs uppercase tracking-wider text-zinc-600">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <HeatMeter heat={heat} size="sm" />
+              <h2 className={cn('text-section-heading', heatText[heat])}>The Field</h2>
+            </div>
+            <span className="font-accent text-xs uppercase tracking-[0.14em] text-zinc-600">
               {teams.length} teams · Powered by Rally HQ
             </span>
           </div>
 
           <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {pools.map(([pool, members]) => (
-              <div key={pool} className="rounded-xl border border-zinc-800 overflow-hidden">
+              <div
+                key={pool}
+                className={cn('rounded-xl border border-zinc-800 border-l-2 overflow-hidden', heatBorder[heat])}
+              >
                 {!single && (
-                  <div
-                    className={cn(
-                      'px-4 py-1.5 font-accent text-xs font-bold uppercase tracking-wider text-pepper-charcoal',
-                      heatBg[heat]
-                    )}
-                  >
-                    Pool {pool}
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
+                    <span className={cn('font-accent text-xs font-bold uppercase tracking-[0.14em]', heatText[heat])}>
+                      Pool {pool}
+                    </span>
+                    <span className="font-accent text-[0.6rem] uppercase tracking-wider text-zinc-600">
+                      {members.length} teams
+                    </span>
                   </div>
                 )}
                 <ul className="divide-y divide-zinc-800">
                   {members.map((team) => (
                     <li
                       key={team.id}
-                      className="grid grid-cols-[1.5rem_1fr_auto] gap-3 items-center px-4 py-2.5"
+                      className="grid grid-cols-[2ch_1fr_auto] gap-3 items-center px-4 py-2.5"
                     >
-                      <span className="font-accent text-xs text-zinc-600">
+                      <span className="font-display text-lg leading-none text-zinc-600 tabular-nums">
                         {team.seed ?? '·'}
                       </span>
                       <span className="font-semibold text-white">{team.name}</span>
