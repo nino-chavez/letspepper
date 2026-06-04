@@ -14,6 +14,7 @@ import { RhqStandingsTable } from '@/components/rhq/RhqStandingsTable'
 import { RhqBracketPreview } from '@/components/rhq/RhqBracketPreview'
 import { usePhase, type EventPhase } from '@/components/rhq/usePhase'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
+import { CourtBoard } from '@/components/rhq/CourtBoard'
 import { cn } from '@/lib/utils'
 
 interface TournamentDetail {
@@ -348,6 +349,10 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
             One page, three faces. Pre = the field (no scores). Live/Post = live
             standings + bracket. This is what kills the grid-of-zeros and the
             Field/Standings duplication: never both at once. */}
+
+        {/* Court board — "Up Next" per court (pre) → "Happening Now" scorebugs (live). */}
+        <CourtBoard slug={tournament.rhqSlug} heat={tournament.heat} phase={phase} />
+
         {isPre && <RhqTeamRoster slug={tournament.rhqSlug} heat={tournament.heat} />}
 
         {(isLive || isPost) && (

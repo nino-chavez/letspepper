@@ -44,6 +44,28 @@ export interface RhqScheduleMatch {
   scheduled_time: string | null
 }
 
+/**
+ * A match with live scores — the `/matches` read. Distinct from RhqScheduleMatch:
+ * the schedule list is upcoming-only, while matches carries scores + winner for
+ * the live court board (in-progress) and recaps (complete).
+ */
+export interface RhqMatch {
+  id: string
+  round: string | null
+  court: string | null
+  team1_id: string | null
+  team1_name: string
+  team2_id: string | null
+  team2_name: string
+  team1_score: number | null
+  team2_score: number | null
+  winner_id: string | null
+  winner_name: string | null
+  status: string
+  match_number: number | null
+  scheduled_time: string | null
+}
+
 /** One bracket match. `score` is "21-18" once complete, else null. */
 export interface RhqBracketMatch {
   team1_id: string | null

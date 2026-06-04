@@ -18,6 +18,7 @@ import type {
   RhqTeam,
   RhqScheduleMatch,
   RhqBracketRound,
+  RhqMatch,
 } from './rhq-types'
 
 export interface RallyFan {
@@ -367,4 +368,14 @@ export async function getSchedule(slug: string): Promise<RhqScheduleMatch[]> {
 /** Elimination bracket, grouped by round. Empty until pool play completes. */
 export async function getBracket(slug: string): Promise<RhqBracketRound[]> {
   return (await call<RhqBracketRound[]>(`/api/public/v1/tournaments/${slug}/bracket`, { method: 'GET' })) ?? []
+}
+
+/**
+ * Matches with live scores. `status` filters to 'in_progress' (live court board)
+ * or 'complete' (recaps); omit for all. Carries team scores + winner, unlike the
+ * upcoming-only schedule read.
+ */
+export async function getMatches(slug: string, status?: string): Promise<RhqMatch[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+  return (await call<RhqMatch[]>(`/api/public/v1/tournaments/${slug}/matches${qs}`, { method: 'GET' })) ?? []
 }
