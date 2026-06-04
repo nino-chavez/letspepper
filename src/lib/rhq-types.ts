@@ -22,6 +22,26 @@ export interface RhqPool {
   teams: RhqPoolTeam[]
 }
 
+/**
+ * Tournament summary — RHQ's canonical public snapshot. `is_live` is the
+ * authoritative live signal (don't re-derive it from match scores), and
+ * `bracket_results` carries the champion once the final resolves. The polling
+ * fallback for the SSE `/live` stream (which needs a Headless-tier key).
+ */
+export interface RhqSummary {
+  is_live: boolean
+  current_phase: string
+  bracket_results: Array<{
+    round: string
+    matches: Array<{
+      team1: string
+      team2: string
+      score: string | null
+      winner: string | null
+    }>
+  }>
+}
+
 /** A registered team (names only — no captain identity in the public view). */
 export interface RhqTeam {
   id: string
@@ -39,6 +59,28 @@ export interface RhqScheduleMatch {
   team1_name: string
   team2_id: string | null
   team2_name: string
+  status: string
+  match_number: number | null
+  scheduled_time: string | null
+}
+
+/**
+ * A match with live scores — the `/matches` read. Distinct from RhqScheduleMatch:
+ * the schedule list is upcoming-only, while matches carries scores + winner for
+ * the live court board (in-progress) and recaps (complete).
+ */
+export interface RhqMatch {
+  id: string
+  round: string | null
+  court: string | null
+  team1_id: string | null
+  team1_name: string
+  team2_id: string | null
+  team2_name: string
+  team1_score: number | null
+  team2_score: number | null
+  winner_id: string | null
+  winner_name: string | null
   status: string
   match_number: number | null
   scheduled_time: string | null

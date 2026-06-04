@@ -18,6 +18,8 @@ import type {
   RhqTeam,
   RhqScheduleMatch,
   RhqBracketRound,
+  RhqMatch,
+  RhqSummary,
 } from './rhq-types'
 
 export interface RallyFan {
@@ -367,4 +369,23 @@ export async function getSchedule(slug: string): Promise<RhqScheduleMatch[]> {
 /** Elimination bracket, grouped by round. Empty until pool play completes. */
 export async function getBracket(slug: string): Promise<RhqBracketRound[]> {
   return (await call<RhqBracketRound[]>(`/api/public/v1/tournaments/${slug}/bracket`, { method: 'GET' })) ?? []
+}
+
+/**
+ * Matches with live scores. `status` filters to 'in_progress' (live court board)
+ * or 'complete' (recaps); omit for all. Carries team scores + winner, unlike the
+ * upcoming-only schedule read.
+ */
+export async function getMatches(slug: string, status?: string): Promise<RhqMatch[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+  return (await call<RhqMatch[]>(`/api/public/v1/tournaments/${slug}/matches${qs}`, { method: 'GET' })) ?? []
+}
+
+/**
+ * Canonical tournament summary — the authoritative `is_live` signal + champion.
+ * Returns null on failure so callers can hold their default phase. This is the
+ * polling fallback for the Headless-tier SSE `/live` stream.
+ */
+export async function getSummary(slug: string): Promise<RhqSummary | null> {
+  return call<RhqSummary>(`/api/public/v1/tournaments/${slug}/summary`, { method: 'GET' })
 }

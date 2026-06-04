@@ -4,13 +4,16 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { RhqPool, RhqPoolTeam } from '@/lib/rhq-types'
-import { type Heat, heatText, heatBg } from './heat'
+import { type Heat, heatText, heatBg, heatBorder } from './heat'
 import { useRhqModule } from './useRhqModule'
+import { HeatMeter } from './HeatMeter'
 
 interface Props {
   /** RHQ tournament slug (supplied by the flavor page from its rhqSlug field). */
   slug: string
   heat: Heat
+  /** Set (e.g. 60000) to live-poll standings while the event is in progress. */
+  pollMs?: number
 }
 
 /** Rank within a pool: most wins, then best point differential. */
@@ -23,8 +26,8 @@ function rankTeams(teams: RhqPoolTeam[]): RhqPoolTeam[] {
  * Branded server-fetch: the useRhqModule hook calls LP's /api/rhq/pools handler,
  * which proxies RHQ's public API server-side — the key never reaches the browser.
  */
-export function RhqStandingsTable({ slug, heat }: Props) {
-  const { data: pools, failed } = useRhqModule<RhqPool[]>('pools', slug, 'pools')
+export function RhqStandingsTable({ slug, heat, pollMs }: Props) {
+  const { data: pools, failed } = useRhqModule<RhqPool[]>('pools', slug, 'pools', pollMs)
 
   // Network/server error — stay silent rather than show a broken section.
   if (failed) return null
@@ -40,9 +43,12 @@ export function RhqStandingsTable({ slug, heat }: Props) {
           viewport={MOTION.viewport.once}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-baseline justify-between gap-4 flex-wrap">
-            <h2 className={cn('text-section-heading', heatText[heat])}>Live Standings</h2>
-            <span className="font-accent text-xs uppercase tracking-wider text-zinc-600">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <HeatMeter heat={heat} size="sm" />
+              <h2 className={cn('text-section-heading', heatText[heat])}>Live Standings</h2>
+            </div>
+            <span className="font-accent text-xs uppercase tracking-[0.14em] text-zinc-600">
               Powered by Rally HQ
             </span>
           </div>
@@ -77,30 +83,38 @@ export function RhqStandingsTable({ slug, heat }: Props) {
               {pools!.map((pool) => (
                 <div
                   key={pool.pool}
-                  className="rounded-xl border border-zinc-800 overflow-hidden"
+                  className={cn('rounded-xl border border-zinc-800 border-l-2 overflow-hidden', heatBorder[heat])}
                 >
-                  <div
-                    className={cn(
-                      'px-4 py-1.5 font-accent text-xs font-bold uppercase tracking-wider text-pepper-charcoal',
-                      heatBg[heat]
-                    )}
-                  >
-                    Pool {pool.pool}
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
+                    <span className={cn('font-accent text-xs font-bold uppercase tracking-[0.14em]', heatText[heat])}>
+                      Pool {pool.pool}
+                    </span>
+                    <span className="font-accent text-[0.55rem] uppercase tracking-wider text-zinc-600">W–L · Diff</span>
                   </div>
                   <div className="divide-y divide-zinc-800">
                     {rankTeams(pool.teams).map((team, i) => (
                       <div
                         key={team.team_id}
-                        className="grid grid-cols-[1.5rem_1fr_auto_auto] gap-3 items-center px-4 py-2.5"
+                        className={cn(
+                          'grid grid-cols-[2ch_1fr_auto_3ch] gap-3 items-center px-4 py-2.5',
+                          i === 0 && 'bg-zinc-900/40'
+                        )}
                       >
-                        <span className="font-accent text-xs text-zinc-600">{i + 1}</span>
-                        <span className="font-semibold text-white">{team.team_name}</span>
+                        <span
+                          className={cn(
+                            'font-display text-lg leading-none tabular-nums',
+                            i === 0 ? heatText[heat] : 'text-zinc-600'
+                          )}
+                        >
+                          {i + 1}
+                        </span>
+                        <span className="font-semibold text-white truncate">{team.team_name}</span>
                         <span className="font-accent text-xs text-zinc-400 tabular-nums">
                           {team.wins}–{team.losses}
                         </span>
                         <span
                           className={cn(
-                            'font-accent text-xs tabular-nums',
+                            'font-accent text-xs tabular-nums text-right',
                             team.point_diff > 0
                               ? heatText[heat]
                               : team.point_diff < 0
