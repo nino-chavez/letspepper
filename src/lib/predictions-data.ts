@@ -45,12 +45,13 @@ export const predictionEvents: PredictionEvent[] = [
     resultsRevealed: false,
     // NOTE: the "who wins" pick is now the Rally HQ-backed ChampionPick card
     // (real teams, auto-scored). The props below are the bespoke culture quiz —
-    // SCAFFOLD copy retargeted from Poblano; rewrite in Nino's voice for Bell Pepper.
+    // retargeted for the Bell Pepper Open (no prior-season references; this is
+    // the series opener).
     props: [
       {
-        id: 'three-peat',
-        question: 'Will any player repeat as champion this season?',
-        options: ['Yes — a title defense holds', 'No — new blood takes over'],
+        id: 'pool-to-podium',
+        question: 'Will the team that tops pool play also win the whole thing?',
+        options: ['Yes — they carry it through', 'No — the bracket flips the script'],
         heat: 'jalapeno',
         points: 3,
         category: 'matchup',
@@ -128,9 +129,9 @@ export const predictionEvents: PredictionEvent[] = [
         category: 'culture',
       },
       {
-        id: 'repeat-podium',
-        question: 'How many teams from last season\'s podium finish top 3 again?',
-        options: ['All of them', '2 out of 3', '1 out of 3', 'None — total shakeup'],
+        id: 'champion-dropped-set',
+        question: 'Will the champion drop a set on the way to the title?',
+        options: ['No — clean run', 'Yes — they survive one scare', 'Yes — multiple close calls'],
         heat: 'reaper',
         points: 5,
         category: 'matchup',
