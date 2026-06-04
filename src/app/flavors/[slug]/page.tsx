@@ -24,9 +24,10 @@ interface TournamentDetail {
   name: string
   heat: 'bell' | 'poblano' | 'jalapeno'
   /**
-   * Gritty-cinematic hero image (the brand-correct treatment). Optional: events
-   * without one yet render a cinematic gradient instead of the off-brand cartoon
-   * mascot. Generating jalapeño/poblano gritty heroes is a pending asset task.
+   * Gritty-cinematic hero image (the brand-correct treatment): an anthropomorphic
+   * pepper-warrior with the rallyhq fierce face, in a signature volleyball action
+   * (bell serve, jalapeño spike, poblano dig). Optional — an event without one
+   * falls back to a cinematic gradient rather than the off-brand cartoon mascot.
    */
   heroImage?: string
   tagline: string
@@ -79,6 +80,7 @@ const tournaments: Record<string, TournamentDetail> = {
     rhqSlug: 'jalapeno-open-2026',
     name: 'The Jalapeño Open',
     heat: 'jalapeno',
+    heroImage: '/images/heroes/jalapeno-open.webp',
     tagline: 'Bring The Heat',
     headline: 'Now it\'s time to bring the heat. The Jalapeño Open hits fast, sharp, and fully spiced.',
     description: 'Mid-season. You\'re dialed in — turn up the intensity. Built for players who value clean hands, crisp touches, and spicy pulls. Tighter rallies and peak competitive intensity.',
@@ -106,6 +108,7 @@ const tournaments: Record<string, TournamentDetail> = {
     rhqSlug: 'poblano-open-2026',
     name: 'The Poblano Pepper Open',
     heat: 'poblano',
+    heroImage: '/images/heroes/poblano-open.webp',
     tagline: 'Season Finale',
     headline: 'Cooling things down. The Poblano Pepper Open — final stop of the Let\'s Pepper Series.',
     description: 'Built for grinders, diggers, and defenders who know that touch beats torque. Long rallies, dirty knees, and payouts that stay spicy. Leave it all on the grass.',
