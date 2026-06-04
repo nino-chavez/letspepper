@@ -171,6 +171,20 @@
     min-height: var(--touch-target-min);
   }
 
+  /* Heat-driven primary CTA: same chassis as .btn-primary, but the fill comes
+     from the event's heat (bell=green, poblano=yellow, jalapeno=orange) instead
+     of a hardcoded orange. Compose with the heat bg + glow classes, e.g.
+     cn('btn-heat', config.bgClass, config.glowClass). Keeps the prototype's
+     "accent follows heat" discipline on the flavor pages. */
+  .btn-heat {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3;
+    @apply font-accent text-sm uppercase tracking-wider;
+    @apply text-pepper-black font-bold;
+    @apply rounded-full transition-all duration-200;
+    @apply hover:scale-105 active:scale-95;
+    min-height: var(--touch-target-min);
+  }
+
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 px-6 py-3;
     @apply font-accent text-sm uppercase tracking-wider;
