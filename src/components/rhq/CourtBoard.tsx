@@ -4,9 +4,8 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { RhqMatch } from '@/lib/rhq-types'
-import { type Heat, heatText, heatBg, heatBorder } from './heat'
+import { type Heat, heatText, heatBg } from './heat'
 import { useRhqModule } from './useRhqModule'
-import { HeatMeter } from './HeatMeter'
 import type { EventPhase } from './usePhase'
 
 /**
@@ -23,12 +22,7 @@ export function LiveScorebug({ match, heat }: { match: RhqMatch; heat: Heat }) {
   const t2Lead = hasScore && (match.team2_score ?? 0) > (match.team1_score ?? 0)
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border border-zinc-800 border-l-2 bg-gradient-to-b from-zinc-900/80 to-zinc-950/60 overflow-hidden',
-        heatBorder[heat]
-      )}
-    >
+    <div className="rounded-xl border border-zinc-800 bg-gradient-to-b from-zinc-900/80 to-zinc-950/60 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
         <span className="font-accent text-[0.65rem] uppercase tracking-[0.12em] text-zinc-300">
           {match.court ? `Court ${match.court}` : `Match #${match.match_number ?? '—'}`}
@@ -129,17 +123,14 @@ export function CourtBoard({ slug, heat, phase }: Props) {
           viewport={MOTION.viewport.once}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <HeatMeter heat={heat} size="sm" />
-              <h2 className={cn('text-section-heading', heatText[heat])}>{heading}</h2>
-            </div>
-            <span className="font-accent text-xs uppercase tracking-[0.14em] text-zinc-600">
-              By court · Powered by Rally HQ
+          <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
+            <h2 className="block-heading">{heading}</h2>
+            <span className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500">
+              By court · <span className={heatText[heat]}>powered by Rally HQ</span>
             </span>
           </div>
 
-          <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {shown.map((m) => (
               <LiveScorebug key={m.id} match={m} heat={heat} />
             ))}
