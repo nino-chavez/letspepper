@@ -2,6 +2,7 @@ import {
   Header,
   HeroSection,
   TournamentSeries,
+  StandingsCallout,
   PepperBelle,
   EthosSection,
   GalleryPreview,
@@ -16,6 +17,7 @@ export default function HomePage() {
       <main id="main-content">
         <HeroSection />
         <TournamentSeries />
+        <StandingsCallout />
         <PepperBelle />
         <EthosSection />
         <GalleryPreview />
