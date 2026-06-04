@@ -38,3 +38,6 @@ Thumbs.db
 *.tsbuildinfo
 next-env.d.ts
 .wrangler
+
+# Generated social/story assets (regenerable via scripts/story-assets/*.mjs)
+scripts/story-assets/*.png
