@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
@@ -207,7 +207,6 @@ function TopPerformers({ entries }: { entries: SeasonLeaderEntry[] }) {
 }
 
 export default function StandingsPage() {
-  const [selectedSeason] = useState('2025')
   // Results derive from Rally HQ (placements + rosters), so they stay correct and
   // auto-include future events. The local data is the initial paint + offline
   // fallback (it also still feeds the player/team views elsewhere).
@@ -232,8 +231,19 @@ export default function StandingsPage() {
       .catch(() => {})
   }, [])
 
-  // Group tournaments by season (for future multi-season support)
+  // Season = the latest year present in the results, so the page advances itself each
+  // year instead of pinning to a hardcoded season. (Was hardcoded '2025', which
+  // silently dropped the live 2026 results once Rally HQ started returning them.)
+  const selectedSeason = useMemo(() => {
+    const years = Array.from(
+      new Set(allResults.map(t => t.date.match(/\d{4}/)?.[0]).filter(Boolean) as string[])
+    ).sort()
+    return years.at(-1) ?? String(new Date().getFullYear())
+  }, [allResults])
   const seasonTournaments = allResults.filter(t => t.date.includes(selectedSeason))
+  // Let's Pepper runs a fixed 3-event summer season (Bell Pepper / Jalapeño / Poblano).
+  const SEASON_EVENT_TOTAL = 3
+  const eventsRemaining = Math.max(0, SEASON_EVENT_TOTAL - seasonTournaments.length)
 
   return (
     <>
@@ -253,7 +263,7 @@ export default function StandingsPage() {
                 Tournament Results
               </p>
               <h1 className="text-display mb-6">
-                2025 <span className="text-heat-jalapeno">Standings</span>
+                {selectedSeason} <span className="text-heat-jalapeno">Standings</span>
               </h1>
               <p className="text-xl text-zinc-400">
                 Results from the Let&apos;s Pepper tournament series. Every point earned, every rally won.
@@ -289,7 +299,7 @@ export default function StandingsPage() {
               </div>
               <div className="bg-zinc-900/30 rounded-xl border border-zinc-800 p-6 text-center">
                 <p className="font-display text-4xl text-heat-jalapeno mb-1">
-                  1
+                  {eventsRemaining}
                 </p>
                 <p className="font-accent text-xs uppercase tracking-wider text-zinc-500">
                   Events Remaining
