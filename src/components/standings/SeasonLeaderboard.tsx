@@ -19,6 +19,7 @@ export function SeasonLeaderboard() {
   const [season, setSeason] = useState<SeasonLeaderEntry[]>([])
   const [allTime, setAllTime] = useState<SeasonLeaderEntry[]>([])
   const [scope, setScope] = useState<'season' | 'all'>('season')
+  const [meta, setMeta] = useState<{ seasons: number; events: number }>({ seasons: 0, events: 0 })
   const [loaded, setLoaded] = useState(false)
   const [showAll, setShowAll] = useState(false)
 
@@ -28,12 +29,14 @@ export function SeasonLeaderboard() {
       .then((d) => {
         setSeason(Array.isArray(d.leaderboard) ? d.leaderboard : [])
         setAllTime(Array.isArray(d.allTime) ? d.allTime : [])
+        setMeta({ seasons: Number(d.seasons) || 0, events: Number(d.events) || 0 })
       })
       .catch(() => { setSeason([]); setAllTime([]) })
       .finally(() => setLoaded(true))
   }, [])
 
   const entries = scope === 'all' ? allTime : season
+  const allTimeLeaders = allTime.filter((e) => e.rank === 1).map((e) => e.name).join(' & ')
   const copy = scope === 'all'
     ? { eyebrow: 'All-Time Series', title: 'Career Points', sub: 'Every finish since 2025 — show up, climb the board.' }
     : { eyebrow: 'Season Leaderboard', title: 'Points Race', sub: 'Every finish this season, scored automatically. Ties share a rank.' }
@@ -81,6 +84,17 @@ export function SeasonLeaderboard() {
               ))}
             </div>
           </div>
+
+          {scope === 'all' && (
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-6 py-3 border-b border-zinc-800/50 font-accent text-[11px] uppercase tracking-wider text-zinc-500">
+              <span><b className="text-zinc-300">{meta.seasons}</b> seasons</span>
+              <span><b className="text-zinc-300">{meta.events}</b> events</span>
+              <span><b className="text-zinc-300">{allTime.length}</b> players</span>
+              {allTimeLeaders && (
+                <span>All-time leaders: <b style={{ color: 'var(--gold)' }}>{allTimeLeaders}</b></span>
+              )}
+            </div>
+          )}
 
           {!loaded ? (
             <p className="p-6 text-zinc-600 text-sm font-accent uppercase tracking-wider">Loading…</p>

@@ -20,7 +20,7 @@ export async function GET() {
     // `allTime` = the series board across every edition (the reason to return yearly).
     const leaderboard = getRankedLeaderboard(season)
     const allTime = getRankedLeaderboard()
-    return ok({ leaderboard, allTime, season })
+    return ok({ leaderboard, allTime, season, seasons: years.length, events: tournamentResults.length })
   } catch (err) {
     console.error('Season leaderboard error:', err)
     return serverError('Could not load the leaderboard')
