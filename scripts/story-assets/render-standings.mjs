@@ -55,7 +55,7 @@ const TEAMS_2026 = [
   { reg: '12', players: ['Sriram Sundareswaram', 'Cedric', 'Shane'], place: 9, seed: 13 },
   { reg: '15', players: ['Pat Paasch', 'Joel Paasch'], place: 9, seed: 11 },
   { reg: '18', players: ['Noah Konopack', 'Josh Bloom', 'Ray Driver'], place: 9, seed: 10 },
-  { reg: '16', players: ['Tom Blankenstein', 'Rolando', 'Jack Huizinga'], place: 9, seed: 17 },
+  { reg: '16', players: ['Tom Blankschein', 'Rolando', 'Jack Huizinga'], place: 9, seed: 17 },
   { reg: '03', players: ['Jack Stolzer', 'Will Elias', 'Ty Steponaitus'], place: 9, seed: 19 },
   { reg: '19', players: ['Kyle Swarens', 'Carter Geiger', 'Tony Solis'], place: 9, seed: 15 },
   { reg: '06', players: ['Brad Hornstein', 'Cooper Hansen', 'Mason Kolar'], place: 17, seed: 16 },

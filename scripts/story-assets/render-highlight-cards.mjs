@@ -46,7 +46,7 @@ const TEAMS = [
   ['13', ['Colin Merk', 'Ryan Merk', 'Dave Wieczorek']],
   ['14', ['David Johnson', 'Tam', 'Kenyon Hayes']],
   ['15', ['Pat Paasch', 'Joel Paasch']],
-  ['16', ['Tom Blankenstein', 'Rolando', 'Jack Huizinga']],
+  ['16', ['Tom Blankschein', 'Rolando', 'Jack Huizinga']],
   ['17', ['Justin Arrowood', 'Ben Boron', 'Bella Thompson']],
   ['18', ['Noah Konopack', 'Josh Bloom', 'Ray Driver']],
   ['19', ['Kyle Swarens', 'Carter Geiger', 'Tony Solis']],

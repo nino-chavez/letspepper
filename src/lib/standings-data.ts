@@ -65,7 +65,7 @@ export const tournamentResults: TournamentResult[] = [
       { place: 9, players: ['Sriram Sundareswaram', 'Cedric', 'Shane'], tied: true },
       { place: 9, players: ['Pat Paasch', 'Joel Paasch'], tied: true },
       { place: 9, players: ['Noah Konopack', 'Josh Bloom', 'Ray Driver'], tied: true },
-      { place: 9, players: ['Tom Blankenstein', 'Rolando', 'Jack Huizinga'], tied: true },
+      { place: 9, players: ['Tom Blankschein', 'Rolando', 'Jack Huizinga'], tied: true },
       { place: 9, players: ['Jack Stolzer', 'Will Elias', 'Ty Steponaitus'], tied: true },
       { place: 9, players: ['Kyle Swarens', 'Carter Geiger', 'Tony Solis'], tied: true },
       { place: 17, players: ['Brad Hornstein', 'Cooper Hansen', 'Mason Kolar'], tied: true },
