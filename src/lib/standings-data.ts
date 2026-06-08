@@ -45,6 +45,35 @@ function getPoints(place: number): number {
 // Results data - structured for easy CMS migration later
 export const tournamentResults: TournamentResult[] = [
   {
+    id: 'bell-pepper-2026-06-07',
+    event: 'Bell Pepper Open',
+    date: 'June 7, 2026',
+    location: 'Aurora, IL',
+    heat: 'bell',
+    // Placements bracket-derived (19-team single-elim, post-pool reseed).
+    results: [
+      { place: 1, players: ['Colin Merk', 'Ryan Merk', 'Dave Wieczorek'] },
+      { place: 2, players: ['Nate Meyer', 'Charlie Podgorny', 'Ian Schuller'] },
+      { place: 3, players: ['David Hill', 'Quinn Bozarth', 'Braxton Francis'], tied: true },
+      { place: 3, players: ['Urvil Patel', 'Evan Hughes', 'Jake Reishus'], tied: true },
+      { place: 5, players: ['Tyler Donovan', 'Sammy Atkinson', 'Abhi Lakkamsani', 'Justin McCartney'], tied: true },
+      { place: 5, players: ['Mitchell Carrera', 'Connor Jaral', 'Connor Studer'], tied: true },
+      { place: 5, players: ['Nick Maruyama', 'Braydon Savitski-Lynde', 'Lincoln Geist'], tied: true },
+      { place: 5, players: ['Everett Haynes', 'Will Mensching', 'Blayr Young'], tied: true },
+      { place: 9, players: ['Erik Kirschbaum', 'Mike Hallman', 'Joe Glatz'], tied: true },
+      { place: 9, players: ['Elijah Skutt', 'Owen Randel', 'Ian'], tied: true },
+      { place: 9, players: ['Sriram Sundareswaram', 'Cedric', 'Shane'], tied: true },
+      { place: 9, players: ['Pat Paasch', 'Joel Paasch'], tied: true },
+      { place: 9, players: ['Noah Konopack', 'Josh Bloom', 'Ray Driver'], tied: true },
+      { place: 9, players: ['Tom Blankenstein', 'Rolando', 'Jack Huizinga'], tied: true },
+      { place: 9, players: ['Jack Stolzer', 'Will Elias', 'Ty Steponaitus'], tied: true },
+      { place: 9, players: ['Kyle Swarens', 'Carter Geiger', 'Tony Solis'], tied: true },
+      { place: 17, players: ['Brad Hornstein', 'Cooper Hansen', 'Mason Kolar'], tied: true },
+      { place: 17, players: ['Justin Arrowood', 'Ben Boron', 'Bella Thompson'], tied: true },
+      { place: 17, players: ['David Johnson', 'Tam', 'Kenyon Hayes'], tied: true },
+    ],
+  },
+  {
     id: 'bell-pepper-2025-07-19',
     event: 'Bell Pepper Open',
     date: 'July 19, 2025',

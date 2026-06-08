@@ -112,7 +112,7 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         question: 'What do winners get?',
-        answer: 'Cash prizes for top finishers. Prize pool scales with team participation — bigger field means bigger payouts.',
+        answer: 'Prizes for top finishers, and the pool grows with the field. Specifics are shared at registration.',
       },
       {
         question: 'Is there media coverage?',

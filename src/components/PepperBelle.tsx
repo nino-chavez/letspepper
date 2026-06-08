@@ -80,7 +80,7 @@ export function PepperBelle() {
 
             {/* Features */}
             <ul className="grid sm:grid-cols-2 gap-4">
-              {['3v3 Format', 'Grass Courts', 'Prize Payouts', 'Media Coverage'].map(
+              {['3v3 Format', 'Grass Courts', 'Real Prizes', 'Media Coverage'].map(
                 (feature) => (
                   <li
                     key={feature}

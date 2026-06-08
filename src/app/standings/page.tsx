@@ -217,7 +217,15 @@ export default function StandingsPage() {
     fetch('/api/standings-results')
       .then((r) => r.json())
       .then((d) => {
-        if (Array.isArray(d.results) && d.results.length > 0) setAllResults(d.results)
+        if (!Array.isArray(d.results) || d.results.length === 0) return
+        // Union local + Rally HQ by (season, event) so live results freshen/extend the
+        // seed data without dropping events Rally HQ hasn't resolved yet (e.g. 2026).
+        setAllResults((prev) => {
+          const key = (t: TournamentResult) => `${t.date.match(/\d{4}/)?.[0] ?? ''}|${t.event}`
+          const merged = new Map(prev.map((t) => [key(t), t]))
+          for (const t of d.results as TournamentResult[]) merged.set(key(t), t)
+          return Array.from(merged.values())
+        })
       })
       .catch(() => {})
   }, [])

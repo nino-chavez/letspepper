@@ -33,7 +33,7 @@ const tournaments: Tournament[] = [
       'First tournament of the season. Shake off the rust, find your rhythm, and get warmed up.',
     date: '2026-06-07',
     displayDate: 'June 7, 2026',
-    features: ['Season Kickoff', 'Full Media', 'Cash Prizes'],
+    features: ['Season Kickoff', 'Full Media', 'Finalist Prizes'],
   },
   {
     id: 'jalapeno',

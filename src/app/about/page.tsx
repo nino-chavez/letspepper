@@ -40,8 +40,8 @@ const values = [
     description: 'Professional coverage through Flickday Media. Your moments captured, your highlights shared.',
   },
   {
-    title: 'Real Payouts',
-    description: 'Cash prizes for those who earn it. Competition should be rewarded.',
+    title: 'Real Stakes',
+    description: 'Prizes for those who earn it. Competition should be rewarded.',
   },
 ]
 
@@ -285,7 +285,7 @@ export default function AboutPage() {
                   Bell Pepper Open
                 </h3>
                 <p className="text-zinc-500 text-sm mb-4">
-                  Season opener. Full media coverage, cash prizes. Where the Let&apos;s Pepper Series begins.
+                  Season opener. Full media coverage and real stakes. Where the Let&apos;s Pepper Series begins.
                 </p>
                 <Link
                   href="/flavors/bell-pepper-open"
@@ -365,7 +365,7 @@ export default function AboutPage() {
                 Ready to play?
               </p>
               <p className="text-lg text-zinc-400 max-w-xl mx-auto">
-                Grass roots. High level. Real payout.
+                Grass roots. High level. Real stakes.
               </p>
 
               <div className="flex flex-wrap justify-center gap-4 pt-4">

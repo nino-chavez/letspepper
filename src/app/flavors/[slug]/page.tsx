@@ -52,23 +52,22 @@ const tournaments: Record<string, TournamentDetail> = {
     rhqSlug: 'bell-pepper-open-2026',
     name: 'Bell Pepper Open',
     heat: 'bell',
-    heroImage: '/images/heroes/bell-pepper-open.webp',
     tagline: 'Season Opener',
     headline: 'The season opener. First tournament of the Let\'s Pepper Series — shake off the rust, find your rhythm, and get warmed up.',
-    description: 'Player-first, payout-backed, and media-covered. This is where the Let\'s Pepper Series begins. Building momentum for the season ahead.',
+    description: 'Player-first, prize-backed, and media-covered. This is where the Let\'s Pepper Series begins. Building momentum for the season ahead.',
     date: 'Sunday, June 7, 2026',
     startsAt: '2026-06-07T09:00:00-05:00',
     time: 'Check-in 8:30 AM · Serve by 9:00 AM',
     location: 'Nature Meadows Park · 1861 Westridge Pl, Aurora, IL 60504',
     division: 'Grass Triples (One Division)',
-    entryFee: '$120 per team',
+    entryFee: '',
     format: 'Pool Play + Single Elimination Bracket',
     payouts: [
-      '1st Place: $600–$1,800 (scales with team count)',
-      '2nd Place: $240–$600 (scales with team count)',
-      'All finalists receive media coverage and photos',
+      'Prizes for top finishers',
+      'Awards scale with the field',
+      'Full media coverage for every team',
     ],
-    features: ['Season Kickoff', 'Full Media Coverage', 'Cash Prizes'],
+    features: ['Season Kickoff', 'Full Media Coverage', 'Finalist Prizes'],
     mediaPerks: [
       'Professional photo and video by Flickday Media',
       'Post-tournament highlight reels',
@@ -80,7 +79,6 @@ const tournaments: Record<string, TournamentDetail> = {
     rhqSlug: 'jalapeno-open-2026',
     name: 'Jalapeño Open',
     heat: 'jalapeno',
-    heroImage: '/images/heroes/jalapeno-open.webp',
     tagline: 'Bring The Heat',
     headline: 'Now it\'s time to bring the heat. The Jalapeño Open hits fast, sharp, and fully spiced.',
     description: 'Mid-season. You\'re dialed in — turn up the intensity. Built for players who value clean hands, crisp touches, and spicy pulls. Tighter rallies and peak competitive intensity.',
@@ -89,11 +87,11 @@ const tournaments: Record<string, TournamentDetail> = {
     time: 'Check-in 8:30 AM · Serve by 9:00 AM',
     location: 'Nature Meadows Park · 1861 Westridge Pl, Aurora, IL 60504',
     division: 'Grass Triples (One Division)',
-    entryFee: '$120 per team',
+    entryFee: '',
     format: 'Pool Play + Single Elimination Bracket',
     payouts: [
-      'Cash prizes',
-      'Content coverage',
+      'Prizes for top finishers',
+      'Full content coverage',
       'Merch for finalists',
     ],
     features: ['Peak Competition', 'High Intensity', 'Fast Pace'],
@@ -108,20 +106,19 @@ const tournaments: Record<string, TournamentDetail> = {
     rhqSlug: 'poblano-open-2026',
     name: 'Poblano Pepper Open',
     heat: 'poblano',
-    heroImage: '/images/heroes/poblano-open.webp',
     tagline: 'Season Finale',
     headline: 'Cooling things down. The Poblano Pepper Open — final stop of the Let\'s Pepper Series.',
-    description: 'Built for grinders, diggers, and defenders who know that touch beats torque. Long rallies, dirty knees, and payouts that stay spicy. Leave it all on the grass.',
+    description: 'Built for grinders, diggers, and defenders who know that touch beats torque. Long rallies, dirty knees, and stakes that stay spicy. Leave it all on the grass.',
     date: 'Saturday, August 1, 2026',
     startsAt: '2026-08-01T09:00:00-05:00',
     time: 'Check-in 8:30 AM · Serve by 9:00 AM',
     location: 'Nature Meadows Park · 1861 Westridge Pl, Aurora, IL 60504',
     division: 'Grass Triples (One Division)',
-    entryFee: '$120 per team',
+    entryFee: '',
     format: 'Pool Play + Single Elimination Bracket',
     payouts: [
-      'Cash prizes',
-      'Content coverage',
+      'Prizes for top finishers',
+      'Season recap content',
       'Year-end merch',
     ],
     features: ['Season Closer', 'Final Standings', 'Year-End Celebration'],
@@ -347,9 +344,8 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 { label: 'Date & Time', primary: tournament.date, muted: tournament.time },
                 { label: 'Location', primary: tournament.location },
                 { label: 'Division', primary: tournament.division },
-                { label: 'Entry Fee', primary: tournament.entryFee },
                 { label: 'Format', primary: tournament.format },
-                { label: 'Payouts', list: tournament.payouts },
+                { label: 'Prizes', list: tournament.payouts },
               ] as { label: string; primary?: string; muted?: string; list?: string[] }[]).map((d) => (
                 <motion.div key={d.label} className="space-y-3" variants={MOTION.variants.slideUp}>
                   <h2 className="font-accent text-sm uppercase tracking-wider text-zinc-500">{d.label}</h2>
@@ -471,7 +467,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 Let&apos;s Pepper is a player-first volleyball series. Built for competition, content, and community.
               </p>
               <p className="font-accent text-lg text-zinc-500 uppercase tracking-wider">
-                Grass roots. High level. Real payout.
+                Grass roots. High level. Real stakes.
               </p>
               <div className="flex flex-wrap justify-center gap-4 pt-4">
                 <Link href="/signup" className="btn-primary"><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
