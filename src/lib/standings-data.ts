@@ -29,7 +29,9 @@ export interface PlayerStats {
   placements: { eventId: string; place: number }[]
 }
 
-// Point system: 1st=100, 2nd=75, 3rd=50, 5th=25, 9th=10
+// Point system: 1st=100, 2nd=75, 3rd=50, 5th=25, 9th=10.
+// Participation floor: every team that plays scores (play-in/lower), so showing up
+// year over year always climbs the all-time board — not just winning.
 const POINTS_MAP: Record<number, number> = {
   1: 100,
   2: 75,
@@ -37,9 +39,10 @@ const POINTS_MAP: Record<number, number> = {
   5: 25,
   9: 10,
 }
+const PARTICIPATION = 5
 
 function getPoints(place: number): number {
-  return POINTS_MAP[place] ?? 0
+  return POINTS_MAP[place] ?? PARTICIPATION
 }
 
 // Results data - structured for easy CMS migration later

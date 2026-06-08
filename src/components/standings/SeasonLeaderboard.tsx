@@ -16,20 +16,30 @@ const TREND_GLYPH: Record<SeasonLeaderEntry['trend'], { mark: string; cls: strin
 const TOP_N = 10
 
 export function SeasonLeaderboard() {
-  const [entries, setEntries] = useState<SeasonLeaderEntry[]>([])
+  const [season, setSeason] = useState<SeasonLeaderEntry[]>([])
+  const [allTime, setAllTime] = useState<SeasonLeaderEntry[]>([])
+  const [scope, setScope] = useState<'season' | 'all'>('season')
   const [loaded, setLoaded] = useState(false)
   const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     fetch('/api/standings')
       .then((r) => r.json())
-      .then((d) => setEntries(Array.isArray(d.leaderboard) ? d.leaderboard : []))
-      .catch(() => setEntries([]))
+      .then((d) => {
+        setSeason(Array.isArray(d.leaderboard) ? d.leaderboard : [])
+        setAllTime(Array.isArray(d.allTime) ? d.allTime : [])
+      })
+      .catch(() => { setSeason([]); setAllTime([]) })
       .finally(() => setLoaded(true))
   }, [])
 
-  // Nothing to show until Rally HQ has scored a result — don't render an empty shell.
-  if (loaded && entries.length === 0) return null
+  const entries = scope === 'all' ? allTime : season
+  const copy = scope === 'all'
+    ? { eyebrow: 'All-Time Series', title: 'Career Points', sub: 'Every finish since 2025 — show up, climb the board.' }
+    : { eyebrow: 'Season Leaderboard', title: 'Points Race', sub: 'Every finish this season, scored automatically. Ties share a rank.' }
+
+  // Nothing to show until a result is scored — don't render an empty shell.
+  if (loaded && season.length === 0 && allTime.length === 0) return null
 
   return (
     <section className="section-padding pt-0">
@@ -41,19 +51,35 @@ export function SeasonLeaderboard() {
           viewport={MOTION.viewport.once}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-start justify-between gap-4 p-6 border-b border-zinc-800/50">
+          <div className="flex flex-wrap items-start justify-between gap-4 p-6 border-b border-zinc-800/50">
             <div>
               <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-1">
-                Season Leaderboard
+                {copy.eyebrow}
               </p>
-              <h2 className="block-heading">Points Race</h2>
-              <p className="text-sm text-zinc-500 mt-1">
-                Every finish this season, scored automatically. Ties share a rank.
-              </p>
+              <h2 className="block-heading">{copy.title}</h2>
+              <p className="text-sm text-zinc-500 mt-1">{copy.sub}</p>
             </div>
-            <span className="flex-shrink-0 font-accent text-[10px] uppercase tracking-wider text-zinc-500 border border-zinc-700/60 rounded-full px-2 py-1">
-              Live Standings
-            </span>
+            <div
+              className="flex-shrink-0 inline-flex rounded-full border border-zinc-700/60 p-0.5 font-accent text-[10px] uppercase tracking-wider"
+              role="tablist"
+              aria-label="Leaderboard scope"
+            >
+              {([['season', 'This Season'], ['all', 'All-Time']] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="tab"
+                  aria-selected={scope === k}
+                  onClick={() => { setScope(k); setShowAll(false) }}
+                  className={cn(
+                    'px-3 py-1 rounded-full transition-colors',
+                    scope === k ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-400 hover:text-white',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {!loaded ? (

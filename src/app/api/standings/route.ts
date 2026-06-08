@@ -16,8 +16,11 @@ export async function GET() {
       new Set(tournamentResults.map(t => t.date.match(/\d{4}/)?.[0]).filter(Boolean) as string[]),
     ).sort()
     const season = years.at(-1)
+    // `leaderboard` = current season (fresh race, winnable by a first-time entrant);
+    // `allTime` = the series board across every edition (the reason to return yearly).
     const leaderboard = getRankedLeaderboard(season)
-    return ok({ leaderboard })
+    const allTime = getRankedLeaderboard()
+    return ok({ leaderboard, allTime, season })
   } catch (err) {
     console.error('Season leaderboard error:', err)
     return serverError('Could not load the leaderboard')

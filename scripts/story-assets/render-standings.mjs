@@ -86,7 +86,8 @@ const SERIES_EVENTS = [
     results: TEAMS_2026.map(t => [t.place, t.players]) },
 ]
 
-const POINTS = { 1: 100, 2: 75, 3: 50, 5: 25, 9: 10, 17: 0 }
+const POINTS = { 1: 100, 2: 75, 3: 50, 5: 25, 9: 10 }
+const PARTICIPATION = 5 // every team that plays scores — see standings-data.ts
 // Normalize names so the same human merges across events (hyphen/spacing variants).
 const norm = s => s.toLowerCase().replace(/[^a-z]/g, '')
 
@@ -97,7 +98,7 @@ function seriesLeaderboard() {
       for (const p of players) {
         const k = norm(p)
         const e = m.get(k) || { name: p, points: 0, events: 0, titles: 0, best: 99 }
-        e.points += POINTS[place] ?? 0; e.events++
+        e.points += POINTS[place] ?? PARTICIPATION; e.events++
         if (place === 1) e.titles++
         if (place < e.best) e.best = place
         m.set(k, e)
@@ -246,7 +247,7 @@ function seriesStory({ w = 1080, h = 1920 } = {}) {
       <div class="sub">All-Time Leaders · 3 Events</div>
       <div class="list">${board.map(row).join('')}</div>
     </div>
-    <div class="foot">Series points: 1st 100 · 2nd 75 · 3rd 50 · 5th 25 · 9th 10 — <b>letspepper.com/standings</b></div>`)
+    <div class="foot">Series points: 1st 100 · 2nd 75 · 3rd 50 · 5th 25 · 9th 10 · play-in 5 — <b>letspepper.com/standings</b></div>`)
 }
 
 /* ─────────────────────────  queue + render  ───────────────────────── */
