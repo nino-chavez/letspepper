@@ -1,22 +1,25 @@
-import { getSeasonLeaderboard } from '@/lib/rally-hq'
+import { getRankedLeaderboard, tournamentResults } from '@/lib/standings-data'
 import { serverError, ok } from '../_lib/validate'
 
 /**
- * Season leaderboard — derived live by Rally HQ from match results (ADR-0006).
- * Replaces the hand-maintained standings: the board is now the platform's truth,
- * so it stays correct as the season plays out instead of going stale.
+ * Season leaderboard — the points race for the current season, derived from the
+ * curated results. We compute this locally (not from Rally HQ's live board)
+ * because the platform has the rosters but hasn't scored the bracket yet, so its
+ * board lists every player at 0 and duplicates names across editions. Computing
+ * from results keeps the champion at the top and one row per player. Swap back to
+ * Rally HQ once it scores the live event.
  */
-
-// The series' current edition; `all_time` aggregates every edition sharing the
-// series key (so 2025 results roll into the season-long board).
-const SERIES_EVENT = 'lets-pepper-open-2026'
-
 export async function GET() {
   try {
-    const leaderboard = await getSeasonLeaderboard(SERIES_EVENT, 'all_time')
+    // Current season = latest year present in results (matches the standings page).
+    const years = Array.from(
+      new Set(tournamentResults.map(t => t.date.match(/\d{4}/)?.[0]).filter(Boolean) as string[]),
+    ).sort()
+    const season = years.at(-1)
+    const leaderboard = getRankedLeaderboard(season)
     return ok({ leaderboard })
   } catch (err) {
-    console.error('Season leaderboard fetch error:', err)
+    console.error('Season leaderboard error:', err)
     return serverError('Could not load the leaderboard')
   }
 }

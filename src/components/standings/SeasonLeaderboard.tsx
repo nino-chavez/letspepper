@@ -48,11 +48,11 @@ export function SeasonLeaderboard() {
               </p>
               <h2 className="block-heading">Points Race</h2>
               <p className="text-sm text-zinc-500 mt-1">
-                Every finish across the series, scored automatically. Ties share a rank.
+                Every finish this season, scored automatically. Ties share a rank.
               </p>
             </div>
             <span className="flex-shrink-0 font-accent text-[10px] uppercase tracking-wider text-zinc-500 border border-zinc-700/60 rounded-full px-2 py-1">
-              Powered by Rally HQ
+              Live Standings
             </span>
           </div>
 

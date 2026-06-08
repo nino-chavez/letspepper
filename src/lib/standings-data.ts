@@ -185,6 +185,61 @@ export function getSeasonLeaderboard(): PlayerStats[] {
     })
 }
 
+export interface RankedLeaderEntry {
+  rank: number
+  tied: boolean
+  name: string
+  points: number
+  events: number
+  /** Tournament wins (1st-place finishes). */
+  titles: number
+  podiums: number
+  bestFinish: number
+  trend: 'up' | 'down' | 'steady' | 'new'
+}
+
+/**
+ * Ranked points-race leaderboard, computed from the curated results.
+ * Pass a year to scope to one season (e.g. the 2026 standings page); omit for the
+ * all-time series board. Competition ranking — equal (points, best finish) tie.
+ *
+ * This is the authoritative board until Rally HQ scores the live bracket: the
+ * platform has the rosters but not yet the placements, so its board shows the
+ * champion at 0. Deriving from results keeps the page correct in the meantime.
+ */
+export function getRankedLeaderboard(year?: string): RankedLeaderEntry[] {
+  const events = year ? tournamentResults.filter(t => t.date.includes(year)) : tournamentResults
+  // Merge by normalized name so spelling/hyphen/spacing variants of the same person
+  // don't show up as duplicate rows (the rally-hq board's failure mode).
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '')
+  const acc = new Map<string, { name: string; points: number; events: number; titles: number; podiums: number; bestFinish: number }>()
+  for (const t of events) {
+    for (const r of t.results) {
+      for (const p of r.players) {
+        const k = norm(p)
+        const e = acc.get(k) ?? { name: p, points: 0, events: 0, titles: 0, podiums: 0, bestFinish: 99 }
+        e.points += getPoints(r.place)
+        e.events += 1
+        if (r.place === 1) e.titles += 1
+        if (r.place <= 3) e.podiums += 1
+        if (r.place < e.bestFinish) e.bestFinish = r.place
+        acc.set(k, e)
+      }
+    }
+  }
+  const sorted = Array.from(acc.values()).sort((a, b) =>
+    b.points - a.points || a.bestFinish - b.bestFinish || b.titles - a.titles || b.events - a.events)
+  const counts: Record<number, number> = {}
+  let rank = 0, prevPts: number | null = null, prevBest: number | null = null
+  const rows: RankedLeaderEntry[] = sorted.map((s, i) => {
+    if (s.points !== prevPts || s.bestFinish !== prevBest) { rank = i + 1; prevPts = s.points; prevBest = s.bestFinish }
+    counts[rank] = (counts[rank] ?? 0) + 1
+    return { rank, tied: false, name: s.name, points: s.points, events: s.events, titles: s.titles, podiums: s.podiums, bestFinish: s.bestFinish, trend: 'steady' }
+  })
+  for (const r of rows) r.tied = counts[r.rank] > 1
+  return rows
+}
+
 /** Get team stats with combined season points */
 export function getTeamStats(): { players: string[]; key: string; totalPoints: number; events: number; bestFinish: number; wins: number; podiums: number }[] {
   const teams = getAllTeams()
