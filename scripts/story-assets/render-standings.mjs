@@ -250,13 +250,84 @@ function seriesStory({ w = 1080, h = 1920 } = {}) {
     <div class="foot">Series points: 1st 100 · 2nd 75 · 3rd 50 · 5th 25 · 9th 10 · play-in 5 — <b>letspepper.com/standings</b></div>`)
 }
 
+/* ─────────────────────────  STAT LEADERS (story 1080×1920 / post 1080×1350)  ─────────────────────────
+   The match-level "fun" boards as one shareable card — the Hill/Konopack stories. */
+const STAT_BOARDS = [
+  { title: 'Giant Killers', blurb: 'Bracket wins over a higher seed', entries: [
+    { team: 'Hill', value: '2', detail: 'beat #5 Skutt, #4 Carrera' },
+    { team: 'Patel', value: '1', detail: 'beat #3 Maruyama' },
+    { team: 'Blankschein', value: '1', detail: 'beat #16 Hornstein' },
+  ] },
+  { title: 'Cinderella', blurb: 'Finished furthest above their seed', entries: [
+    { team: 'Konopack', value: '+10', detail: 'seed #19 → 9th' },
+    { team: 'Carrera', value: '+9', detail: 'seed #14 → 5th' },
+    { team: 'Swarens', value: '+8', detail: 'seed #17 → 9th' },
+  ] },
+  { title: 'Dominance', blurb: 'Best pool set differential', entries: [
+    { team: 'Merk', value: '+6', detail: 'undefeated in pool' },
+    { team: 'Meyer', value: '+4', detail: '' },
+    { team: 'Maruyama', value: '+4', detail: '' },
+  ] },
+  { title: 'Clutch', blurb: 'Deuce (22+) sets won', entries: [
+    { team: 'Swarens', value: '2', detail: '' },
+    { team: 'Carrera', value: '2', detail: '' },
+    { team: 'Skutt', value: '1', detail: '' },
+  ] },
+]
+
+function statLeadersCard({ w = 1080, h = 1920 } = {}) {
+  const post = h < 1600
+  const objpos = '50% 12%'
+  const scrim = `linear-gradient(180deg, rgba(7,7,7,0.42) 0%, rgba(7,7,7,0.55) 16%, rgba(7,7,7,0.9) 26%, #070707 33%)`
+  const boardEl = (b) => `
+    <div class="board">
+      <div class="bt">${b.title}</div>
+      <div class="bb">${b.blurb}</div>
+      ${b.entries.map((e, i) => `
+        <div class="row${i === 0 ? ' lead' : ''}">
+          <div class="top"><span class="rk">${i + 1}</span><span class="tm">${e.team}</span><span class="vl">${e.value}</span></div>
+          ${e.detail ? `<div class="dt">${e.detail}</div>` : ''}
+        </div>`).join('')}
+    </div>`
+  return doc(w, h, `${heroLayer(w, h, objpos, scrim)}<style>
+    .frame{position:absolute;left:70px;right:70px;top:${post ? 90 : 150}px}
+    .eyebrow{font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:0.28em;text-transform:uppercase;color:${GREEN};margin-bottom:14px}
+    .title{font-family:'Anton',sans-serif;font-size:${post ? 104 : 140}px;line-height:0.86;letter-spacing:-0.01em;color:#f5f5f0}
+    .title em{font-style:normal;color:${GOLD};text-shadow:0 0 44px rgba(250,204,21,0.4)}
+    .sub{font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(245,245,240,0.6);margin-top:14px}
+    .grid{margin-top:${post ? 40 : 64}px;display:grid;grid-template-columns:1fr 1fr;gap:${post ? '30px 36px' : '46px 48px'}}
+    .bt{font-family:'Anton',sans-serif;font-size:${post ? 42 : 52}px;line-height:1;letter-spacing:-0.01em;color:${GREEN};text-shadow:0 0 24px rgba(74,222,128,0.3)}
+    .bb{font-family:'JetBrains Mono',monospace;font-size:17px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(245,245,240,0.42);margin:8px 0 16px}
+    .row{padding:9px 0}
+    .row + .row{border-top:1px solid rgba(245,245,240,0.1)}
+    .top{display:flex;align-items:baseline;gap:14px}
+    .rk{font-family:'Anton',sans-serif;font-size:26px;line-height:1;color:rgba(245,245,240,0.4);width:24px;flex:none;text-align:center}
+    .row.lead .rk{color:${GOLD}}
+    .tm{flex:1;min-width:0;font-family:'Bebas Neue',sans-serif;font-size:${post ? 44 : 50}px;line-height:0.9;letter-spacing:0.01em;color:#f5f5f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .row.lead .tm{color:${GOLD}}
+    .vl{flex:none;font-family:'Anton',sans-serif;font-size:${post ? 34 : 40}px;line-height:1;color:${GREEN}}
+    .row.lead .vl{color:${GOLD}}
+    .dt{font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:0.02em;color:rgba(245,245,240,0.5);margin:3px 0 0 38px}
+    .foot{position:absolute;left:70px;right:70px;bottom:${post ? 54 : 90}px;display:flex;align-items:center;gap:16px;font-family:'JetBrains Mono',monospace;font-size:23px;font-weight:700;letter-spacing:0.06em}
+    .foot .ap{width:38px;height:38px;filter:drop-shadow(0 0 10px rgba(250,204,21,0.3))}
+    .foot .g{color:${GREEN}}.foot .s{color:#555;margin:0 6px}.foot .y{color:${GOLD}}
+  </style>
+    <div class="frame">
+      <div class="eyebrow">Beyond the Bracket</div>
+      <div class="title">STAT <em>LEADERS</em></div>
+      <div class="sub">Bell Pepper Open 2026 · By the Numbers</div>
+      <div class="grid">${STAT_BOARDS.map(boardEl).join('')}</div>
+    </div>
+    <div class="foot"><img class="ap" src="${ap}"><span class="g">letspepper.com</span><span class="s">/</span><span class="y">standings</span></div>`)
+}
+
 /* ─────────────────────────  queue + render  ───────────────────────── */
 const jobs = []
 const add = (dir, name, w, h, html) => jobs.push({ path: join('standings', dir, name), w, h, html })
 
 if (process.env.ITER) {
-  add('social', `final-standings-post`, 1080, 1350, standingsStory({ w: 1080, h: 1350 }))
-  add('social', `series-post`, 1080, 1350, seriesStory({ w: 1080, h: 1350 }))
+  add('social', `stat-leaders-story`, 1080, 1920, statLeadersCard())
+  add('social', `stat-leaders-post`, 1080, 1350, statLeadersCard({ w: 1080, h: 1350 }))
 } else {
   for (const t of TEAMS_2026)
     add('results', `team-${t.reg}-${t.slug}-result`, 1080, 1920, resultCard(t))
@@ -264,6 +335,8 @@ if (process.env.ITER) {
   add('social', `final-standings-post`, 1080, 1350, standingsStory({ w: 1080, h: 1350 }))
   add('social', `series-story`, 1080, 1920, seriesStory())
   add('social', `series-post`, 1080, 1350, seriesStory({ w: 1080, h: 1350 }))
+  add('social', `stat-leaders-story`, 1080, 1920, statLeadersCard())
+  add('social', `stat-leaders-post`, 1080, 1350, statLeadersCard({ w: 1080, h: 1350 }))
 }
 
 mkdirSync(join(HERE, 'standings', 'results'), { recursive: true })
