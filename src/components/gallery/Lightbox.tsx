@@ -12,6 +12,12 @@ interface LightboxProps {
   currentIndex: number
   onClose: () => void
   onNavigate: (index: number) => void
+  // Cross-page navigation (optional — defaults preserve single-page behavior):
+  hasMore?: boolean                  // more pages exist beyond the loaded photos
+  onLoadMore?: () => Promise<void>   // fetch + append the next page
+  loadingMore?: boolean
+  totalCount?: number                // total across all pages (for the counter)
+  indexOffset?: number               // global index of photos[0] (for the counter)
 }
 
 export function Lightbox({
@@ -19,10 +25,25 @@ export function Lightbox({
   currentIndex,
   onClose,
   onNavigate,
+  hasMore = false,
+  onLoadMore,
+  loadingMore = false,
+  totalCount,
+  indexOffset = 0,
 }: LightboxProps) {
   const photo = photos[currentIndex]
   const hasPrev = currentIndex > 0
-  const hasNext = currentIndex < photos.length - 1
+  const hasNext = currentIndex < photos.length - 1 || hasMore
+
+  // Advance within the loaded list, or pull the next page when at the boundary.
+  const goNext = useCallback(async () => {
+    if (currentIndex < photos.length - 1) {
+      onNavigate(currentIndex + 1)
+    } else if (hasMore && onLoadMore && !loadingMore) {
+      await onLoadMore()
+      onNavigate(currentIndex + 1) // first photo of the just-loaded page
+    }
+  }, [currentIndex, photos.length, hasMore, onLoadMore, loadingMore, onNavigate])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -35,11 +56,11 @@ export function Lightbox({
           if (hasPrev) onNavigate(currentIndex - 1)
           break
         case 'ArrowRight':
-          if (hasNext) onNavigate(currentIndex + 1)
+          if (hasNext) void goNext()
           break
       }
     },
-    [photo, onClose, onNavigate, currentIndex, hasPrev, hasNext]
+    [photo, onClose, onNavigate, currentIndex, hasPrev, hasNext, goNext]
   )
 
   useEffect(() => {
@@ -122,18 +143,21 @@ export function Lightbox({
           </button>
         )}
 
-        {/* Navigation: Next */}
+        {/* Navigation: Next (pulls the next page at the boundary) */}
         {hasNext && (
           <button
-            onClick={() => onNavigate(currentIndex + 1)}
+            onClick={() => void goNext()}
+            disabled={loadingMore}
             className={cn(
               'absolute right-4 z-10 p-2 rounded-full',
               'bg-pepper-charcoal/80 text-white hover:bg-pepper-charcoal',
-              'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heat-jalapeno'
+              'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heat-jalapeno',
+              loadingMore && 'opacity-60 cursor-wait'
             )}
             aria-label="Next photo"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              className={cn(loadingMore && 'animate-pulse')}>
               <path d="M9 18l6-6-6-6" />
             </svg>
           </button>
@@ -157,9 +181,11 @@ export function Lightbox({
           />
         </motion.div>
 
-        {/* Counter */}
+        {/* Counter (global position across all pages when totalCount is known) */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-accent text-xs text-text-secondary">
-          {currentIndex + 1} / {photos.length}
+          {typeof totalCount === 'number'
+            ? `${indexOffset + currentIndex + 1} / ${totalCount}`
+            : `${currentIndex + 1} / ${photos.length}`}
         </div>
       </motion.div>
     </AnimatePresence>

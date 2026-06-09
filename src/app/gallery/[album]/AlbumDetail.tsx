@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -44,6 +45,52 @@ export function AlbumDetail({
   const openLightbox = useCallback((_photo: Photo, index: number) => {
     setLightboxIndex(index)
   }, [])
+
+  // ── Cross-page lightbox: accumulate photos beyond the current page ──────────
+  const router = useRouter()
+  const [lightboxPhotos, setLightboxPhotos] = useState<Photo[]>(photos)
+  const [loadedThroughPage, setLoadedThroughPage] = useState(currentPage)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const indexOffset = (currentPage - 1) * pageSize
+  const hasMorePages = indexOffset + lightboxPhotos.length < totalCount
+
+  // Reset the accumulated list when the underlying server page changes.
+  useEffect(() => {
+    setLightboxPhotos(photos)
+    setLoadedThroughPage(currentPage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage])
+
+  // Pull the next page when the lightbox reaches the end of the loaded photos.
+  const loadNextPage = useCallback(async () => {
+    if (loadingMore) return
+    const nextPage = loadedThroughPage + 1
+    try {
+      setLoadingMore(true)
+      const res = await fetch(`/api/album-photos?albumKey=${encodeURIComponent(albumKey)}&page=${nextPage}`)
+      if (!res.ok) return
+      const { photos: more } = await res.json()
+      if (Array.isArray(more) && more.length) {
+        setLightboxPhotos((prev) => [...prev, ...more])
+        setLoadedThroughPage(nextPage)
+      }
+    } catch (err) {
+      console.error('[Lightbox loadNextPage]', err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [albumKey, loadedThroughPage, loadingMore])
+
+  // Contextual close: land on the page that holds the last-viewed photo.
+  const handleLightboxClose = useCallback(() => {
+    const idx = lightboxIndex
+    setLightboxIndex(null)
+    if (idx === null) return
+    const targetPage = Math.floor((indexOffset + idx) / pageSize) + 1
+    if (targetPage !== currentPage) {
+      router.push(`/gallery/${slug}?page=${targetPage}`)
+    }
+  }, [lightboxIndex, indexOffset, pageSize, currentPage, slug, router])
 
   // Download the whole album as a ZIP via the shared album-zip Worker (server-signed URL).
   const handleDownloadAlbum = useCallback(async () => {
@@ -208,13 +255,18 @@ export function AlbumDetail({
       </main>
       <Footer />
 
-      {/* Photo Lightbox */}
+      {/* Photo Lightbox — navigates across page boundaries; closes onto the last-viewed page */}
       {lightboxIndex !== null && (
         <Lightbox
-          photos={photos}
+          photos={lightboxPhotos}
           currentIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
+          onClose={handleLightboxClose}
           onNavigate={setLightboxIndex}
+          hasMore={hasMorePages}
+          onLoadMore={loadNextPage}
+          loadingMore={loadingMore}
+          totalCount={totalCount}
+          indexOffset={indexOffset}
         />
       )}
 
