@@ -13,12 +13,21 @@ export default function RankingsPage() {
   // voice). Only the factual "events completed" derives from Rally HQ's resolved
   // tournaments so it can't go stale; the rest stays hand-authored.
   const [eventsCompleted, setEventsCompleted] = useState(SEASON_STATS.eventsCompleted)
+  const [totalPoints, setTotalPoints] = useState(SEASON_STATS.totalPointsAwarded)
 
   useEffect(() => {
     fetch('/api/standings-results')
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d.results) && d.results.length > 0) setEventsCompleted(d.results.length)
+      })
+      .catch(() => {})
+    fetch('/api/standings')
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.allTime)) {
+          setTotalPoints(d.allTime.reduce((s: number, e: { points?: number }) => s + (e.points ?? 0), 0))
+        }
       })
       .catch(() => {})
   }, [])
@@ -59,7 +68,7 @@ export default function RankingsPage() {
             >
               <div className="bg-zinc-900/30 rounded-xl border border-zinc-800/50 p-6 text-center">
                 <p className="font-display text-4xl text-heat-jalapeno mb-1">
-                  {SEASON_STATS.totalPointsAwarded}
+                  {totalPoints.toLocaleString()}
                 </p>
                 <p className="font-accent text-xs uppercase tracking-wider text-zinc-500">
                   Total Points Awarded
