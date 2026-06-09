@@ -11,6 +11,7 @@ import { heatText, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { PlaceBadge } from '@/components/standings/PlaceBadge'
 import { SeasonLeaderboard } from '@/components/standings/SeasonLeaderboard'
+import { StatLeaders } from '@/components/standings/StatLeaders'
 import { CommunityBoard } from '@/components/standings/CommunityBoard'
 import type { SeasonLeaderEntry } from '@/lib/rally-hq'
 
@@ -342,6 +343,9 @@ export default function StandingsPage() {
           </div>
         </section>
 
+        {/* Stat Leaders — 2026 event match-level "fun" boards */}
+        <StatLeaders />
+
         {/* Season Leaders */}
         <section className="section-padding bg-pepper-charcoal/30">
           <div className="section-container">
@@ -382,7 +386,7 @@ export default function StandingsPage() {
                 Want your name on the board?
               </h2>
               <p className="text-lg text-zinc-400 max-w-xl mx-auto">
-                Join the next Let&apos;s Pepper tournament and compete for cash, content, and bragging rights.
+                Join the next Let&apos;s Pepper tournament and compete for prizes, content, and bragging rights.
               </p>
               <div className="flex flex-wrap justify-center gap-4 pt-4">
                 <Link href="/#series" className="btn-primary">
