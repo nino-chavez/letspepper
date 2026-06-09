@@ -18,6 +18,7 @@ import { chromium } from 'playwright'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { writeFileSync, rmSync, mkdirSync } from 'node:fs'
+import { TEAMS as TEAMS_2026, TIER, GOLD, GREEN, ordinal, byFinish } from './bell-pepper-2026.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const hero = pathToFileURL(join(HERE, 'mascot', 'pep-hero-green.png')).href
@@ -38,32 +39,9 @@ const heroLayer = (w, h, objpos, scrim) => `
     .scrim{position:absolute;inset:0;background:${scrim}}
   </style>`
 
-/* ─────────────────────────  REAL DATA  ───────────────────────── */
-// 2026 Bell Pepper Open (June 7, 2026) — placements read from the playoff bracket.
-// reg = registration/team number; seed = post-pool reseed; place = bracket finish.
-const TEAMS_2026 = [
-  { reg: '13', players: ['Colin Merk', 'Ryan Merk', 'Dave Wieczorek'], place: 1, seed: 1 },
-  { reg: '02', players: ['Nate Meyer', 'Charlie Podgorny', 'Ian Schuller'], place: 2, seed: 2 },
-  { reg: '05', players: ['David Hill', 'Quinn Bozarth', 'Braxton Francis'], place: 3, seed: 12 },
-  { reg: '07', players: ['Urvil Patel', 'Evan Hughes', 'Jake Reishus'], place: 3, seed: 6 },
-  { reg: '10', players: ['Tyler Donovan', 'Sammy Atkinson', 'Abhi Lakkamsani', 'Justin McCartney'], place: 5, seed: 8 },
-  { reg: '11', players: ['Mitchell Carrera', 'Connor Jaral', 'Connor Studer'], place: 5, seed: 4 },
-  { reg: '01', players: ['Nick Maruyama', 'Braydon Savitski-Lynde', 'Lincoln Geist'], place: 5, seed: 3 },
-  { reg: '09', players: ['Everett Haynes', 'Will Mensching', 'Blayr Young'], place: 5, seed: 7 },
-  { reg: '08', players: ['Erik Kirschbaum', 'Mike Hallman', 'Joe Glatz'], place: 9, seed: 9 },
-  { reg: '04', players: ['Elijah Skutt', 'Owen Randel', 'Ian'], place: 9, seed: 5 },
-  { reg: '12', players: ['Sriram Sundareswaram', 'Cedric', 'Shane'], place: 9, seed: 13 },
-  { reg: '15', players: ['Pat Paasch', 'Joel Paasch'], place: 9, seed: 11 },
-  { reg: '18', players: ['Noah Konopack', 'Josh Bloom', 'Ray Driver'], place: 9, seed: 10 },
-  { reg: '16', players: ['Tom Blankschein', 'Rolando', 'Jack Huizinga'], place: 9, seed: 17 },
-  { reg: '03', players: ['Jack Stolzer', 'Will Elias', 'Ty Steponaitus'], place: 9, seed: 19 },
-  { reg: '19', players: ['Kyle Swarens', 'Carter Geiger', 'Tony Solis'], place: 9, seed: 15 },
-  { reg: '06', players: ['Brad Hornstein', 'Cooper Hansen', 'Mason Kolar'], place: 17, seed: 16 },
-  { reg: '17', players: ['Justin Arrowood', 'Ben Boron', 'Bella Thompson'], place: 17, seed: 14 },
-  { reg: '14', players: ['David Johnson', 'Tam', 'Kenyon Hayes'], place: 17, seed: 18 },
-].map(t => ({ ...t, surnames: t.players.map(p => p.split(' ').slice(-1)[0].toUpperCase()).join(' · '),
-  slug: t.players[0].toLowerCase().replace(/[^a-z]+/g, '-').replace(/(^-|-$)/g, '') }))
-
+/* ─────────────────────────  REAL DATA  ─────────────────────────
+   2026 Bell Pepper Open roster + placements live in bell-pepper-2026.mjs (the
+   single source of truth, DB-verified). Below: the 2025 events for the series board. */
 // All three events, full placements — series points basis.
 const SERIES_EVENTS = [
   { id: 'gl-2025', label: 'Grass Launch · May 2025', results: [
@@ -114,19 +92,6 @@ function rankedSeries() {
   board.forEach((e, i) => { if (e.points !== pp || e.best !== pb) { rank = i + 1; pp = e.points; pb = e.best } e.rank = rank })
   const c = {}; board.forEach(e => (c[e.rank] = (c[e.rank] || 0) + 1)); board.forEach(e => (e.tied = c[e.rank] > 1))
   return board
-}
-
-/* ─────────────────────────  placement tiers  ───────────────────────── */
-const GOLD = '#facc15', GREEN = '#4ade80', PALE = '#a7f3c0', NEUT = 'rgba(245,245,240,0.82)'
-// No prize money on public assets — some competitors are college players (NCAA
-// eligibility). Accolades only, never a purse.
-const TIER = {
-  1:  { place: '1st Place',  label: 'CHAMPIONS',        accent: GOLD,  glow: 'rgba(250,204,21,0.55)', note: '' },
-  2:  { place: '2nd Place',  label: 'RUNNER-UP',        accent: GREEN, glow: 'rgba(74,222,128,0.5)',  note: 'Finalist' },
-  3:  { place: 'Tied · 3rd', label: 'SEMIFINALS',       accent: GREEN, glow: 'rgba(74,222,128,0.45)', note: 'Final Four' },
-  5:  { place: 'Tied · 5th', label: 'QUARTERFINALS',    accent: GREEN, glow: 'rgba(74,222,128,0.38)', note: 'Elite Eight' },
-  9:  { place: 'Tied · 9th', label: 'ROUND OF 16',      accent: PALE,  glow: 'rgba(74,222,128,0.28)', note: '' },
-  17: { place: 'Play-In',    label: 'PLAY-IN ROUND',    accent: NEUT,  glow: 'rgba(255,255,255,0.18)', note: '' },
 }
 
 /* ─────────────────────────  1. RESULT CARD (reel)  ───────────────────────── */
@@ -329,8 +294,11 @@ if (process.env.ITER) {
   add('social', `stat-leaders-story`, 1080, 1920, statLeadersCard())
   add('social', `stat-leaders-post`, 1080, 1350, statLeadersCard({ w: 1080, h: 1350 }))
 } else {
-  for (const t of TEAMS_2026)
-    add('results', `team-${t.reg}-${t.slug}-result`, 1080, 1920, resultCard(t))
+  // Result cards are named + ordered by FINISH (place asc, then bracket reseed asc),
+  // not registration number — so the folder lists champion → play-in top to bottom.
+  ;[...TEAMS_2026].sort(byFinish)
+    .forEach((t, i) => add('results',
+      `${String(i + 1).padStart(2, '0')}-${ordinal(t.place)}-${t.slug}-result`, 1080, 1920, resultCard(t)))
   add('social', `final-standings-story`, 1080, 1920, standingsStory())
   add('social', `final-standings-post`, 1080, 1350, standingsStory({ w: 1080, h: 1350 }))
   add('social', `series-story`, 1080, 1920, seriesStory())

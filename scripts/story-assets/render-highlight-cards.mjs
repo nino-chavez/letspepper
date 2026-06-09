@@ -16,6 +16,7 @@ import { chromium } from 'playwright'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { writeFileSync, rmSync, mkdirSync } from 'node:fs'
+import { EVENT, TEAMS, TIER, ordinal, byFinish } from './bell-pepper-2026.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const hero = pathToFileURL(join(HERE, 'mascot', 'pep-hero-green.png')).href
@@ -23,38 +24,14 @@ const FD = '/Users/nino/Workspace/dev/apps/flickdaymedia/flickday-assets/outro/a
 const ap = pathToFileURL(FD).href
 const RENDER = process.env.RENDER || 'validate'
 
+// Event meta = shared canonical fields (year/date/loc/format) + highlights-only handles.
 const E = {
-  year: '2026', date: 'June 7, 2026', loc: 'Aurora, IL', format: 'Grass Triples · 3v3',
+  ...EVENT,
   gallery: 'letspepper.com/gallery', handle: '@letspepper.open', media: '@flickday.media',
   readout: 'f/2.8 · 1/2000 · ISO 200 · 200MM',
 }
 
-// Roster (Bell Pepper Open 2026 men's). Headline = surnames; sub = full names.
-const TEAMS = [
-  ['01', ['Nick Maruyama', 'Braydon Savitski-Lynde', 'Lincoln Geist']],
-  ['02', ['Nate Meyer', 'Charlie Podgorny', 'Ian Schuller']],
-  ['03', ['Jack Stolzer', 'Will Elias', 'Ty Steponaitus']],
-  ['04', ['Elijah Skutt', 'Owen Randel', 'Ian']],
-  ['05', ['David Hill', 'Quinn Bozarth', 'Braxton Francis']],
-  ['06', ['Brad Hornstein', 'Cooper Hansen', 'Mason Kolar']],
-  ['07', ['Urvil Patel', 'Evan Hughes', 'Jake Reishus']],
-  ['08', ['Erik Kirschbaum', 'Mike Hallman', 'Joe Glatz']],
-  ['09', ['Everett Haynes', 'Will Mensching', 'Blayr Young']],
-  ['10', ['Tyler Donovan', 'Sammy Atkinson', 'Abhi Lakkamsani', 'Justin McCartney']],
-  ['11', ['Mitchell Carrera', 'Connor Jaral', 'Connor Studer']],
-  ['12', ['Sriram Sundareswaram', 'Cedric', 'Shane']],
-  ['13', ['Colin Merk', 'Ryan Merk', 'Dave Wieczorek']],
-  ['14', ['David Johnson', 'Tam', 'Kenyon Hayes']],
-  ['15', ['Pat Paasch', 'Joel Paasch']],
-  ['16', ['Tom Blankschein', 'Rolando', 'Jack Huizinga']],
-  ['17', ['Justin Arrowood', 'Ben Boron', 'Bella Thompson']],
-  ['18', ['Noah Konopack', 'Josh Bloom', 'Ray Driver']],
-  ['19', ['Kyle Swarens', 'Carter Geiger', 'Tony Solis']],
-].map(([num, players]) => ({
-  num, players,
-  surnames: players.map(p => p.split(' ').slice(-1)[0].toUpperCase()).join(' · '),
-  slug: players[0].toLowerCase().replace(/[^a-z]+/g, '-').replace(/(^-|-$)/g, ''),
-}))
+// Roster + placement: TEAMS (DB-verified) from bell-pepper-2026.mjs — single source of truth.
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@500;700&display=swap');`
 
@@ -85,8 +62,13 @@ function intro({ w, h, team }) {
     : (reel
         ? `radial-gradient(120% 70% at 50% 28%, transparent 42%, rgba(7,7,7,0.35) 100%),linear-gradient(180deg, rgba(7,7,7,0.45) 0%, transparent 16%, transparent 38%, rgba(7,7,7,0.8) 64%, #070707 86%)`
         : `linear-gradient(90deg, rgba(7,7,7,0.92) 0%, rgba(7,7,7,0.55) 46%, transparent 78%),linear-gradient(0deg, rgba(7,7,7,0.6) 0%, transparent 36%)`)
+  // Placement callout — accent-coloured finish line under the eyebrow (gold = champion,
+  // green = bracket run, pale = R16, neutral = play-in). Sourced from the shared TIER map.
+  const tier = team ? TIER[team.place] : null
+  const finish = tier ? `${tier.label}${tier.short ? ` · ${tier.short.toUpperCase()}` : ''}` : ''
   const head = team
     ? `<div class="eyebrow">Bell Pepper Open ${E.year} · Highlights</div>
+       <div class="finish">${finish}</div>
        <div class="rule"></div>
        <div class="roster">${team.players.map(p => `<div class="pl"><span class="tick"></span>${p}</div>`).join('')}</div>`
     : `<div class="title">BELL<br>PEPPER<br><span class="o">OPEN</span></div>
@@ -122,7 +104,12 @@ function intro({ w, h, team }) {
     .tblock{text-align:left}
     .tblock .roster .pl{font-size:104px;gap:24px}`
 
-  return doc(w, h, `${heroLayer(w, h, objpos, scrim)}<style>${css}</style>
+  const finishCss = tier
+    ? `.finish{font-family:'JetBrains Mono',monospace;font-weight:700;text-transform:uppercase;
+        color:${tier.accent};text-shadow:0 0 24px ${tier.glow};font-size:${reel ? 30 : 26}px;
+        letter-spacing:0.2em;margin:2px 0 10px}`
+    : ''
+  return doc(w, h, `${heroLayer(w, h, objpos, scrim)}<style>${css}${finishCss}</style>
     ${team ? '' : `<div class="kick">${E.format}</div>`}
     <div class="block${team ? ' tblock' : ''}">${head}</div>`)
 }
@@ -211,11 +198,18 @@ const FORMATS = [['reel', 1080, 1920], ['wide', 1920, 1080]]
 const jobs = []
 const add = (dir, name, w, h, html, alpha = false, sel = null) => jobs.push({ path: join('highlights', dir, name), w, h, html, alpha, sel })
 
+// Team intros are named + ordered by FINISH (champion → play-in), matching the result cards.
+const FINISH_ORDER = [...TEAMS].sort(byFinish)
+const rankOf = new Map(FINISH_ORDER.map((t, i) => [t, i + 1]))
+const introName = (t, fmt) => `${String(rankOf.get(t)).padStart(2, '0')}-${ordinal(t.place)}-${t.slug}-intro-${fmt}`
+// Lower-third names are derived from the canonical result, never hand-typed (drift-proof).
+const champ = TEAMS.find(t => t.place === 1)
+const finalist = TEAMS.find(t => t.place === 2)
+
 if (process.env.ITER) {
   // single-surface sign-off loop — opaque cards full-frame, overlays cropped tight
-  const t = TEAMS.find(x => x.num === '13')
-  add('teams', `team-${t.num}-${t.slug}-intro-reel`, 1080, 1920, intro({ w: 1080, h: 1920, team: t }))
-  add('generic', `lowerthird-champs`, 1900, 520, lowerThird({ tag: 'Champions', lead: 'MERK · MERK · WIECZOREK', sub: '1st Place · Bell Pepper Open 2026' }), true, '.cap')
+  add('teams', introName(champ, 'reel'), 1080, 1920, intro({ w: 1080, h: 1920, team: champ }))
+  add('generic', `lowerthird-champs`, 1900, 520, lowerThird({ tag: 'Champions', lead: champ.surnames, sub: `1st Place · Bell Pepper Open ${E.year}` }), true, '.cap')
   add('generic', `bug`, 1400, 360, bug(), true, '.cap')
   add('generic', `outro-reel`, 1080, 1920, outro({ w: 1080, h: 1920 }))
 } else {
@@ -227,17 +221,17 @@ if (process.env.ITER) {
   // tight alpha overlays — orientation-agnostic, editor places them
   add('generic', `bug`, 1400, 360, bug(), true, '.cap')
   const LOWERTHIRDS = [
-    ['champions', 'Champions', 'MERK · MERK · WIECZOREK', '1st Place · Bell Pepper Open 2026'],
-    ['play', 'Play of the Day', 'DIG → SET → CRANK', 'Bell Pepper Open 2026'],
-    ['finalists', 'Finalists', 'MARUYAMA · SAVITSKI-LYNDE · GEIST', '2nd Place · Bell Pepper Open 2026'],
+    ['champions', 'Champions', champ.surnames, `1st Place · Bell Pepper Open ${E.year}`],
+    ['play', 'Play of the Day', 'DIG → SET → CRANK', `Bell Pepper Open ${E.year}`],
+    ['finalists', 'Finalists', finalist.surnames, `2nd Place · Bell Pepper Open ${E.year}`],
   ]
   for (const [slug, tag, lead, sub] of LOWERTHIRDS)
     add('generic', `lowerthird-${slug}`, 1900, 520, lowerThird({ tag, lead, sub }), true, '.cap')
-  // per-team intros — roster is hero, both orientations
-  const teamsToRender = RENDER === 'all' ? TEAMS : TEAMS.filter(t => ['13', '10', '15'].includes(t.num))
+  // per-team intros — roster is hero, both orientations; named/ordered by finish
+  const teamsToRender = RENDER === 'all' ? FINISH_ORDER : FINISH_ORDER.filter(t => ['colin-merk', 'tyler-donovan', 'david-johnson'].includes(t.slug))
   for (const t of teamsToRender)
     for (const [fmt, w, h] of FORMATS)
-      add('teams', `team-${t.num}-${t.slug}-intro-${fmt}`, w, h, intro({ w, h, team: t }))
+      add('teams', introName(t, fmt), w, h, intro({ w, h, team: t }))
 }
 
 mkdirSync(join(HERE, 'highlights', 'generic'), { recursive: true })
