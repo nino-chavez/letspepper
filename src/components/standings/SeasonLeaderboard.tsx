@@ -6,19 +6,47 @@ import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import type { SeasonLeaderEntry } from '@/lib/rally-hq'
 
-const TREND_GLYPH: Record<SeasonLeaderEntry['trend'], { mark: string; cls: string }> = {
-  up: { mark: '▲', cls: 'text-zinc-400' },
-  down: { mark: '▼', cls: 'text-zinc-600' },
-  steady: { mark: '–', cls: 'text-zinc-600' },
-  new: { mark: '•', cls: 'text-zinc-500' },
-}
+type Row = SeasonLeaderEntry & { og?: boolean }
+type SortKey = 'points' | 'events' | 'titles' | 'podiums'
 
 const TOP_N = 10
 
+// Sortable stat columns — each is a "board" (Pts = points race, Events = iron,
+// Titles = dynasty, Podiums = consistency).
+const COLS: { k: SortKey; label: string; cls: string }[] = [
+  { k: 'points', label: 'Pts', cls: '' },
+  { k: 'events', label: 'Events', cls: 'hidden sm:table-cell' },
+  { k: 'titles', label: 'Titles', cls: 'hidden sm:table-cell' },
+  { k: 'podiums', label: 'Podiums', cls: 'hidden md:table-cell' },
+]
+
+const SORT_META: Record<SortKey, { title: string; sub: (allTime: boolean) => string }> = {
+  points: { title: 'Points Race', sub: (a) => a ? 'Every finish since 2025 — show up, climb the board.' : 'Every finish this season, scored automatically. Ties share a rank.' },
+  events: { title: 'Iron Board', sub: () => 'Most events played — the crew that never misses.' },
+  titles: { title: 'Most Titles', sub: () => 'Tournament wins across the series.' },
+  podiums: { title: 'Podium Count', sub: () => 'Top-3 finishes — the consistency board.' },
+}
+
+/** Re-sort + re-rank client-side for the chosen column (ties share a rank). */
+function sortAndRank(rows: Row[], key: SortKey): Row[] {
+  const sorted = [...rows].sort((a, b) =>
+    (b[key] as number) - (a[key] as number) || b.points - a.points || a.bestFinish - b.bestFinish)
+  const counts: Record<number, number> = {}
+  let rank = 0, prev: string | null = null
+  const ranked = sorted.map((e, i) => {
+    const tieKey = `${e[key]}:${key === 'points' ? e.bestFinish : e.points}`
+    if (tieKey !== prev) { rank = i + 1; prev = tieKey }
+    counts[rank] = (counts[rank] ?? 0) + 1
+    return { ...e, rank }
+  })
+  return ranked.map((e) => ({ ...e, tied: counts[e.rank] > 1 }))
+}
+
 export function SeasonLeaderboard() {
-  const [season, setSeason] = useState<SeasonLeaderEntry[]>([])
-  const [allTime, setAllTime] = useState<SeasonLeaderEntry[]>([])
+  const [season, setSeason] = useState<Row[]>([])
+  const [allTime, setAllTime] = useState<Row[]>([])
   const [scope, setScope] = useState<'season' | 'all'>('season')
+  const [sortKey, setSortKey] = useState<SortKey>('points')
   const [meta, setMeta] = useState<{ seasons: number; events: number }>({ seasons: 0, events: 0 })
   const [loaded, setLoaded] = useState(false)
   const [showAll, setShowAll] = useState(false)
@@ -35,14 +63,16 @@ export function SeasonLeaderboard() {
       .finally(() => setLoaded(true))
   }, [])
 
-  const entries = scope === 'all' ? allTime : season
-  const allTimeLeaders = allTime.filter((e) => e.rank === 1).map((e) => e.name).join(' & ')
-  const copy = scope === 'all'
-    ? { eyebrow: 'All-Time Series', title: 'Career Points', sub: 'Every finish since 2025 — show up, climb the board.' }
-    : { eyebrow: 'Season Leaderboard', title: 'Points Race', sub: 'Every finish this season, scored automatically. Ties share a rank.' }
+  const isAll = scope === 'all'
+  const ranked = sortAndRank(isAll ? allTime : season, sortKey)
+  const allTimeLeaders = sortAndRank(allTime, 'points').filter((e) => e.rank === 1).map((e) => e.name).join(' & ')
+  const eyebrow = isAll ? 'All-Time Series' : 'Season Leaderboard'
+  const { title, sub } = { title: SORT_META[sortKey].title, sub: SORT_META[sortKey].sub(isAll) }
 
   // Nothing to show until a result is scored — don't render an empty shell.
   if (loaded && season.length === 0 && allTime.length === 0) return null
+
+  const rows = showAll ? ranked : ranked.slice(0, TOP_N)
 
   return (
     <section className="section-padding pt-0">
@@ -56,11 +86,9 @@ export function SeasonLeaderboard() {
         >
           <div className="flex flex-wrap items-start justify-between gap-4 p-6 border-b border-zinc-800/50">
             <div>
-              <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-1">
-                {copy.eyebrow}
-              </p>
-              <h2 className="block-heading">{copy.title}</h2>
-              <p className="text-sm text-zinc-500 mt-1">{copy.sub}</p>
+              <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-1">{eyebrow}</p>
+              <h2 className="block-heading">{title}</h2>
+              <p className="text-sm text-zinc-500 mt-1">{sub}</p>
             </div>
             <div
               className="flex-shrink-0 inline-flex rounded-full border border-zinc-700/60 p-0.5 font-accent text-[10px] uppercase tracking-wider"
@@ -85,7 +113,7 @@ export function SeasonLeaderboard() {
             </div>
           </div>
 
-          {scope === 'all' && (
+          {isAll && (
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-6 py-3 border-b border-zinc-800/50 font-accent text-[11px] uppercase tracking-wider text-zinc-500">
               <span><b className="text-zinc-300">{meta.seasons}</b> seasons</span>
               <span><b className="text-zinc-300">{meta.events}</b> events</span>
@@ -105,16 +133,25 @@ export function SeasonLeaderboard() {
                   <tr className="text-left font-accent text-[10px] uppercase tracking-wider text-zinc-500 border-b border-zinc-800/50">
                     <th className="px-4 py-3 w-12">#</th>
                     <th className="px-4 py-3">Player</th>
-                    <th className="px-4 py-3 text-right">Pts</th>
-                    <th className="px-4 py-3 text-right hidden sm:table-cell">Events</th>
-                    <th className="px-4 py-3 text-right hidden sm:table-cell">Titles</th>
-                    <th className="px-4 py-3 text-right hidden md:table-cell">Podiums</th>
-                    <th className="px-4 py-3 text-center w-10"></th>
+                    {COLS.map((c) => (
+                      <th key={c.k} className={cn('px-4 py-3 text-right', c.cls)}>
+                        <button
+                          type="button"
+                          aria-pressed={sortKey === c.k}
+                          onClick={() => { setSortKey(c.k); setShowAll(false) }}
+                          className={cn(
+                            'inline-flex items-center gap-1 uppercase tracking-wider transition-colors',
+                            sortKey === c.k ? 'text-zinc-100' : 'hover:text-zinc-300',
+                          )}
+                        >
+                          {c.label}{sortKey === c.k && <span aria-hidden="true">↓</span>}
+                        </button>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {(showAll ? entries : entries.slice(0, TOP_N)).map((e, i) => {
-                    const trend = TREND_GLYPH[e.trend]
+                  {rows.map((e, i) => {
                     const isLeader = e.rank === 1
                     return (
                       <tr
@@ -123,40 +160,39 @@ export function SeasonLeaderboard() {
                       >
                         <td className="px-4 py-3">
                           <span
-                            className={cn(
-                              'font-display text-lg',
-                              e.rank === 2 ? 'text-zinc-300' : e.rank >= 3 ? 'text-zinc-600' : '',
-                            )}
+                            className={cn('font-display text-lg', e.rank === 2 ? 'text-zinc-300' : e.rank >= 3 ? 'text-zinc-600' : '')}
                             style={isLeader ? { color: 'var(--gold)' } : undefined}
                           >
                             {e.tied ? `T${e.rank}` : e.rank}
                           </span>
                         </td>
-                        <td
-                          className="px-4 py-3 text-zinc-200"
-                          style={isLeader ? { color: 'var(--gold)' } : undefined}
-                        >
+                        <td className="px-4 py-3 text-zinc-200" style={isLeader ? { color: 'var(--gold)' } : undefined}>
                           {e.name}
+                          {e.og && (
+                            <span
+                              className="ml-2 align-middle inline-block px-1.5 py-0.5 rounded text-[9px] font-accent uppercase tracking-wider bg-zinc-800 text-zinc-400 border border-zinc-700/60"
+                              title="Played in the founding season"
+                            >
+                              OG
+                            </span>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-right font-accent text-heat-jalapeno">{e.points}</td>
-                        <td className="px-4 py-3 text-right text-zinc-400 hidden sm:table-cell">{e.events}</td>
-                        <td className="px-4 py-3 text-right text-zinc-400 hidden sm:table-cell">{e.titles}</td>
-                        <td className="px-4 py-3 text-right text-zinc-400 hidden md:table-cell">{e.podiums}</td>
-                        <td className={cn('px-4 py-3 text-center', trend.cls)} title={e.trend}>
-                          {trend.mark}
-                        </td>
+                        <td className={cn('px-4 py-3 text-right font-accent text-heat-jalapeno', sortKey === 'points' && 'font-bold')}>{e.points}</td>
+                        <td className={cn('px-4 py-3 text-right hidden sm:table-cell', sortKey === 'events' ? 'text-zinc-100' : 'text-zinc-400')}>{e.events}</td>
+                        <td className={cn('px-4 py-3 text-right hidden sm:table-cell', sortKey === 'titles' ? 'text-zinc-100' : 'text-zinc-400')}>{e.titles}</td>
+                        <td className={cn('px-4 py-3 text-right hidden md:table-cell', sortKey === 'podiums' ? 'text-zinc-100' : 'text-zinc-400')}>{e.podiums}</td>
                       </tr>
                     )
                   })}
                 </tbody>
               </table>
-              {entries.length > TOP_N && (
+              {ranked.length > TOP_N && (
                 <button
                   type="button"
                   onClick={() => setShowAll((v) => !v)}
                   className="w-full px-4 py-3 border-t border-zinc-800/50 font-accent text-xs uppercase tracking-wider text-zinc-400 hover:text-white hover:bg-zinc-800/20 transition-colors"
                 >
-                  {showAll ? 'Show top 10' : `Show all ${entries.length}`}
+                  {showAll ? 'Show top 10' : `Show all ${ranked.length}`}
                 </button>
               )}
             </div>

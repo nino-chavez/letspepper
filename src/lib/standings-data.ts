@@ -199,6 +199,8 @@ export interface RankedLeaderEntry {
   podiums: number
   bestFinish: number
   trend: 'up' | 'down' | 'steady' | 'new'
+  /** Played in the founding season — earns an "OG" badge. */
+  og: boolean
 }
 
 /**
@@ -215,6 +217,12 @@ export function getRankedLeaderboard(year?: string): RankedLeaderEntry[] {
   // Merge by normalized name so spelling/hyphen/spacing variants of the same person
   // don't show up as duplicate rows (the rally-hq board's failure mode).
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '')
+  // OG = played in the founding (earliest) season, regardless of the board's year filter.
+  const earliest = Array.from(new Set(tournamentResults.map(t => t.date.match(/\d{4}/)?.[0]).filter(Boolean) as string[])).sort()[0]
+  const ogSet = new Set(
+    tournamentResults.filter(t => earliest && t.date.includes(earliest))
+      .flatMap(t => t.results.flatMap(r => r.players.map(norm))),
+  )
   const acc = new Map<string, { name: string; points: number; events: number; titles: number; podiums: number; bestFinish: number }>()
   for (const t of events) {
     for (const r of t.results) {
@@ -230,6 +238,7 @@ export function getRankedLeaderboard(year?: string): RankedLeaderEntry[] {
       }
     }
   }
+  // Canonical points ranking; the client re-sorts/re-ranks for the other columns.
   const sorted = Array.from(acc.values()).sort((a, b) =>
     b.points - a.points || a.bestFinish - b.bestFinish || b.titles - a.titles || b.events - a.events)
   const counts: Record<number, number> = {}
@@ -237,7 +246,7 @@ export function getRankedLeaderboard(year?: string): RankedLeaderEntry[] {
   const rows: RankedLeaderEntry[] = sorted.map((s, i) => {
     if (s.points !== prevPts || s.bestFinish !== prevBest) { rank = i + 1; prevPts = s.points; prevBest = s.bestFinish }
     counts[rank] = (counts[rank] ?? 0) + 1
-    return { rank, tied: false, name: s.name, points: s.points, events: s.events, titles: s.titles, podiums: s.podiums, bestFinish: s.bestFinish, trend: 'steady' }
+    return { rank, tied: false, name: s.name, points: s.points, events: s.events, titles: s.titles, podiums: s.podiums, bestFinish: s.bestFinish, trend: 'steady', og: ogSet.has(norm(s.name)) }
   })
   for (const r of rows) r.tied = counts[r.rank] > 1
   return rows
