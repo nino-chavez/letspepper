@@ -24,7 +24,11 @@ function formatDate(dateStr: string | null): string {
 }
 
 export function PhotoDetailView({ photo }: PhotoDetailViewProps) {
-  const downloadUrl = cfImageUrl(photo.cfImageId, 'public')
+  // Route the full-res image through the same-origin /api/download proxy so the browser actually
+  // downloads it. A direct cross-origin `<a href download>` to imagedelivery.net is ignored by
+  // browsers (the `download` attr only works same-origin) and just opens the image in a tab.
+  const filename = `${photo.imageKey || photo.id}.jpg`
+  const downloadUrl = `/api/download?url=${encodeURIComponent(cfImageUrl(photo.cfImageId, 'public'))}&filename=${encodeURIComponent(filename)}`
 
   return (
     <>
@@ -105,8 +109,7 @@ export function PhotoDetailView({ photo }: PhotoDetailViewProps) {
               {/* Download */}
               <a
                 href={downloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                download={`${photo.imageKey || photo.id}.jpg`}
                 className={cn(
                   'inline-flex items-center gap-2 px-5 py-2.5 rounded-lg',
                   'btn-primary font-accent text-xs uppercase tracking-wider',

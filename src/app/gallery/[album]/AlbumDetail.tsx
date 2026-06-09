@@ -26,6 +26,7 @@ interface AlbumDetailProps {
 
 export function AlbumDetail({
   albumName,
+  albumKey,
   photos,
   videos,
   totalCount,
@@ -35,6 +36,7 @@ export function AlbumDetail({
 }: AlbumDetailProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [activeVideo, setActiveVideo] = useState<Video | null>(null)
+  const [zipping, setZipping] = useState(false)
   const totalPages = Math.ceil(totalCount / pageSize)
   const hasPhotos = photos.length > 0
   const hasVideos = videos.length > 0
@@ -42,6 +44,25 @@ export function AlbumDetail({
   const openLightbox = useCallback((_photo: Photo, index: number) => {
     setLightboxIndex(index)
   }, [])
+
+  // Download the whole album as a ZIP via the shared album-zip Worker (server-signed URL).
+  const handleDownloadAlbum = useCallback(async () => {
+    try {
+      setZipping(true)
+      const res = await fetch(`/api/zip-url?albumKey=${encodeURIComponent(albumKey)}&quality=large`)
+      if (!res.ok) throw new Error(`zip-url failed: ${res.status}`)
+      const { url } = await res.json()
+      if (!url) throw new Error('no signed url returned')
+      // The Worker streams the ZIP with Content-Disposition: attachment, so this downloads
+      // (rather than navigating away).
+      window.location.href = url
+    } catch (err) {
+      console.error('[AlbumDownload]', err)
+      alert('Album download could not be prepared. Please try again.')
+    } finally {
+      setZipping(false)
+    }
+  }, [albumKey])
 
   // Build summary line: "199 photos" / "3 videos" / "199 photos · 3 videos"
   const summaryParts: string[] = []
@@ -83,6 +104,31 @@ export function AlbumDetail({
               <p className="text-text-secondary font-accent text-sm">
                 {summaryParts.join(' \u00B7 ')}
               </p>
+
+              {hasPhotos && (
+                <button
+                  type="button"
+                  onClick={handleDownloadAlbum}
+                  disabled={zipping}
+                  className={cn(
+                    'mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg',
+                    'btn-primary font-accent text-xs uppercase tracking-wider',
+                    'disabled:opacity-60 disabled:cursor-not-allowed'
+                  )}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                  </svg>
+                  {zipping ? 'Preparing ZIP\u2026' : 'Download album (ZIP)'}
+                </button>
+              )}
             </motion.div>
           </div>
         </section>
