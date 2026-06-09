@@ -211,7 +211,8 @@ export default function StandingsPage() {
   // auto-include future events. The local data is the initial paint + offline
   // fallback (it also still feeds the player/team views elsewhere).
   const [allResults, setAllResults] = useState<TournamentResult[]>(tournamentResults)
-  const [leaderboard, setLeaderboard] = useState<SeasonLeaderEntry[]>([])
+  // All-time series stats (across every event) — feeds the Top Performers cards.
+  const [seriesStats, setSeriesStats] = useState<SeasonLeaderEntry[]>([])
 
   useEffect(() => {
     fetch('/api/standings-results')
@@ -234,7 +235,8 @@ export default function StandingsPage() {
     fetch('/api/standings')
       .then((r) => r.json())
       .then((d) => {
-        if (Array.isArray(d.leaderboard)) setLeaderboard(d.leaderboard)
+        // Top Performers read the all-time board so Most Wins / Top 3 / Most Events span seasons.
+        if (Array.isArray(d.allTime)) setSeriesStats(d.allTime)
       })
       .catch(() => {})
   }, [])
@@ -350,18 +352,18 @@ export default function StandingsPage() {
               viewport={MOTION.viewport.once}
             >
               <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-2">
-                Season Highlights
+                All-Time Leaders
               </p>
               <h2 className="block-heading">
                 Top <span className="text-heat-poblano">Performers</span>
               </h2>
             </motion.div>
 
-            {leaderboard.length > 0 ? (
-              <TopPerformers entries={leaderboard} />
+            {seriesStats.length > 0 ? (
+              <TopPerformers entries={seriesStats} />
             ) : (
               <p className="text-center text-sm text-zinc-600 font-accent uppercase tracking-wider">
-                Loading season stats…
+                Loading series stats…
               </p>
             )}
           </div>
