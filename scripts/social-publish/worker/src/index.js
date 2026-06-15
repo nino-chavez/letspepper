@@ -12,7 +12,6 @@
  *
  * Bindings/secrets (wrangler.jsonc):
  *   QUEUE (KV)         one key per event slug → queue JSON ({meta,items[]})
- *   MEDIA (R2)         bucket letspepper-reels — videos deleted after they post
  *   IG_ACCESS_TOKEN    System User token (secret)
  *   TRIGGER_KEY        guards /run, /run?force=1, /status (secret)
  *   ACTIVE_EVENTS      comma-separated slugs, HIGHEST PRIORITY (newest) FIRST (var)
@@ -34,7 +33,6 @@ const ACCOUNTS = {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const r2KeyFromUrl = (url) => { try { return decodeURIComponent(url.split('.r2.dev/')[1] || '') } catch { return '' } }
 const list = (s) => (s || '').split(',').map((x) => x.trim()).filter(Boolean)
 const events = (env) => list(env.ACTIVE_EVENTS)
 const allowedHours = (env) => {
@@ -120,14 +118,7 @@ async function buildContainer(token, ig, it) {
 const hasMedia = (it) => it.media_type === 'CAROUSEL'
   ? Array.isArray(it.children) && it.children.length : (it.video_url || it.image_url)
 
-async function cleanupR2(env, it) {
-  const keys = it.media_type === 'CAROUSEL'
-    ? (it.children || []).map((c) => r2KeyFromUrl(c.video_url || c.image_url || ''))
-    : [r2KeyFromUrl(it.video_url || it.image_url || '')]
-  for (const k of keys) { if (k && env.MEDIA) { try { await env.MEDIA.delete(k) } catch { /* non-fatal */ } } }
-}
-
-// Publish one item (resume an existing container or build fresh), persist, clean up.
+// Publish one item (resume an existing container or build fresh), persist.
 async function publishItem(env, ev, q, item, resuming) {
   const acct = ACCOUNTS[item.account]
   if (!acct?.ig_user_id) {
@@ -149,7 +140,6 @@ async function publishItem(env, ev, q, item, resuming) {
     const mediaId = await publishWithRetry(token, acct.ig_user_id, containerId)
     item.status = 'posted'; item.ig_media_id = mediaId; item.posted_at = new Date().toISOString(); item.error = null
     await env.QUEUE.put(ev, JSON.stringify(q))
-    await cleanupR2(env, item)
     return { ev, posted: item.id, mediaId, account: acct.handle }
   } catch (e) {
     item.status = 'error'; item.error = String(e?.message || e) // TERMINAL
