@@ -37,11 +37,16 @@ const HOOKS = [
   'Big swings, bigger energy.',
 ]
 const CTAS = [
+  // Mix of gallery links + self-tag nudges. Self-tagging is the distribution
+  // engine: participants ID themselves (no per-clip tagging work for us) and
+  // their tags/comments feed reach. Gallery is the canonical "where's my highlight".
   'Full gallery → letspepper.com/gallery',
   'Find your team → letspepper.com/gallery',
+  'See your squad? Tag your crew 👇',
+  'Spot yourself? Drop your @ below 👇',
+  'Who do you see? Tag your team 👇',
+  'Catch the full set → letspepper.com/gallery · tag your crew 👇',
   'More from the day → letspepper.com/gallery',
-  'Photos: letspepper.com/gallery',
-  'Catch the full set → letspepper.com/gallery',
 ]
 const CREDITS = ['📸 @flickday.media', 'Shot by @flickday.media 📸', 'Captured by @flickday.media']
 const TAGS = [
