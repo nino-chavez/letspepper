@@ -8,10 +8,6 @@
   "kv_namespaces": [
     { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
   ],
-  // delete each reel from R2 after it posts (IG keeps its own copy) — saves storage
-  "r2_buckets": [
-    { "binding": "MEDIA", "bucket_name": "letspepper-reels" }
-  ],
   "vars": {
     // event slugs in PRIORITY order — newest/highest-priority FIRST. Each slot
     // posts from the first event with pending; older events backfill only when
