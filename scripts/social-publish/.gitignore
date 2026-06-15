@@ -1,0 +1,6 @@
+# Runtime state — the authoritative queue lives in Cloudflare KV.
+# Local queue files are regenerable (build-queue.mjs) and mutate per run.
+queue/
+
+# wrangler local cache
+worker/.wrangler/
