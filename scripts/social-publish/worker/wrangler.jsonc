@@ -2,8 +2,8 @@
   "name": "letspepper-reels-worker",
   "main": "src/index.js",
   "compatibility_date": "2026-01-01",
-  // hourly; the drip posts at most one DUE reel per run, so 5 due/day → 5 posts/day,
-  // evenly paced, with no dependency on any local machine being awake.
+  // hourly check; posts at most ONE reel per allowed slot (ALLOWED_HOURS_UTC),
+  // so the slot count is the daily cap. No dependency on any local machine.
   "triggers": { "crons": ["0 * * * *"] },
   "kv_namespaces": [
     { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
@@ -13,8 +13,12 @@
     { "binding": "MEDIA", "bucket_name": "letspepper-reels" }
   ],
   "vars": {
-    // comma-separated event slugs to drip; each must have a queue seeded in KV under its key
-    "ACTIVE_EVENTS": "bell-pepper-2026"
+    // event slugs in PRIORITY order — newest/highest-priority FIRST. Each slot
+    // posts from the first event with pending; older events backfill only when
+    // newer ones are exhausted. (When MSOE starts: "msoe-open,bell-pepper-2026".)
+    "ACTIVE_EVENTS": "bell-pepper-2026",
+    // UTC hours that are posting slots = the daily cap (2/day → 11a & 6p CDT)
+    "ALLOWED_HOURS_UTC": "16,23"
   },
   "observability": { "enabled": true }
   // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, TRIGGER_KEY

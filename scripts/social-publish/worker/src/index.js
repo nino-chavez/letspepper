@@ -1,31 +1,31 @@
 /**
  * letspepper-reels-worker — cloud cron drip for Instagram reels.
  *
- * Hourly cron. During an allowed posting hour it posts ONE randomly-chosen
- * pending reel per active event, persists state in KV, and deletes the source
- * video from R2 once posted. No local-machine dependency.
+ * Hourly cron. GLOBAL cadence with EVENT PRIORITY:
+ *   - At most ONE fresh reel per allowed slot → ALLOWED_HOURS_UTC sets the daily
+ *     cap (default 2 slots = 2/day total, ACROSS all events — not per event).
+ *   - Recency priority: each slot posts a random pending reel from the
+ *     highest-priority event first (ACTIVE_EVENTS order, newest listed FIRST);
+ *     older events only backfill when the newer one has nothing pending.
+ *   - In-flight containers (slow transcode) resume ANY hour, so a started post
+ *     always completes; that counts as the run's single post.
  *
  * Bindings/secrets (wrangler.jsonc):
- *   QUEUE (KV)        one key per event slug → queue JSON (shape: { meta, items[] })
- *   MEDIA (R2)        bucket letspepper-reels — videos deleted after they post
- *   IG_ACCESS_TOKEN   System User token (secret)
- *   TRIGGER_KEY       guards /run and /status (secret)
- *   ACTIVE_EVENTS     comma-separated event slugs (var)
+ *   QUEUE (KV)         one key per event slug → queue JSON ({meta,items[]})
+ *   MEDIA (R2)         bucket letspepper-reels — videos deleted after they post
+ *   IG_ACCESS_TOKEN    System User token (secret)
+ *   TRIGGER_KEY        guards /run, /run?force=1, /status (secret)
+ *   ACTIVE_EVENTS      comma-separated slugs, HIGHEST PRIORITY (newest) FIRST (var)
+ *   ALLOWED_HOURS_UTC  comma-separated UTC hours = daily slots/cap (var)
  *
- * Design choices that matter (this replaced a buggy version that double-posted):
- * - SELECTION is random among status==='pending' items — randomized order/grid.
- * - RATE is gated by meta.allowedHoursUTC (default 5 slots/day), 1 post/run.
- * - ERRORS ARE TERMINAL. Meta's "An unexpected error… retry" on media_publish
- *   often means it DID publish; auto-retrying re-created a new container and
- *   re-posted. So a failed publish marks the item 'error' and it is NEVER
- *   auto-retried — it needs manual review (was it actually posted?) + reset.
- * - thumb_offset randomized so the profile-grid cover frame varies per reel.
- * - Two-phase: container saved as 'building' before the (slow) publish; a
- *   slept/timed-out transcode resumes the SAME container next run (no re-upload).
+ * Errors are TERMINAL (never auto-retried) and publish uses publishWithRetry on
+ * the SAME container (idempotent) — this is what stopped the double-posting:
+ * Meta's "unexpected error" on media_publish often means it DID publish, so we
+ * must not re-create+re-publish. See git history / memory for the full story.
  */
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
-const DEFAULT_ALLOWED_HOURS_UTC = [13, 16, 19, 22, 1] // 8a,11a,2p,5p,8p CDT → 5/day
+const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
 
 const ACCOUNTS = {
   letspepper: { handle: 'letspepper.open', ig_user_id: '17841475435692331' },
@@ -35,6 +35,12 @@ const ACCOUNTS = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const r2KeyFromUrl = (url) => { try { return decodeURIComponent(url.split('.r2.dev/')[1] || '') } catch { return '' } }
+const list = (s) => (s || '').split(',').map((x) => x.trim()).filter(Boolean)
+const events = (env) => list(env.ACTIVE_EVENTS)
+const allowedHours = (env) => {
+  const h = list(env.ALLOWED_HOURS_UTC).map(Number).filter((n) => !Number.isNaN(n))
+  return h.length ? h : DEFAULT_ALLOWED_HOURS_UTC
+}
 
 async function api(token, path, params, method = 'POST') {
   const body = new URLSearchParams({ ...params, access_token: token })
@@ -54,20 +60,16 @@ function tagParams(it) {
   return p
 }
 
-// Publishing the SAME creation_id is idempotent on Meta's side (no duplicate post),
-// so retrying is dupe-safe. Meta frequently returns "An unexpected error… retry" on
-// media_publish even when it succeeded — a retry then returns the real media id (or
-// publishes if it truly hadn't). Only after exhausting retries do we surface an error.
+// Idempotent: re-publishing the SAME creation_id never duplicates. Meta often
+// returns "unexpected error" on media_publish even when it succeeded — a retry
+// then returns the real id (or publishes if it truly hadn't).
 async function publishWithRetry(token, ig, creationId, tries = 4) {
   let lastErr
   for (let i = 0; i < tries; i++) {
-    try {
-      const { id } = await api(token, `${ig}/media_publish`, { creation_id: creationId })
-      return id
-    } catch (e) {
+    try { const { id } = await api(token, `${ig}/media_publish`, { creation_id: creationId }); return id }
+    catch (e) {
       lastErr = e
       if (/already.*publish|has already been/i.test(String(e?.message || e))) {
-        // it published on a prior attempt; recover the id from the container
         try { const r = await api(token, creationId, { fields: 'id' }, 'GET'); return r.id } catch { return null }
       }
       await sleep(8000)
@@ -107,8 +109,7 @@ async function buildContainer(token, ig, it) {
     const { id } = await api(token, `${ig}/media`, { image_url: it.image_url, caption: it.caption, ...tagParams(it) })
     return id
   }
-  // REELS — random cover frame in [500, 6000]ms (safely under even the shortest clip)
-  const thumb_offset = String(500 + Math.floor(Math.random() * 5500))
+  const thumb_offset = String(500 + Math.floor(Math.random() * 5500)) // random cover frame
   const { id } = await api(token, `${ig}/media`, {
     media_type: 'REELS', video_url: it.video_url, caption: it.caption,
     share_to_feed: 'true', thumb_offset, ...tagParams(it),
@@ -126,37 +127,19 @@ async function cleanupR2(env, it) {
   for (const k of keys) { if (k && env.MEDIA) { try { await env.MEDIA.delete(k) } catch { /* non-fatal */ } } }
 }
 
-async function dripEvent(env, ev, force = false) {
-  const raw = await env.QUEUE.get(ev)
-  if (!raw) return { ev, skipped: 'no queue in KV' }
-  const q = JSON.parse(raw)
-  const token = env.IG_ACCESS_TOKEN
-  const allowed = q.meta?.allowedHoursUTC || DEFAULT_ALLOWED_HOURS_UTC
-
-  // 1) Resume an in-flight container (slow transcode from a prior run) — always, regardless of hour.
-  let item = q.items.find((it) => it.status === 'building' && it.ig_container_id)
-  const resuming = !!item
-
-  // 2) Otherwise, only during an allowed posting hour (or force), pick a RANDOM pending item.
-  if (!item) {
-    if (!force && !allowed.includes(new Date().getUTCHours())) return { ev, note: 'not a posting slot' }
-    const pending = q.items.filter((it) => it.status === 'pending' && hasMedia(it))
-    if (!pending.length) return { ev, note: 'nothing pending' }
-    item = pending[Math.floor(Math.random() * pending.length)] // ← random selection
-  }
-
+// Publish one item (resume an existing container or build fresh), persist, clean up.
+async function publishItem(env, ev, q, item, resuming) {
   const acct = ACCOUNTS[item.account]
   if (!acct?.ig_user_id) {
     item.status = 'error'; item.error = `unknown account ${item.account}`
-    await env.QUEUE.put(ev, JSON.stringify(q)); return { ev, error: item.error }
+    await env.QUEUE.put(ev, JSON.stringify(q)); return { ev, error: item.error, item: item.id }
   }
-
+  const token = env.IG_ACCESS_TOKEN
   try {
     let containerId = item.ig_container_id
     if (!resuming) {
       containerId = await buildContainer(token, acct.ig_user_id, item)
-      item.ig_container_id = containerId
-      item.status = 'building'
+      item.ig_container_id = containerId; item.status = 'building'
       await env.QUEUE.put(ev, JSON.stringify(q)) // persist before the slow poll/publish
     }
     if (item.media_type !== 'IMAGE') {
@@ -166,21 +149,42 @@ async function dripEvent(env, ev, force = false) {
     const mediaId = await publishWithRetry(token, acct.ig_user_id, containerId)
     item.status = 'posted'; item.ig_media_id = mediaId; item.posted_at = new Date().toISOString(); item.error = null
     await env.QUEUE.put(ev, JSON.stringify(q))
-    await cleanupR2(env, item) // free storage; IG has its own copy now
+    await cleanupR2(env, item)
     return { ev, posted: item.id, mediaId, account: acct.handle }
   } catch (e) {
-    // TERMINAL: do not auto-retry. A publish error may mean it actually posted.
-    item.status = 'error'; item.error = String(e?.message || e)
+    item.status = 'error'; item.error = String(e?.message || e) // TERMINAL
     await env.QUEUE.put(ev, JSON.stringify(q))
     return { ev, error: item.error, item: item.id }
   }
 }
 
+// Finish an in-flight container for this event, if any. Returns result or null.
+async function resumeIfBuilding(env, ev) {
+  const raw = await env.QUEUE.get(ev); if (!raw) return null
+  const q = JSON.parse(raw)
+  const item = q.items.find((it) => it.status === 'building' && it.ig_container_id)
+  if (!item) return null
+  return publishItem(env, ev, q, item, true)
+}
+
+// Post one random pending reel from this event. Returns result, or null if none pending.
+async function postRandomPending(env, ev) {
+  const raw = await env.QUEUE.get(ev); if (!raw) return null
+  const q = JSON.parse(raw)
+  const pending = q.items.filter((it) => it.status === 'pending' && hasMedia(it))
+  if (!pending.length) return null
+  const item = pending[Math.floor(Math.random() * pending.length)]
+  return publishItem(env, ev, q, item, false)
+}
+
 async function run(env, force = false) {
-  const events = (env.ACTIVE_EVENTS || '').split(',').map((s) => s.trim()).filter(Boolean)
-  const results = []
-  for (const ev of events) results.push(await dripEvent(env, ev, force))
-  return results
+  const evs = events(env) // priority order: newest first
+  // 1) Always finish any in-flight container first (counts as this run's post).
+  for (const ev of evs) { const r = await resumeIfBuilding(env, ev); if (r) return [r] }
+  // 2) Fresh post — gated to allowed slots; highest-priority event with pending wins.
+  if (!force && !allowedHours(env).includes(new Date().getUTCHours())) return [{ note: 'not a posting slot' }]
+  for (const ev of evs) { const r = await postRandomPending(env, ev); if (r) return [r] }
+  return [{ note: 'nothing pending in any active event' }]
 }
 
 export default {
@@ -190,19 +194,17 @@ export default {
     const authed = url.searchParams.get('key') && url.searchParams.get('key') === env.TRIGGER_KEY
     if (url.pathname === '/run') {
       if (!authed) return new Response('forbidden', { status: 403 })
-      // ?force=1 bypasses the posting-hour gate (manual one-off post / validation)
       return Response.json(await run(env, url.searchParams.get('force') === '1'))
     }
     if (url.pathname === '/status') {
       if (!authed) return new Response('forbidden', { status: 403 })
-      const events = (env.ACTIVE_EVENTS || '').split(',').map((s) => s.trim()).filter(Boolean)
-      const out = {}
-      for (const ev of events) {
+      const out = { allowedHoursUTC: allowedHours(env), priorityOrder: events(env), events: {} }
+      for (const ev of events(env)) {
         const raw = await env.QUEUE.get(ev)
-        if (!raw) { out[ev] = 'no queue'; continue }
+        if (!raw) { out.events[ev] = 'no queue'; continue }
         const q = JSON.parse(raw)
         const by = (s) => q.items.filter((i) => i.status === s).length
-        out[ev] = { total: q.items.length, posted: by('posted'), pending: by('pending'),
+        out.events[ev] = { total: q.items.length, posted: by('posted'), pending: by('pending'),
           building: by('building'), error: by('error'),
           errors: q.items.filter((i) => i.status === 'error').map((i) => ({ id: i.id, err: i.error })) }
       }
