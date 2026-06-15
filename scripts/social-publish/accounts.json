@@ -1,0 +1,20 @@
+{
+  "_comment": "Registry of owned IG accounts under the Almost Flickday Business Manager (id 4033438730307424). ig_user_id is the Page's instagram_business_account id (resolve via /me/accounts after the Page is connected to the IG account AND assigned to the System User). System User token in 1Password: Meta Almost-Flickday.",
+  "accounts": {
+    "letspepper": {
+      "handle": "letspepper.open",
+      "ig_user_id": "17841475435692331",
+      "page_id": "1121553257697663"
+    },
+    "flickday": {
+      "handle": "flickday.media",
+      "ig_user_id": "17841474039989310",
+      "page_id": "1083438888196332"
+    },
+    "ninophoto": {
+      "handle": "nino.chavez.photo",
+      "ig_user_id": "17841401886738878",
+      "page_id": "739564079232058"
+    }
+  }
+}

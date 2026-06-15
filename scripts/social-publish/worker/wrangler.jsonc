@@ -1,0 +1,21 @@
+{
+  "name": "letspepper-reels-worker",
+  "main": "src/index.js",
+  "compatibility_date": "2026-01-01",
+  // hourly; the drip posts at most one DUE reel per run, so 5 due/day → 5 posts/day,
+  // evenly paced, with no dependency on any local machine being awake.
+  "triggers": { "crons": ["0 * * * *"] },
+  "kv_namespaces": [
+    { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
+  ],
+  // delete each reel from R2 after it posts (IG keeps its own copy) — saves storage
+  "r2_buckets": [
+    { "binding": "MEDIA", "bucket_name": "letspepper-reels" }
+  ],
+  "vars": {
+    // comma-separated event slugs to drip; each must have a queue seeded in KV under its key
+    "ACTIVE_EVENTS": "bell-pepper-2026"
+  },
+  "observability": { "enabled": true }
+  // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, TRIGGER_KEY
+}
