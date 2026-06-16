@@ -14,7 +14,6 @@ export interface Photo {
   sportType: string
   photoCategory: string
   playType: string | null
-  actionIntensity: string
   photoDate: string | null
   uploadDate: string
   aspectRatio: number | null

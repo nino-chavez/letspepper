@@ -11,7 +11,7 @@ import type { VotablePhoto } from './photo-vote-data'
 
 /** Columns needed for photo display (avoids fetching embeddings/heavy data) */
 const PHOTO_COLUMNS =
-  'photo_id, image_key, cf_image_id, album_key, album_name, sport_type, photo_category, play_type, action_intensity, aspect_ratio, photo_date, upload_date'
+  'photo_id, image_key, cf_image_id, album_key, album_name, sport_type, photo_category, play_type, aspect_ratio, photo_date, upload_date'
 
 /**
  * Fetch LPO album keys dynamically from album_settings.
@@ -156,9 +156,11 @@ export async function fetchAlbumPhotos(
 
 /**
  * Photo-of-the-season vote candidates — real Let's Pepper gallery photos, not
- * placeholders. Curated by the photography project's own classification: peak
- * action-intensity is the season's best-moment set (no separate curation table
- * needed). Add/curate by tagging photos `peak` in the gallery.
+ * placeholders. Curated by the photography project's own classification: the
+ * highest quality_score photos are the season's best-moment set (no separate
+ * curation table needed). quality_score is the weighted blend the gallery uses
+ * for "Best Photos" (sharpness .35 / composition .30 / emotional .25 / exposure
+ * .10); photo_date breaks ties.
  */
 export async function fetchVotablePhotos(limit = 12): Promise<VotablePhoto[]> {
   const albumKeys = await fetchLPOAlbumKeys()
@@ -168,9 +170,9 @@ export async function fetchVotablePhotos(limit = 12): Promise<VotablePhoto[]> {
     .from('photo_metadata')
     .select('photo_id, cf_image_id, album_name, play_type, photo_category')
     .in('album_key', albumKeys)
-    .eq('action_intensity', 'peak')
     .not('cf_image_id', 'is', null)
     .not('sharpness', 'is', null)
+    .order('quality_score', { ascending: false, nullsFirst: false })
     .order('photo_date', { ascending: false, nullsFirst: false })
     .limit(limit)
 
@@ -267,7 +269,6 @@ function transformRow(row: Record<string, unknown>): Photo {
     sportType: row.sport_type as string,
     photoCategory: row.photo_category as string,
     playType: (row.play_type as string) || null,
-    actionIntensity: (row.action_intensity as string) || 'medium',
     photoDate: (row.photo_date as string) || null,
     uploadDate: row.upload_date as string,
     aspectRatio: (row.aspect_ratio as number) || null,

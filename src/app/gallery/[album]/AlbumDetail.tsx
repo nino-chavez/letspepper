@@ -152,6 +152,33 @@ export function AlbumDetail({
                 {summaryParts.join(' \u00B7 ')}
               </p>
 
+              {/* Jump chips \u2014 skip the video wall and land straight on the
+                  photos (photography-first), or vice-versa. Only meaningful
+                  when both media types are present. */}
+              {hasPhotos && hasVideos && (
+                <nav
+                  aria-label="Jump to media type"
+                  className="mt-5 flex flex-wrap gap-2"
+                >
+                  {[
+                    { href: '#photos', label: `Photos (${totalCount})` },
+                    { href: '#videos', label: `Videos (${videos.length})` },
+                  ].map(({ href, label }) => (
+                    <a
+                      key={href}
+                      href={href}
+                      className={cn(
+                        'px-4 py-2 rounded-lg font-accent text-xs uppercase tracking-wider',
+                        'bg-pepper-charcoal text-white hover:bg-pepper-dark border border-border-subtle',
+                        'transition-colors'
+                      )}
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </nav>
+              )}
+
               {hasPhotos && (
                 <button
                   type="button"
@@ -182,7 +209,7 @@ export function AlbumDetail({
 
         {/* Video Grid */}
         {hasVideos && (
-          <section className="section-padding pb-8">
+          <section id="videos" className="section-padding pb-8 scroll-mt-28">
             <div className="section-container">
               {hasPhotos && (
                 <h2 className="font-accent text-xs uppercase tracking-wider text-heat-jalapeno mb-4">
@@ -204,7 +231,7 @@ export function AlbumDetail({
 
         {/* Photo Grid */}
         {hasPhotos && (
-          <section className="section-padding pb-12">
+          <section id="photos" className="section-padding pb-12 scroll-mt-28">
             <div className="section-container">
               {hasVideos && (
                 <h2 className="font-accent text-xs uppercase tracking-wider text-heat-jalapeno mb-4">
