@@ -5,7 +5,6 @@ import type { Metadata } from 'next'
 
 interface PageProps {
   params: Promise<{ album: string }>
-  searchParams: Promise<{ page?: string }>
 }
 
 /** Extract album key from the slug format: "album-name--albumKey" */
@@ -30,14 +29,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-export default async function AlbumPage({ params, searchParams }: PageProps) {
+export default async function AlbumPage({ params }: PageProps) {
   const { album } = await params
-  const { page: pageParam } = await searchParams
   const albumKey = extractAlbumKey(album)
-  const page = Math.max(1, parseInt(pageParam || '1'))
 
+  // First page is server-rendered; the client appends the rest via "Load more".
   const [{ photos, totalCount }, videos] = await Promise.all([
-    fetchAlbumPhotos({ albumKey, page, pageSize: 48 }),
+    fetchAlbumPhotos({ albumKey, page: 1, pageSize: 48 }),
     fetchAlbumVideos(albumKey),
   ])
 
@@ -56,9 +54,6 @@ export default async function AlbumPage({ params, searchParams }: PageProps) {
       photos={photos}
       videos={videos}
       totalCount={totalCount}
-      currentPage={page}
-      pageSize={48}
-      slug={album}
     />
   )
 }

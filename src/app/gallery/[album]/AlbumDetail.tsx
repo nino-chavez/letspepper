@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -20,9 +19,6 @@ interface AlbumDetailProps {
   photos: Photo[]
   videos: Video[]
   totalCount: number
-  currentPage: number
-  pageSize: number
-  slug: string
 }
 
 export function AlbumDetail({
@@ -31,66 +27,44 @@ export function AlbumDetail({
   photos,
   videos,
   totalCount,
-  currentPage,
-  pageSize,
-  slug,
 }: AlbumDetailProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [activeVideo, setActiveVideo] = useState<Video | null>(null)
   const [zipping, setZipping] = useState(false)
-  const totalPages = Math.ceil(totalCount / pageSize)
-  const hasPhotos = photos.length > 0
+  const hasPhotos = totalCount > 0
   const hasVideos = videos.length > 0
 
   const openLightbox = useCallback((_photo: Photo, index: number) => {
     setLightboxIndex(index)
   }, [])
 
-  // ── Cross-page lightbox: accumulate photos beyond the current page ──────────
-  const router = useRouter()
-  const [lightboxPhotos, setLightboxPhotos] = useState<Photo[]>(photos)
-  const [loadedThroughPage, setLoadedThroughPage] = useState(currentPage)
+  // ── One growing photo list feeds both the grid and the lightbox ─────────────
+  // The first page is server-rendered; "Load more" appends each subsequent page
+  // client-side, so the video grid above never re-renders and the lightbox can
+  // walk past page boundaries without a navigation. (The API paginates at 48,
+  // matching the server's initial fetch, so page N is a clean continuation.)
+  const [loadedPhotos, setLoadedPhotos] = useState<Photo[]>(photos)
+  const [nextPage, setNextPage] = useState(2)
   const [loadingMore, setLoadingMore] = useState(false)
-  const indexOffset = (currentPage - 1) * pageSize
-  const hasMorePages = indexOffset + lightboxPhotos.length < totalCount
+  const hasMore = loadedPhotos.length < totalCount
 
-  // Reset the accumulated list when the underlying server page changes.
-  useEffect(() => {
-    setLightboxPhotos(photos)
-    setLoadedThroughPage(currentPage)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage])
-
-  // Pull the next page when the lightbox reaches the end of the loaded photos.
-  const loadNextPage = useCallback(async () => {
-    if (loadingMore) return
-    const nextPage = loadedThroughPage + 1
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return
     try {
       setLoadingMore(true)
       const res = await fetch(`/api/album-photos?albumKey=${encodeURIComponent(albumKey)}&page=${nextPage}`)
       if (!res.ok) return
       const { photos: more } = await res.json()
       if (Array.isArray(more) && more.length) {
-        setLightboxPhotos((prev) => [...prev, ...more])
-        setLoadedThroughPage(nextPage)
+        setLoadedPhotos((prev) => [...prev, ...more])
+        setNextPage((p) => p + 1)
       }
     } catch (err) {
-      console.error('[Lightbox loadNextPage]', err)
+      console.error('[Gallery loadMore]', err)
     } finally {
       setLoadingMore(false)
     }
-  }, [albumKey, loadedThroughPage, loadingMore])
-
-  // Contextual close: land on the page that holds the last-viewed photo.
-  const handleLightboxClose = useCallback(() => {
-    const idx = lightboxIndex
-    setLightboxIndex(null)
-    if (idx === null) return
-    const targetPage = Math.floor((indexOffset + idx) / pageSize) + 1
-    if (targetPage !== currentPage) {
-      router.push(`/gallery/${slug}?page=${targetPage}`)
-    }
-  }, [lightboxIndex, indexOffset, pageSize, currentPage, slug, router])
+  }, [albumKey, nextPage, loadingMore, hasMore])
 
   // Download the whole album as a ZIP via the shared album-zip Worker (server-signed URL).
   const handleDownloadAlbum = useCallback(async () => {
@@ -238,43 +212,25 @@ export function AlbumDetail({
                   Photos
                 </h2>
               )}
-              <PhotoGrid photos={photos} onPhotoClick={openLightbox} />
-            </div>
-          </section>
-        )}
+              <PhotoGrid photos={loadedPhotos} onPhotoClick={openLightbox} />
 
-        {/* Pagination (photos only) */}
-        {totalPages > 1 && (
-          <section className="section-padding pb-24">
-            <div className="section-container flex justify-center gap-2">
-              {currentPage > 1 && (
-                <Link
-                  href={`/gallery/${slug}?page=${currentPage - 1}`}
-                  className={cn(
-                    'px-4 py-2 rounded-lg font-accent text-xs uppercase tracking-wider',
-                    'bg-pepper-charcoal text-white hover:bg-pepper-dark border border-border-subtle',
-                    'transition-colors'
-                  )}
-                >
-                  Previous
-                </Link>
-              )}
-
-              <span className="px-4 py-2 font-accent text-xs text-text-secondary uppercase">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              {currentPage < totalPages && (
-                <Link
-                  href={`/gallery/${slug}?page=${currentPage + 1}`}
-                  className={cn(
-                    'px-4 py-2 rounded-lg font-accent text-xs uppercase tracking-wider',
-                    'bg-pepper-charcoal text-white hover:bg-pepper-dark border border-border-subtle',
-                    'transition-colors'
-                  )}
-                >
-                  Next
-                </Link>
+              {hasMore && (
+                <div className="mt-10 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className={cn(
+                      'px-6 py-3 rounded-lg font-accent text-xs uppercase tracking-wider',
+                      'bg-pepper-charcoal text-white hover:bg-pepper-dark border border-border-subtle',
+                      'transition-colors disabled:opacity-60 disabled:cursor-wait'
+                    )}
+                  >
+                    {loadingMore
+                      ? 'Loading…'
+                      : `Load more · ${loadedPhotos.length} of ${totalCount}`}
+                  </button>
+                </div>
               )}
             </div>
           </section>
@@ -282,18 +238,17 @@ export function AlbumDetail({
       </main>
       <Footer />
 
-      {/* Photo Lightbox — navigates across page boundaries; closes onto the last-viewed page */}
+      {/* Photo Lightbox — walks the full loaded list and pulls the next page at the boundary */}
       {lightboxIndex !== null && (
         <Lightbox
-          photos={lightboxPhotos}
+          photos={loadedPhotos}
           currentIndex={lightboxIndex}
-          onClose={handleLightboxClose}
+          onClose={() => setLightboxIndex(null)}
           onNavigate={setLightboxIndex}
-          hasMore={hasMorePages}
-          onLoadMore={loadNextPage}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
           loadingMore={loadingMore}
           totalCount={totalCount}
-          indexOffset={indexOffset}
         />
       )}
 
