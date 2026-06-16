@@ -15,7 +15,12 @@
     "ACTIVE_EVENTS": "bell-pepper-2026",
     // UTC hours that are posting slots = the daily cap
     // 4/day → 9a, 12p, 3p, 6p CDT
-    "ALLOWED_HOURS_UTC": "14,17,20,23"
+    "ALLOWED_HOURS_UTC": "14,17,20,23",
+    // --- engagement sweep (see SWEEP.md) ---
+    "SWEEP_ENABLED": "1",          // run the comment sweep after each post step
+    "SWEEP_LOOKBACK_DAYS": "14",   // only sweep media newer than this
+    "SWEEP_AUTOREPLY": "off",      // off | intent — DEFAULTS OFF (shadow-logs only)
+    "REGISTRATION_URL": "https://letspepper.com/flavors/bell-pepper-open"
   },
   "observability": { "enabled": true }
   // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, TRIGGER_KEY

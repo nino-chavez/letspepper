@@ -26,6 +26,15 @@
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
 
+// --- engagement sweep defaults (see SWEEP.md) ---
+const DEFAULT_LOOKBACK_DAYS = 14
+const DEFAULT_INTENT = {
+  signup: ['sign ?up', 'register', 'how (do|can) (i|we) (join|sign|enter)',
+    'where.*(sign|register|enter)', 'how much', 'entry fee', '\\bcost\\b', '\\bprice\\b', '\\$'],
+  reply_text: 'Thanks for the interest! Register here: {REGISTRATION_URL}',
+}
+const DIGEST_CAP = 200
+
 const ACCOUNTS = {
   letspepper: { handle: 'letspepper.open', ig_user_id: '17841475435692331' },
   flickday:   { handle: 'flickday.media',  ig_user_id: '17841474039989310' },
@@ -167,6 +176,118 @@ async function postRandomPending(env, ev) {
   return publishItem(env, ev, q, item, false)
 }
 
+// ============================ ENGAGEMENT SWEEP ============================
+// Poll-based (no webhooks). Standard Access, owned accounts. v1 = comment surface
+// only (scope: instagram_manage_comments). Runs after the post step, isolated so a
+// sweep failure never blocks a post. See SWEEP.md for the full spec + Phase 2 (DMs).
+
+const lookbackDays = (env) => Number(env.SWEEP_LOOKBACK_DAYS) || DEFAULT_LOOKBACK_DAYS
+const autoreplyMode = (env) => (env.SWEEP_AUTOREPLY || 'off').toLowerCase() // off | intent
+
+async function intentConfig(env) {
+  try { const raw = await env.QUEUE.get('engage:config'); if (raw) return { ...DEFAULT_INTENT, ...JSON.parse(raw) } }
+  catch { /* fall through to defaults */ }
+  return DEFAULT_INTENT
+}
+
+function classify(text, cfg) {
+  const t = (text || '').toLowerCase()
+  for (const pat of cfg.signup) { try { if (new RegExp(pat, 'i').test(t)) return 'signup' } catch { /* bad regex */ } }
+  return 'other'
+}
+
+// rolling digest of new activity, capped, newest first
+async function digestAppend(env, entries) {
+  if (!entries.length) return
+  let cur = []
+  try { cur = JSON.parse((await env.QUEUE.get('engage:digest')) || '[]') } catch { cur = [] }
+  const next = [...entries, ...cur].slice(0, DIGEST_CAP)
+  await env.QUEUE.put('engage:digest', JSON.stringify(next))
+}
+
+// push the new entries to a notify sink Nino actually sees (generic webhook —
+// point at Discord/Slack/email-relay). No-op if unset; /inbox still serves the pull.
+async function notify(env, entries) {
+  if (!entries.length || !env.NOTIFY_WEBHOOK_URL) return
+  const lines = entries.map((e) =>
+    `[${e.account}] @${e.username}: ${JSON.stringify(e.text).slice(0, 120)} — ${e.intent}/${e.action}`)
+  const content = `Pepper sweep — ${entries.length} new:\n` + lines.join('\n')
+  try {
+    await fetch(env.NOTIFY_WEBHOOK_URL, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, text: content }), // Discord uses `content`, Slack uses `text`
+    })
+  } catch (e) { console.error('notify failed', e) }
+}
+
+// Send the one-shot private reply to a commenter (7-day window, once only).
+// Mirrors publishWithRetry's dedupe discipline: mark handled on success AND on
+// Meta's "already sent" so a double attempt can't double-send.
+async function privateReply(env, ig, commentId, text) {
+  try {
+    await api(env.IG_ACCESS_TOKEN, `${ig}/messages`, {
+      recipient: JSON.stringify({ comment_id: commentId }),
+      message: JSON.stringify({ text }),
+    })
+    return 'sent'
+  } catch (e) {
+    if (/already|only one|same recipient/i.test(String(e?.message || e))) return 'already'
+    throw e
+  }
+}
+
+async function sweepAccount(env, acct) {
+  const token = env.IG_ACCESS_TOKEN
+  const cutoff = Date.now() - lookbackDays(env) * 86400000
+  const cfg = await intentConfig(env)
+  const mode = autoreplyMode(env)
+  const entries = []
+
+  const media = await api(token, `${acct.ig_user_id}/media`, { fields: 'id,timestamp', limit: '25' }, 'GET')
+  for (const m of media.data || []) {
+    if (Date.parse(m.timestamp) < cutoff) continue
+    const cs = await api(token, `${m.id}/comments`,
+      { fields: 'id,text,username,timestamp,from,replies{from}', limit: '50' }, 'GET')
+    for (const c of cs.data || []) {
+      if (c.from?.id === acct.ig_user_id) continue // our own comment
+      const dedupeKey = `engage:c:${c.id}`
+      if (await env.QUEUE.get(dedupeKey)) continue // already handled
+      const intent = classify(c.text, cfg)
+      let action = 'shadow' // default: log only
+      if (intent === 'signup' && mode === 'intent') {
+        const text = cfg.reply_text.replace('{REGISTRATION_URL}', env.REGISTRATION_URL || '')
+        try { action = await privateReply(env, acct.ig_user_id, c.id, text) }
+        catch (e) { action = `error:${String(e?.message || e).slice(0, 80)}` }
+      } else if (intent === 'signup') {
+        action = 'would-reply' // shadow: a signup match we did NOT send (mode=off)
+      }
+      // Mark handled for every TERMINAL outcome (sent/already/shadow/would-reply) —
+      // deduping the shadow paths prevents a backlog blast when mode flips to intent.
+      // But a transient send error must NOT be deduped: leaving the key unset lets the
+      // next hourly sweep retry the lead (privateReply is idempotent — Meta caps it to
+      // one), so a rate-limit/token blip can't silently drop a real signup for 8 days.
+      if (!String(action).startsWith('error:')) {
+        await env.QUEUE.put(dedupeKey, '1', { expirationTtl: 8 * 86400 })
+      }
+      entries.push({ account: acct.handle, media_id: m.id, comment_id: c.id,
+        username: c.username, text: c.text, intent, action, ts: c.timestamp })
+    }
+  }
+  return entries
+}
+
+async function sweep(env) {
+  const all = []
+  for (const [key, acct] of Object.entries(ACCOUNTS)) {
+    try { all.push(...await sweepAccount(env, acct)) }
+    catch (e) { console.error(`sweep ${key} failed`, e); all.push({ account: acct.handle, error: String(e?.message || e) }) }
+  }
+  const real = all.filter((e) => !e.error)
+  await digestAppend(env, all)
+  await notify(env, real)
+  return all
+}
+
 async function run(env, force = false) {
   const evs = events(env) // priority order: newest first
   // 1) Always finish any in-flight container first (counts as this run's post).
@@ -178,13 +299,30 @@ async function run(env, force = false) {
 }
 
 export default {
-  async scheduled(_controller, env, ctx) { ctx.waitUntil(run(env)) },
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil((async () => {
+      await run(env) // post step first — unchanged
+      if (env.SWEEP_ENABLED === '1') {
+        try { await sweep(env) } catch (e) { console.error('sweep failed', e) } // isolated
+      }
+    })())
+  },
   async fetch(req, env) {
     const url = new URL(req.url)
     const authed = url.searchParams.get('key') && url.searchParams.get('key') === env.TRIGGER_KEY
     if (url.pathname === '/run') {
       if (!authed) return new Response('forbidden', { status: 403 })
       return Response.json(await run(env, url.searchParams.get('force') === '1'))
+    }
+    if (url.pathname === '/sweep') {
+      if (!authed) return new Response('forbidden', { status: 403 })
+      return Response.json(await sweep(env))
+    }
+    if (url.pathname === '/inbox') {
+      if (!authed) return new Response('forbidden', { status: 403 })
+      let digest = []
+      try { digest = JSON.parse((await env.QUEUE.get('engage:digest')) || '[]') } catch { /* empty */ }
+      return Response.json({ mode: autoreplyMode(env), count: digest.length, digest })
     }
     if (url.pathname === '/status') {
       if (!authed) return new Response('forbidden', { status: 403 })
