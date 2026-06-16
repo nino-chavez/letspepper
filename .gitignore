@@ -41,3 +41,7 @@ next-env.d.ts
 
 # Generated social/story assets (regenerable via scripts/story-assets/*.mjs)
 scripts/story-assets/*.png
+
+# Local scratch / per-event scratch assets (not repo content)
+scripts/apparel/ref/
+scripts/story-assets/2026-bpo/
