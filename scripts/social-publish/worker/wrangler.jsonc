@@ -13,8 +13,9 @@
     // posts from the first event with pending; older events backfill only when
     // newer ones are exhausted. (When MSOE starts: "msoe-open,bell-pepper-2026".)
     "ACTIVE_EVENTS": "bell-pepper-2026",
-    // UTC hours that are posting slots = the daily cap (2/day → 11a & 6p CDT)
-    "ALLOWED_HOURS_UTC": "16,23"
+    // UTC hours that are posting slots = the daily cap
+    // 4/day → 9a, 12p, 3p, 6p CDT
+    "ALLOWED_HOURS_UTC": "14,17,20,23"
   },
   "observability": { "enabled": true }
   // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, TRIGGER_KEY
