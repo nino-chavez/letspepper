@@ -24,6 +24,8 @@ const spaceMono = Space_Mono({
 })
 
 export const metadata: Metadata = {
+  // Absolute base for the opengraph-image convention's generated og:image URLs.
+  metadataBase: new URL('https://letspepper.com'),
   title: "Let's Pepper | Underground Grassroots Volleyball",
   description:
     'Underground. Unfiltered. Unapologetically competitive. A community-powered circuit of high-level grass volleyball tournaments.',
