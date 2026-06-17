@@ -3,10 +3,11 @@
 API-first, fully controlled, no third-party SaaS. Multi-account scheduled posting with user-tagging and Collab co-author invites, over Instagram's [Content Publishing API](https://developers.facebook.com/docs/instagram-platform/content-publishing) (Graph API v25.0). Owned Playwright automation is the fallback for anything the API doesn't expose (Stories stickers/polls/links, etc.).
 
 ```
-accounts.json     registry: account slug → ig_user_id (+ handle, page_id)
-build-queue.mjs   folder of media → queue/<event>.json (per-account, scheduled)
-upload-r2.mjs     push media to a public R2 bucket, write URLs into the queue
-post-reels.mjs    publish due items (reels / image / carousel), tag + collab
+accounts.json            registry: account slug → ig_user_id (+ handle, page_id)
+build-queue.mjs          folder of media → queue/<event>.json (per-account, scheduled)
+build-album-carousel.mjs gallery album → R2-hosted CAROUSEL queue/<event>.json
+upload-r2.mjs            push media to a public R2 bucket, write URLs into the queue
+post-reels.mjs           publish due items (reels / image / carousel), tag + collab
 ```
 
 ## Architecture
@@ -81,6 +82,30 @@ Daily cron drips the queue (only *due* items post):
   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Almost-Flickday/credential") \
   node scripts/social-publish/post-reels.mjs --event bell-pepper-2026 --count 5 >> /tmp/lp-reels.log 2>&1
 ```
+
+## Per-album carousel (photography gallery)
+
+One command turns a gallery album into an R2-hosted 10-image CAROUSEL queue, then
+the same `post-reels.mjs` publishes it. Reads the album from the public gallery API
+(no DB creds). Defaults: account `flickday`, collab `nino.chavez.photo`, bucket
+`flickday-social`.
+
+```bash
+# 1. build (selects 10 — by AI quality score if scored, else a caption action/
+#    emotion heuristic; pass --keys DSC1,DSC2,... to curate). Writes a contact
+#    sheet to .temp/<event>-carousel.jpg to eyeball first.
+node scripts/social-publish/build-album-carousel.mjs \
+  --album saturday-triples-the-raiders-open-rdrsVB --count 10
+
+# 2. publish (or add --post to step 1 to chain it)
+IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Almost-Flickday/credential") \
+  node scripts/social-publish/post-reels.mjs --event rdrsVB --account flickday --count 1
+```
+
+Why R2 and not the gallery's `imagedelivery.net` URLs: Cloudflare Images negotiates
+to webp on a webp-Accept fetch and Instagram rejects webp. The builder fetches the
+`large` variant as jpeg and re-hosts on R2 (which serves the stored type verbatim).
+The `flickday-social` bucket has public dev access enabled for exactly this.
 
 ## Capabilities
 - **Multi-account:** `--account <slug>` or per-item `account` field → posts to any owned IG account from the one token.
