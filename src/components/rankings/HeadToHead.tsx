@@ -1,12 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
-import { getTeamStats } from '@/lib/standings-data'
-
-const teams = getTeamStats()
+import { getTeamStats, tournamentResults, type TournamentResult } from '@/lib/standings-data'
 
 function StatBar({ label, valueA, valueB, maxValue }: { label: string; valueA: number; valueB: number; maxValue: number }) {
   const widthA = maxValue > 0 ? (valueA / maxValue) * 100 : 0
@@ -45,6 +43,19 @@ export function HeadToHead() {
   const [teamAIndex, setTeamAIndex] = useState<number>(-1)
   const [teamBIndex, setTeamBIndex] = useState<number>(-1)
   const [showComparison, setShowComparison] = useState(false)
+
+  // Rally HQ is the source of truth (placements + rosters); the local snapshot is
+  // the initial paint + offline fallback. Team stats derive from whichever is live.
+  const [results, setResults] = useState<TournamentResult[]>(tournamentResults)
+  useEffect(() => {
+    fetch('/api/standings-results')
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.results) && d.results.length > 0) setResults(d.results)
+      })
+      .catch(() => {})
+  }, [])
+  const teams = useMemo(() => getTeamStats(results), [results])
 
   const teamA = teamAIndex >= 0 ? teams[teamAIndex] : null
   const teamB = teamBIndex >= 0 ? teams[teamBIndex] : null
