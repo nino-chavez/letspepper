@@ -21,6 +21,7 @@ export function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
         <PhotoCard
           key={photo.id}
           photo={photo}
+          priority={index < 4}
           onClick={() => onPhotoClick?.(photo, index)}
         />
       ))}

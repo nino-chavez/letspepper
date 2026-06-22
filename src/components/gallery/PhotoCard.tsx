@@ -10,9 +10,11 @@ interface PhotoCardProps {
   photo: Photo
   sizes?: string
   onClick?: () => void
+  /** Above-the-fold cards: eager-load the image and skip the fade-in so the LCP isn't gated by hydration. */
+  priority?: boolean
 }
 
-export function PhotoCard({ photo, sizes, onClick }: PhotoCardProps) {
+export function PhotoCard({ photo, sizes, onClick, priority = false }: PhotoCardProps) {
   const src = cfImageUrl(photo.cfImageId, 'grid')
 
   return (
@@ -28,12 +30,14 @@ export function PhotoCard({ photo, sizes, onClick }: PhotoCardProps) {
         initial: { opacity: 0, scale: 0.95 },
         animate: { opacity: 1, scale: 1 },
       }}
+      initial={priority ? false : undefined}
       whileHover={{ scale: 1.02 }}
     >
       <Image
         src={src}
         alt={`${photo.sportType} ${photo.photoCategory} photo`}
         fill
+        priority={priority}
         className="object-cover object-center transition-transform duration-500 group-hover:scale-105"
         sizes={sizes || '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'}
       />
