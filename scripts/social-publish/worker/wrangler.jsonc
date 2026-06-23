@@ -14,8 +14,11 @@
     // newer ones are exhausted. (When MSOE starts: "msoe-open,bell-pepper-2026".)
     "ACTIVE_EVENTS": "bell-pepper-2026",
     // UTC hours that are posting slots = the daily cap
-    // 4/day → 9a, 12p, 3p, 6p CDT
-    "ALLOWED_HOURS_UTC": "14,17,20,23",
+    // 1/day → 9a CDT. Throttled from 4/day post-event (Bell Pepper was 6/7):
+    // engagement halved over 9 days and the morning slot was the only one
+    // reliably pulling 2-3k reach; 3p/6p slots averaged ~400. Bump back up
+    // (e.g. "14,17,20,23") when the next event's content + registration is live.
+    "ALLOWED_HOURS_UTC": "14",
     // --- engagement sweep (see SWEEP.md) ---
     "SWEEP_ENABLED": "1",          // run the comment sweep after each post step
     "SWEEP_LOOKBACK_DAYS": "14",   // only sweep media newer than this
