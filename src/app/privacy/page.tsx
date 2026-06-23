@@ -95,7 +95,11 @@ export default function PrivacyPage() {
                     <li>Browser type and device information</li>
                     <li>Pages visited and time spent on site</li>
                     <li>Referring website or source</li>
+                    <li>A random device ID (stored locally as lp_device_id) to prevent duplicate engagement votes</li>
                   </ul>
+
+                  <p className="pt-4"><strong className="text-zinc-300">Analytics</strong></p>
+                  <p>We use Cloudflare Web Analytics, a privacy-respecting service that collects only aggregated page views and referrer data. No tracking cookies are set, and no personally identifiable information is collected beyond what is necessary for hosting.</p>
                 </div>
               </div>
 
@@ -150,7 +154,8 @@ export default function PrivacyPage() {
                     <li><strong className="text-zinc-300">Payment Processing:</strong> Secure payment through Stripe or similar providers</li>
                     <li><strong className="text-zinc-300">Email:</strong> Event communications and announcements</li>
                     <li><strong className="text-zinc-300">Photo Hosting:</strong> SmugMug for gallery hosting</li>
-                    <li><strong className="text-zinc-300">Analytics:</strong> Website usage tracking (anonymized)</li>
+                    <li><strong className="text-zinc-300">Cloudflare Web Analytics:</strong> Privacy-respecting real-user monitoring with no tracking cookies or PII collection</li>
+                    <li><strong className="text-zinc-300">Rally HQ:</strong> Community engagement leaderboard powered by a pseudonymous persistent fan token (tied to your browser device ID and optional nickname). This is optional—engagement works without entering a nickname. You can request deletion of your fan-token data anytime.</li>
                     <li><strong className="text-zinc-300">Social Media:</strong> Instagram, TikTok, YouTube for content distribution</li>
                   </ul>
                   <p>
@@ -190,9 +195,25 @@ export default function PrivacyPage() {
                     <li>Request removal from our mailing list</li>
                     <li>Request removal of specific photos from our public galleries (reasonable requests honored)</li>
                     <li>Request deletion of your registration data (subject to legal retention requirements)</li>
+                    <li>Request deletion of your fan-token data (Rally HQ community engagement)</li>
                   </ul>
                   <p>
-                    To exercise these rights, contact us via Instagram at @letspepper.open.
+                    To exercise these rights, contact us via Instagram at{' '}
+                    <a
+                      href="https://instagram.com/letspepper.open"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-heat-jalapeno hover:underline"
+                    >
+                      @letspepper.open
+                    </a>
+                    {' '}or email{' '}
+                    <a
+                      href="mailto:abelino.chavez@gmail.com"
+                      className="text-heat-jalapeno hover:underline"
+                    >
+                      abelino.chavez@gmail.com
+                    </a>.
                   </p>
                 </div>
               </div>
@@ -238,18 +259,7 @@ export default function PrivacyPage() {
 
               {/* Contact */}
               <div className="text-zinc-500 text-sm">
-                <p>
-                  Questions about this policy? Contact us at{' '}
-                  <a
-                    href="https://instagram.com/letspepper.open"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-zinc-400 hover:text-heat-jalapeno transition-colors"
-                  >
-                    @letspepper.open
-                  </a>
-                </p>
-                <p className="mt-4">Last updated: February 2026</p>
+                <p className="mt-4">Last updated: June 2026</p>
               </div>
             </motion.div>
           </div>
