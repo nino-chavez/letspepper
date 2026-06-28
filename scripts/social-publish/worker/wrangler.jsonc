@@ -11,14 +11,14 @@
   "vars": {
     // event slugs in PRIORITY order — newest/highest-priority FIRST. Each slot
     // posts from the first event with pending; older events backfill only when
-    // newer ones are exhausted. (When MSOE starts: "msoe-open,bell-pepper-2026".)
-    "ACTIVE_EVENTS": "bell-pepper-2026",
-    // UTC hours that are posting slots = the daily cap
-    // 1/day → 9a CDT. Throttled from 4/day post-event (Bell Pepper was 6/7):
-    // engagement halved over 9 days and the morning slot was the only one
-    // reliably pulling 2-3k reach; 3p/6p slots averaged ~400. Bump back up
-    // (e.g. "14,17,20,23") when the next event's content + registration is live.
-    "ALLOWED_HOURS_UTC": "14",
+    // newer ones are exhausted. bell-pepper-2026 intentionally DROPPED here
+    // (operator asked to stop the letspepper drip — its 7 pending sit inert in
+    // KV); re-add it after flickday to resume/backfill.
+    "ACTIVE_EVENTS": "flickday-grass-drip",
+    // UTC hours that are posting slots = the daily cap.
+    // 3/day → 16 = 11a, 20 = 3p, 23 = 6p CDT (Raiders Open drip, ~7-day burn).
+    // Was 2/day (16,23); drop the midday 20 to revert. One hour = 1/day.
+    "ALLOWED_HOURS_UTC": "16,20,23",
     // --- engagement sweep (see SWEEP.md) ---
     "SWEEP_ENABLED": "1",          // run the comment sweep after each post step
     "SWEEP_LOOKBACK_DAYS": "14",   // only sweep media newer than this
