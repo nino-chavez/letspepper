@@ -376,8 +376,9 @@ export async function getSeasonResults(
 interface RhqTeamFull { id: string; name: string; seed: number | null; bracket_seed: number | null; roster: string[] | null }
 interface RhqMatchRaw {
   round: string | null
-  team1_id: string | null
-  team2_id: string | null
+  // The v1 matches read nests team identity as { id, name } (not a flat team1_id).
+  team1: { id: string | null }
+  team2: { id: string | null }
   winner_id: string | null
   status: string
   sets: { team1: number; team2: number }[] | null
@@ -428,8 +429,8 @@ export async function getMatchStatLeaders(eventSlug: string): Promise<{ tourname
 
   const statsMatches: MatchStatsMatch[] = matches.map((m) => ({
     round: m.round,
-    team1Id: m.team1_id,
-    team2Id: m.team2_id,
+    team1Id: m.team1?.id ?? null,
+    team2Id: m.team2?.id ?? null,
     winnerId: m.winner_id,
     status: m.status,
     sets: m.sets,
