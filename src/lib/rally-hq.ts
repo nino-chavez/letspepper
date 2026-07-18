@@ -21,6 +21,7 @@ import type {
   RhqMatch,
   RhqSummary,
 } from './rhq-types'
+import { computeStatLeaders, type MatchStatsTeam, type MatchStatsMatch, type StatBoard } from './match-stats'
 
 export interface RallyFan {
   fanToken: string
@@ -294,6 +295,30 @@ interface RhqResults {
   results: { placements: { teamId: string; teamName: string; placement: number }[] }
 }
 
+interface SeriesTournamentMeta { slug: string; name: string; date: string }
+
+/**
+ * Enumerate this series' tournaments (slug/name/date), most recent first. The
+ * tournament list itself isn't a first-class RHQ read — it's derived from the
+ * rankings finishes (every player's finishes union to the full event list).
+ * Shared by getSeasonResults and getMatchStatLeaders so both stay correct off
+ * one enumeration and neither pins to a hand-picked tournament.
+ */
+async function getSeriesTournaments(eventSlug: string): Promise<SeriesTournamentMeta[]> {
+  const ranks = await call<{ rankings: { finishes: { tournamentSlug: string; tournamentName: string; date: string }[] }[] }>(
+    `/api/v1/events/${eventSlug}/rankings?scope=all_time`,
+    { method: 'GET' },
+  )
+  const tourneys = new Map<string, SeriesTournamentMeta>()
+  for (const r of ranks?.rankings ?? []) {
+    for (const f of r.finishes) {
+      tourneys.set(f.tournamentSlug, { slug: f.tournamentSlug, name: f.tournamentName, date: f.date })
+    }
+  }
+  // Most recent first — sort on the ISO date, not the display string.
+  return Array.from(tourneys.values()).sort((a, b) => (a.date < b.date ? 1 : -1))
+}
+
 /**
  * The series' tournament results, derived by Rally HQ — placements joined with
  * full team rosters (the v1 teams read now carries `roster`). Replaces the
@@ -305,23 +330,15 @@ export async function getSeasonResults(
   eventSlug: string,
   location = 'Aurora, IL',
 ): Promise<RallyTournamentResult[]> {
-  // The tournament list (slug/name/date) is enumerable from the rankings finishes.
-  const ranks = await call<{ rankings: { finishes: { tournamentSlug: string; tournamentName: string; date: string }[] }[] }>(
-    `/api/v1/events/${eventSlug}/rankings?scope=all_time`,
-    { method: 'GET' },
-  )
-  const tourneys = new Map<string, { name: string; date: string }>()
-  for (const r of ranks?.rankings ?? []) {
-    for (const f of r.finishes) tourneys.set(f.tournamentSlug, { name: f.tournamentName, date: f.date })
-  }
+  const tourneys = await getSeriesTournaments(eventSlug)
 
-  const out = await Promise.all(
-    Array.from(tourneys.entries()).map(async ([slug, meta]) => {
+  return Promise.all(
+    tourneys.map(async (meta) => {
       // Placements + the roster join (the v1 teams read now carries `roster`).
       const [resultsData, rosterTeams] = await Promise.all([
-        call<RhqResults>(`/api/v1/tournaments/${slug}/results`, { method: 'GET' }),
+        call<RhqResults>(`/api/v1/tournaments/${meta.slug}/results`, { method: 'GET' }),
         call<{ id: string; name: string; roster: string[] | null }[]>(
-          `/api/v1/tournaments/${slug}/teams?per_page=100`,
+          `/api/v1/tournaments/${meta.slug}/teams?per_page=100`,
           { method: 'GET' },
         ),
       ])
@@ -345,21 +362,80 @@ export async function getSeasonResults(
         )
 
       return {
-        iso: meta.date,
-        result: {
-          id: slug,
-          event: meta.name,
-          date: formatDate(meta.date),
-          location,
-          heat: heatFromName(meta.name),
-          results,
-        } satisfies RallyTournamentResult,
-      }
+        id: meta.slug,
+        event: meta.name,
+        date: formatDate(meta.date),
+        location,
+        heat: heatFromName(meta.name),
+        results,
+      } satisfies RallyTournamentResult
     }),
   )
+}
 
-  // Most recent event first — sort on the ISO date, not the display string.
-  return out.sort((a, b) => (a.iso < b.iso ? 1 : -1)).map((o) => o.result)
+interface RhqTeamFull { id: string; name: string; seed: number | null; bracket_seed: number | null; roster: string[] | null }
+interface RhqMatchRaw {
+  round: string | null
+  team1_id: string | null
+  team2_id: string | null
+  winner_id: string | null
+  status: string
+  sets: { team1: number; team2: number }[] | null
+}
+
+/** Fetch every match for a tournament, paginating past the 100-per-page cap. */
+async function getAllMatches(slug: string): Promise<RhqMatchRaw[]> {
+  const out: RhqMatchRaw[] = []
+  for (let page = 1; ; page += 1) {
+    const data = await call<RhqMatchRaw[]>(`/api/v1/tournaments/${slug}/matches?per_page=100&page=${page}`, { method: 'GET' })
+    if (!data || data.length === 0) break
+    out.push(...data)
+    if (data.length < 100) break
+  }
+  return out
+}
+
+/**
+ * Match-level "stat leader" boards (Giant Killers / Cinderella / Dominance /
+ * Clutch) for the series' latest completed tournament — derived live from RHQ
+ * pool + bracket match data (post-pool seed via `bracket_seed`, per-set scores
+ * via `sets`) so the boards auto-advance to each new event instead of staying
+ * pinned to one hand-captured tournament. Returns null if the series has no
+ * resolved tournament yet.
+ */
+export async function getMatchStatLeaders(eventSlug: string): Promise<{ tournamentName: string; boards: StatBoard[] } | null> {
+  const tourneys = await getSeriesTournaments(eventSlug)
+  const latest = tourneys[0]
+  if (!latest) return null
+
+  const [teamsData, resultsData, matches] = await Promise.all([
+    call<RhqTeamFull[]>(`/api/v1/tournaments/${latest.slug}/teams?per_page=100`, { method: 'GET' }),
+    call<RhqResults>(`/api/v1/tournaments/${latest.slug}/results`, { method: 'GET' }),
+    getAllMatches(latest.slug),
+  ])
+
+  const placementByTeam = new Map<string, number>()
+  for (const p of resultsData?.results?.placements ?? []) placementByTeam.set(p.teamId, p.placement)
+
+  const teams: MatchStatsTeam[] = (teamsData ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    players: t.roster && t.roster.length > 0 ? t.roster : [t.name],
+    initialSeed: t.seed,
+    reseed: t.bracket_seed,
+    placement: placementByTeam.get(t.id) ?? null,
+  }))
+
+  const statsMatches: MatchStatsMatch[] = matches.map((m) => ({
+    round: m.round,
+    team1Id: m.team1_id,
+    team2Id: m.team2_id,
+    winnerId: m.winner_id,
+    status: m.status,
+    sets: m.sets,
+  }))
+
+  return { tournamentName: latest.name, boards: computeStatLeaders(teams, statsMatches) }
 }
 
 /**

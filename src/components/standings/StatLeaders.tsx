@@ -7,12 +7,16 @@ import type { StatBoard } from '@/lib/match-stats'
 
 export function StatLeaders() {
   const [boards, setBoards] = useState<StatBoard[]>([])
+  const [tournamentName, setTournamentName] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     fetch('/api/stat-leaders')
       .then((r) => r.json())
-      .then((d) => setBoards(Array.isArray(d.boards) ? d.boards : []))
+      .then((d) => {
+        setBoards(Array.isArray(d.boards) ? d.boards : [])
+        setTournamentName(typeof d.tournamentName === 'string' ? d.tournamentName : null)
+      })
       .catch(() => setBoards([]))
       .finally(() => setLoaded(true))
   }, [])
@@ -30,7 +34,9 @@ export function StatLeaders() {
           <h2 className="block-heading">
             Stat <span className="text-heat-jalapeno">Leaders</span>
           </h2>
-          <p className="text-sm text-zinc-500 mt-1">The 2026 Bell Pepper Open, by the numbers.</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            {tournamentName ? `The ${tournamentName}, by the numbers.` : 'By the numbers.'}
+          </p>
         </div>
 
         <motion.div
