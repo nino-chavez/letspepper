@@ -389,9 +389,8 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
               viewport={MOTION.viewport.once}
               className="space-y-6"
             >
-              <p className="text-xl text-zinc-400">
-                Let&apos;s Pepper is a player-first volleyball series. Built for competition, content, and community.
-              </p>
+              {/* per-event closing beat — tournaments.ts description (character-voiced) */}
+              <p className="text-xl text-zinc-400 max-w-2xl mx-auto">{tournament.description}</p>
               <p className="font-accent text-lg text-zinc-500 uppercase tracking-wider">
                 Grass roots. High level. Real stakes.
               </p>

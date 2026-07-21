@@ -30,7 +30,7 @@ const tournaments: Tournament[] = [
     mascot: '/images/mascots/anime/web/bell-pepper-menace-walk-256.webp',
     tagline: 'Season Opener',
     description:
-      'First tournament of the season. Shake off the rust, find your rhythm, and get warmed up.',
+      'First tournament of the season. Shake off the rust — Bell Pepper already owns the net.',
     date: '2026-06-07',
     displayDate: 'June 7, 2026',
     features: ['Season Kickoff', 'Full Media', 'Finalist Prizes'],
@@ -43,7 +43,7 @@ const tournaments: Tournament[] = [
     mascot: '/images/mascots/anime/web/jalapeno-menace-walk-256.webp',
     tagline: 'Bring The Heat',
     description:
-      "Mid-season. You're dialed in. Now it's time to turn up the intensity.",
+      "Mid-season. You're dialed in. Jalapeño demands the complete game.",
     date: '2026-07-18',
     displayDate: 'July 18, 2026',
     features: ['Peak Competition', 'High Intensity', 'Fast Pace'],
@@ -56,7 +56,7 @@ const tournaments: Tournament[] = [
     mascot: '/images/mascots/anime/web/poblano-menace-walk-256.webp',
     tagline: 'Season Finale',
     description:
-      'Cooling things down. Last tournament of the season. Leave it all on the grass.',
+      "Cooling things down. Poblano's finale rewards defense. Leave it all on the grass.",
     date: '2026-08-01',
     displayDate: 'August 1, 2026',
     features: ['Season Closer', 'Final Standings', 'Year-End Celebration'],

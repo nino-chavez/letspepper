@@ -284,9 +284,23 @@ export default function AboutPage() {
               </div>
             </motion.div>
 
-            <p className="mt-5 text-center font-accent text-[0.65rem] uppercase tracking-[0.14em] text-zinc-500">
-              Bell Pepper · Jalapeño · Poblano · <span className="text-zinc-300">and one flavor we haven&apos;t announced yet</span>
-            </p>
+            {/* character roster — order matches the band art */}
+            <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 text-center">
+              {[
+                { name: 'Jalapeño', role: 'Balanced all-rounder', note: 'Focused confidence.', color: 'text-heat-jalapeno' },
+                { name: 'Bell Pepper', role: 'Heavyweight blocker', note: 'Dominant power.', color: 'text-heat-bell' },
+                { name: 'Poblano', role: 'Elite libero', note: 'Fearless precision.', color: 'text-heat-poblano' },
+                { name: 'Ghost Pepper', role: 'Speed ace', note: 'Unnerving calm. Event unannounced.', color: 'text-red-500' },
+              ].map((c) => (
+                <div key={c.name}>
+                  <h3 className={cn('font-display text-2xl uppercase', c.color)}>{c.name}</h3>
+                  <p className="font-accent text-[0.65rem] uppercase tracking-[0.14em] text-zinc-400 mt-1">
+                    {c.role}
+                  </p>
+                  <p className="text-sm text-zinc-500 mt-1">{c.note}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 

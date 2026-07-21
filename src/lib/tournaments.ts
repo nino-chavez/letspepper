@@ -53,7 +53,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		headline:
 			"The season opener. First tournament of the Let's Pepper Series — shake off the rust, find your rhythm, and get warmed up.",
 		description:
-			"Player-first, prize-backed, and media-covered. This is where the Let's Pepper Series begins. Building momentum for the season ahead.",
+			"Player-first, prize-backed, and media-covered. This is where the Let's Pepper Series begins. Bell Pepper runs the net at this one — come big or get roofed.",
 		date: 'Sunday, June 7, 2026',
 		startsAt: '2026-06-07T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',
@@ -77,7 +77,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		tagline: 'Bring The Heat',
 		headline: "Now it's time to bring the heat. The Jalapeño Open hits fast, sharp, and fully spiced.",
 		description:
-			"Mid-season. You're dialed in — turn up the intensity. Built for players who value clean hands, crisp touches, and spicy pulls. Tighter rallies and peak competitive intensity.",
+			"Mid-season. You're dialed in — turn up the intensity. Jalapeño does everything well and expects the same: clean hands, crisp touches, spicy pulls. Tighter rallies and peak competitive intensity.",
 		date: 'Saturday, July 18, 2026',
 		startsAt: '2026-07-18T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',
@@ -101,7 +101,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		tagline: 'Season Finale',
 		headline: "Cooling things down. The Poblano Pepper Open — final stop of the Let's Pepper Series.",
 		description:
-			'Built for grinders, diggers, and defenders who know that touch beats torque. Long rallies, dirty knees, and stakes that stay spicy. Leave it all on the grass.',
+			'The finale belongs to Poblano, the series libero — grinders, diggers, and defenders who know that touch beats torque. Long rallies, dirty knees, and stakes that stay spicy. Leave it all on the grass.',
 		date: 'Saturday, August 1, 2026',
 		startsAt: '2026-08-01T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',
