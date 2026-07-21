@@ -9,12 +9,16 @@
  * USAGE
  *   node scripts/site/derive-mascot-images.mjs           # skips up-to-date outputs
  *   node scripts/site/derive-mascot-images.mjs --force   # regenerate everything
+ *   node scripts/site/derive-mascot-images.mjs --check   # verify every anime/web
+ *       derivative referenced in src/ exists on disk (no ImageMagick needed —
+ *       runs in CI before the build so a reference to an unshipped derivative
+ *       fails the deploy instead of 404ing in production)
  *
- * Requires ImageMagick 7 (`magick` on PATH — brew install imagemagick).
+ * Generation requires ImageMagick 7 (`magick` on PATH — brew install imagemagick).
  * Add a job here ONLY when the site actually references the derivative.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -45,6 +49,34 @@ const JOBS = [
   // about-page universe band (source 1992×633)
   ['family-overview.png', 'family-overview-1600.webp', 1600],
 ]
+
+if (process.argv.includes('--check')) {
+  // Every /images/mascots/anime/web/*.webp string literal in src/ must resolve
+  // to a file. Template-composed refs (the flavor-hero pose src) are covered by
+  // their JOBS entries; this catches the literal-reference / forgot-to-commit
+  // class that shipped a 404 logo once already.
+  const srcDir = path.join(ROOT, 'src')
+  const refs = new Set()
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(p)
+      else if (/\.(tsx?|css)$/.test(entry.name)) {
+        for (const m of readFileSync(p, 'utf8').matchAll(/images\/mascots\/anime\/web\/([\w.-]+\.webp)/g)) {
+          refs.add(m[1])
+        }
+      }
+    }
+  }
+  walk(srcDir)
+  const missing = [...refs].filter((name) => !existsSync(path.join(OUT, name)))
+  if (missing.length) {
+    console.error(`✗ src/ references missing derivatives:\n  ${missing.join('\n  ')}`)
+    process.exit(1)
+  }
+  console.log(`✓ all ${refs.size} referenced derivatives exist`)
+  process.exit(0)
+}
 
 const force = process.argv.includes('--force')
 mkdirSync(OUT, { recursive: true })

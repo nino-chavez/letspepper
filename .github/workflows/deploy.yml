@@ -34,6 +34,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check mascot derivatives
+        # Fails fast if src/ references an anime/web derivative that was never
+        # committed (this shipped a 404 header logo once).
+        run: node scripts/site/derive-mascot-images.mjs --check
+
       - name: Build for Cloudflare Pages
         # Vercel CLI 56 gates unlinked `vercel build` behind project settings,
         # and `--yes` tries to auto-link via the Vercel API (needs auth — fails
