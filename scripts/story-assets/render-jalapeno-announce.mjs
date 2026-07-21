@@ -1,6 +1,6 @@
 /**
  * Jalapeño Open announcement — Stories, 1080x1920. Two-frame sequence:
- *   01-heat-coming.png — mascot-led hype card (jalapeno-action.png, keyed transparent)
+ *   01-heat-coming.png — mascot-led hype card (anime pose library, menace-walk)
  *   02-next-up.png     — photo-led "next up" card (real Bell Pepper Open 2026 action shot)
  *
  * Mirrors render-concepts.mjs's structure (top bar / event pill / headline / when-where / cta)
@@ -31,8 +31,8 @@ import { requiredAsset, localFonts, assertPageReady, verifyPng } from './preflig
 const HERE = dirname(fileURLToPath(import.meta.url))
 const outDir = join(HERE, '2026-jpo', 'announce')
 mkdirSync(outDir, { recursive: true })
-// Durable source art (keyed from public/images/mascots/jalapeno-action.png).
-const mascotUrl = requiredAsset(join(HERE, 'jpo-mascot', 'jalapeno-cutout.png'))
+// Canonical anime mascot pose library — menace-walk = the hype/stare-down pose.
+const mascotUrl = requiredAsset(join(HERE, '..', '..', 'public', 'images', 'mascots', 'anime', 'jalapeno', 'menace-walk.png'))
 // Scratch photo crop that was never kept anywhere durable; the frame that uses
 // it fails assertPageReady loudly until a replacement crop is dropped in place.
 const heroUrl = pathToFileURL(join(outDir, 'hero-bpo-action-crop.jpg')).href
@@ -73,7 +73,7 @@ function heatComing(e) {
   .stamp{color:${YELLOW};font-weight:700;letter-spacing:0.16em;text-shadow:0 0 16px rgba(250,204,21,0.5)}
   .eyebrow{margin-top:36px;font-size:26px;letter-spacing:0.3em;text-transform:uppercase;color:${YELLOW};text-align:center}
   .mascot{position:relative;flex:1;display:flex;align-items:center;justify-content:center;margin:8px 0}
-  .mascot img{width:900px;filter:drop-shadow(0 30px 60px rgba(0,0,0,0.6))}
+  .mascot img{width:560px;filter:drop-shadow(0 30px 60px rgba(0,0,0,0.6))}
   .stack{text-align:center}
   .head{font-family:'Anton',sans-serif;font-size:150px;line-height:0.86;letter-spacing:0.01em;color:#f5f5f0;text-shadow:0 8px 36px rgba(0,0,0,0.6)}
   .head .hot{color:${ORANGE};text-shadow:0 0 50px rgba(249,115,22,0.65)}

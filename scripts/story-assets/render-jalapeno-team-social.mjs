@@ -27,11 +27,14 @@ import { readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { requiredAsset, localFonts, assertPageReady, verifyPng } from './preflight.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-// Durable source art (keyed from public/images/mascots/jalapeno-action.png).
-// Required: a missing mascot fails the run instead of shipping a card without it
-// — cards HAVE shipped broken once, when the cutout lived in a render-output dir.
-const mascotUrl = requiredAsset(join(__dirname, 'jpo-mascot', 'jalapeno-cutout.png'))
-const mascotImg = `<img class="mascot-img" src="${mascotUrl}">`
+// Canonical anime mascot pose library (alpha PNGs, 1024x1536 portrait) — see its
+// README for pose semantics. Required: a missing pose fails the run instead of
+// shipping a card without it — cards HAVE shipped broken once.
+const POSES = join(__dirname, '..', '..', 'public', 'images', 'mascots', 'anime', 'jalapeno')
+const pose = (name) => requiredAsset(join(POSES, `${name}.png`))
+// menace-walk = "we're in" entrance; roof block = the challenge variant's denial.
+const MENACE = pose('menace-walk'), BLOCK = pose('block')
+const mascotImg = (src) => `<img class="mascot-img" src="${src}">`
 
 // --roster <file> overrides the default (real) roster. A scrubbed/demo roster
 // renders into its own dir (teams-demo/) so a live walkthrough never touches or
@@ -66,7 +69,7 @@ const MASCOT = `.field{position:absolute;inset:0;background:
     radial-gradient(50% 38% at 68% 30%, rgba(249,115,22,0.30), transparent 62%),
     radial-gradient(75% 55% at 68% 30%, rgba(250,204,21,0.08), transparent 70%), #070707}
   .grain{position:absolute;inset:0;background-image:${GRAIN};background-size:340px;opacity:0.09;mix-blend-mode:overlay;pointer-events:none}
-  .mascot-img{position:absolute;top:60px;right:-40px;width:760px;filter:drop-shadow(0 24px 50px rgba(0,0,0,0.6))}`
+  .mascot-img{position:absolute;top:60px;right:-20px;width:500px;filter:drop-shadow(0 24px 50px rgba(0,0,0,0.6))}`
 
 function werein(e, players) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${FONTS}${RESET}
@@ -75,7 +78,7 @@ function werein(e, players) {
   .grade{position:absolute;inset:0;background:linear-gradient(180deg, rgba(7,7,7,0.15) 0%, rgba(7,7,7,0.1) 30%, rgba(7,7,7,0.78) 58%, #070707 82%)}
   .frame{position:absolute;inset:0;padding:230px 80px 250px;display:flex;flex-direction:column}
   .top{display:flex;justify-content:space-between;align-items:center;font-size:20px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(245,245,240,0.9)}
-  .stamp{color:${YELLOW};font-weight:700;letter-spacing:0.16em;text-shadow:0 0 16px rgba(250,204,21,0.5)}
+  .stamp{color:${YELLOW};font-weight:700;letter-spacing:0.16em;text-shadow:0 2px 10px rgba(0,0,0,0.95),0 0 6px rgba(0,0,0,0.9),0 0 16px rgba(250,204,21,0.5)}
   .stack{margin-top:auto}
   .event{display:flex;align-items:center;gap:14px;font-size:26px;letter-spacing:0.26em;text-transform:uppercase;color:${ORANGE};margin-bottom:14px}
   .event .dot{width:11px;height:11px;border-radius:50%;background:${ORANGE};box-shadow:0 0 14px ${ORANGE}}
@@ -93,7 +96,7 @@ function werein(e, players) {
   .cta .btn{display:inline-flex;align-items:center;gap:12px;background:${ORANGE};color:#2a0f02;font-family:'Bebas Neue',sans-serif;font-size:40px;letter-spacing:0.06em;padding:14px 30px;border-radius:10px;box-shadow:0 0 34px rgba(249,115,22,0.45)}
   .cta .h{margin-left:auto;font-size:22px;letter-spacing:0.14em;text-transform:uppercase;color:#f5f5f0;font-weight:700}
   </style></head><body>
-    <div class="field"></div>${mascotImg}<div class="grade"></div><div class="grain"></div>
+    <div class="field"></div>${mascotImg(MENACE)}<div class="grade"></div><div class="grain"></div>
     <div class="frame">
       <div class="top"><span>${e.handle}</span><span class="stamp">&rsaquo; ${e.dateStamp}</span></div>
       <div class="stack">
@@ -115,7 +118,7 @@ function challenge(e, players) {
   .grade{position:absolute;inset:0;background:linear-gradient(180deg, rgba(7,7,7,0.55) 0%, rgba(7,7,7,0.12) 26%, rgba(7,7,7,0.1) 42%, rgba(7,7,7,0.8) 62%, #070707 84%)}
   .frame{position:absolute;inset:0;padding:230px 80px 250px;display:flex;flex-direction:column}
   .top{display:flex;justify-content:space-between;align-items:center;font-size:20px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(245,245,240,0.9)}
-  .top .stamp{color:${YELLOW};font-weight:700;letter-spacing:0.16em}
+  .top .stamp{color:${YELLOW};font-weight:700;letter-spacing:0.16em;text-shadow:0 2px 10px rgba(0,0,0,0.95),0 0 6px rgba(0,0,0,0.9)}
   .kheadwrap{margin-top:30px}
   .event{display:flex;align-items:center;gap:14px;font-size:24px;letter-spacing:0.26em;text-transform:uppercase;color:${ORANGE}}
   .event .dot{width:11px;height:11px;border-radius:50%;background:${ORANGE};box-shadow:0 0 14px ${ORANGE}}
@@ -132,7 +135,7 @@ function challenge(e, players) {
   .meta{display:flex;align-items:center;gap:16px;margin-top:8px;font-size:22px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(245,245,240,0.72)}
   .meta .h{margin-left:auto;color:#f5f5f0;font-weight:700}
   </style></head><body>
-    <div class="field"></div>${mascotImg}<div class="grade"></div><div class="grain"></div>
+    <div class="field"></div>${mascotImg(BLOCK)}<div class="grade"></div><div class="grain"></div>
     <div class="frame">
       <div class="top"><span>${e.handle}</span><span class="stamp">&rsaquo; ${e.dateStamp}</span></div>
       <div class="kheadwrap">

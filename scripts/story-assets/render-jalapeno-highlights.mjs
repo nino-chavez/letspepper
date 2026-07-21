@@ -3,12 +3,13 @@
  *
  * Ported from render-highlight-cards.mjs (Bell Pepper Open), same job structure
  * and file naming, retargeted to the Jalapeño Open's orange (#f97316) heat color
- * and roster data. One structural change: BPO's hero (mascot/pep-hero-green.png)
+ * and roster data. One structural change: BPO's hero (bpo-mascot/pep-hero-green.png)
  * is a full-bleed illustrated background meant for object-fit:cover + mix-blend
- * screen. The JPO mascot (2026-jpo/announce/jalapeno-cutout.png) is a cropped
- * character cutout with real alpha instead — so heroLayer here positions/sizes
- * the character against a dark-ink + radial-glow field (matching the already
- * shipped render-jalapeno-announce.mjs look) rather than covering the frame.
+ * screen. The JPO mascot is an alpha character cutout from the canonical anime
+ * pose library (public/images/mascots/anime/jalapeno/) — so heroLayer here
+ * positions/sizes the character against a dark-ink + radial-glow field rather
+ * than covering the frame. Pose per surface: menace-walk = entrance (intros),
+ * champion = 1st-place team intro, celebration = outro credits.
  *
  *   node scripts/story-assets/render-jalapeno-highlights.mjs            # validation subset
  *   RENDER=all node scripts/story-assets/render-jalapeno-highlights.mjs # full batch (all teams)
@@ -27,9 +28,11 @@ import { EVENT, TEAMS, TIER, ordinal, byFinish } from './jalapeno-open-2026.mjs'
 import { requiredAsset, localFonts, assertPageReady, verifyPng } from './preflight.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-// Durable source art (keyed from public/images/mascots/jalapeno-action.png) —
-// never reference render-output dirs for inputs; that's how the cutout got lost.
-const hero = requiredAsset(join(HERE, 'jpo-mascot', 'jalapeno-cutout.png'))
+// Canonical anime mascot pose library (alpha PNGs, 1024x1536 portrait) — see
+// its README for pose semantics. Never reference render-output dirs for inputs.
+const POSES = join(HERE, '..', '..', 'public', 'images', 'mascots', 'anime', 'jalapeno')
+const pose = (name) => requiredAsset(join(POSES, `${name}.png`))
+const MENACE = pose('menace-walk'), CHAMPION = pose('champion'), CELEBRATION = pose('celebration')
 const RENDER = process.env.RENDER || 'validate'
 
 // Event meta = shared canonical fields (year/date/loc/format) + highlights-only handles.
@@ -48,11 +51,11 @@ const reset = (w, h, transparent) =>
    font-family:'JetBrains Mono',monospace;color:#f5f5f0;-webkit-font-smoothing:antialiased}`
 
 // Dark-ink + radial-glow field with the mascot character positioned/sized within it
-// (not full-bleed cover — the source art is a cropped cutout, not background art).
-const heroLayer = ({ mascotWidth, mascotRight, mascotTop, glowX = '62%', glowY = '38%' } = {}) => `
+// (not full-bleed cover — the source art is a character cutout, not background art).
+const heroLayer = ({ src, mascotWidth, mascotRight, mascotTop, glowX = '62%', glowY = '38%' } = {}) => `
   <div class="field"></div>
   <div class="grain"></div>
-  ${mascotWidth ? `<img class="hero" src="${hero}">` : ''}
+  ${mascotWidth ? `<img class="hero" src="${src}">` : ''}
   <style>
     .field{position:absolute;inset:0;background:
       radial-gradient(55% 45% at ${glowX} ${glowY}, rgba(249,115,22,0.28), transparent 62%),
@@ -66,9 +69,10 @@ const doc = (w, h, body, transparent) =>
 
 /* ─────────────  INTRO  ───────────── */
 function intro({ w, h, team }) {
+  // Portrait pose art (2:3) — widths sized so the figure lands above the text block.
   const mascotOpts = team
-    ? { mascotWidth: '760px', mascotRight: '-140px', mascotTop: '80px', glowX: '68%', glowY: '30%' }
-    : { mascotWidth: '880px', mascotRight: '100px', mascotTop: '190px', glowX: '50%', glowY: '30%' } // below the kicker line — the cutout's ball collides with it at the top edge
+    ? { src: team.place === 1 ? CHAMPION : MENACE, mascotWidth: '520px', mascotRight: '-70px', mascotTop: '80px', glowX: '68%', glowY: '30%' }
+    : { src: MENACE, mascotWidth: '560px', mascotRight: '260px', mascotTop: '190px', glowX: '50%', glowY: '30%' } // below the kicker line
   const tier = team ? TIER[team.place] : null
   const finish = tier ? `${tier.label}${tier.short ? ` · ${tier.short.toUpperCase()}` : ''}` : ''
   const head = team
@@ -110,7 +114,7 @@ function intro({ w, h, team }) {
    One job: credit + one CTA. Generic (identical for every team). Accent = yellow
    (Flickday's, kept as-is — it's the media partner's brand color, not a heat color). */
 function outro({ w, h }) {
-  const mascotOpts = { mascotWidth: '540px', mascotRight: '-60px', mascotTop: '60px', glowX: '78%', glowY: '22%' }
+  const mascotOpts = { src: CELEBRATION, mascotWidth: '520px', mascotRight: '-50px', mascotTop: '60px', glowX: '78%', glowY: '22%' }
   const glow = 'text-shadow:0 0 46px rgba(250,204,21,0.3),0 6px 26px rgba(0,0,0,0.92),0 0 16px rgba(0,0,0,0.85)'
   const wglow = 'text-shadow:0 4px 22px rgba(0,0,0,0.92),0 0 14px rgba(0,0,0,0.8)'
   const lglow = 'text-shadow:0 2px 12px rgba(0,0,0,0.9)'

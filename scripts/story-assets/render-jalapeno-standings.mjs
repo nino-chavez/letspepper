@@ -33,9 +33,9 @@ import { TEAMS as TEAMS_BPO_2026 } from './bell-pepper-2026.mjs'
 import { requiredAsset, localFonts, assertPageReady, verifyPng } from './preflight.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-// Durable source art (keyed from public/images/mascots/jalapeno-action.png) —
-// required: a missing mascot fails the run instead of exporting without it.
-const hero = requiredAsset(join(HERE, 'jpo-mascot', 'jalapeno-cutout.png'))
+// Canonical anime mascot pose library — champion pose (ball on hip, #1 finger)
+// for results/standings surfaces. A missing pose fails the run before exporting.
+const hero = requiredAsset(join(HERE, '..', '..', 'public', 'images', 'mascots', 'anime', 'jalapeno', 'champion.png'))
 const RENDER = process.env.RENDER || 'validate'
 
 const FAMILIES = ['Bebas Neue', 'Anton', 'JetBrains Mono']
@@ -117,7 +117,7 @@ function rankedSeries() {
 function resultCard(team, { w = 1080, h = 1920 } = {}) {
   const t = TIER[team.place]
   const champ = team.place === 1
-  return doc(w, h, `${heroLayer({ mascotWidth: '640px', mascotRight: '-160px', mascotTop: '900px', glowX: '80%', glowY: '68%' })}<style>
+  return doc(w, h, `${heroLayer({ mascotWidth: '420px', mascotRight: '-90px', mascotTop: '900px', glowX: '80%', glowY: '68%' })}<style>
     .badge{position:absolute;right:-46px;top:600px;font-family:'Anton',sans-serif;font-size:430px;line-height:0.8;color:transparent;-webkit-text-stroke:3px ${t.accent}2e;z-index:0}
     .block{position:absolute;left:80px;right:80px;bottom:160px;z-index:1}
     .eyebrow{font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:0.24em;text-transform:uppercase;color:rgba(245,245,240,0.52);margin-bottom:18px}
@@ -157,7 +157,7 @@ function standingsStory({ w = 1080, h = 1920 } = {}) {
       <div class="pl">${t.place}</div>
       <div class="nm"><div class="lab">${tier.label}</div><div class="ros">${t.surnames}</div></div></div>`
   }
-  return doc(w, h, `${heroLayer({ mascotWidth: post ? '480px' : '560px', mascotRight: '-100px', mascotTop: '-40px', glowX: '84%', glowY: '10%' })}<style>
+  return doc(w, h, `${heroLayer({ mascotWidth: post ? '310px' : '360px', mascotRight: '-60px', mascotTop: '-40px', glowX: '84%', glowY: '10%' })}<style>
     .frame{position:absolute;left:80px;right:80px;top:${post ? 104 : 150}px}
     .eyebrow{font-family:'JetBrains Mono',monospace;font-size:26px;letter-spacing:0.28em;text-transform:uppercase;color:${ORANGE};margin-bottom:16px}
     .title{font-family:'Anton',sans-serif;font-size:${post ? 112 : 150}px;line-height:0.86;letter-spacing:-0.01em;color:#f5f5f0}
@@ -202,7 +202,7 @@ function seriesStory({ w = 1080, h = 1920 } = {}) {
       <div class="bar"><i style="width:${Math.round(e.points / max * 100)}%"></i></div>
     </div>`
   }
-  return doc(w, h, `${heroLayer({ mascotWidth: post ? '440px' : '520px', mascotRight: '-90px', mascotTop: '-30px', glowX: '84%', glowY: '10%' })}<style>
+  return doc(w, h, `${heroLayer({ mascotWidth: post ? '290px' : '340px', mascotRight: '-55px', mascotTop: '-30px', glowX: '84%', glowY: '10%' })}<style>
     .frame{position:absolute;left:80px;right:80px;top:${post ? 96 : 140}px}
     .eyebrow{font-family:'JetBrains Mono',monospace;font-size:26px;letter-spacing:0.28em;text-transform:uppercase;color:${ORANGE};margin-bottom:16px}
     .title{font-family:'Anton',sans-serif;font-size:${post ? 108 : 142}px;line-height:0.84;letter-spacing:-0.01em;color:#f5f5f0}
@@ -273,7 +273,7 @@ function statLeadersCard({ w = 1080, h = 1920 } = {}) {
           ${e.detail ? `<div class="dt">${e.detail}</div>` : ''}
         </div>`).join('')}
     </div>`
-  return doc(w, h, `${heroLayer({ mascotWidth: post ? '420px' : '500px', mascotRight: '-100px', mascotTop: '-20px', glowX: '84%', glowY: '8%' })}<style>
+  return doc(w, h, `${heroLayer({ mascotWidth: post ? '275px' : '330px', mascotRight: '-60px', mascotTop: '-20px', glowX: '84%', glowY: '8%' })}<style>
     .frame{position:absolute;left:70px;right:70px;top:${post ? 90 : 150}px}
     .eyebrow{font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:0.28em;text-transform:uppercase;color:${ORANGE};margin-bottom:14px}
     .title{font-family:'Anton',sans-serif;font-size:${post ? 104 : 140}px;line-height:0.86;letter-spacing:-0.01em;color:#f5f5f0}

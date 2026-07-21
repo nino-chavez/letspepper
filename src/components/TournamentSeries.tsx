@@ -40,7 +40,7 @@ const tournaments: Tournament[] = [
     name: 'Jalapeño Open',
     heat: 'jalapeno',
     slug: 'jalapeno-open-2026',
-    mascot: '/images/mascots/jalapeno-action.png',
+    mascot: '/images/mascots/anime/jalapeno/menace-walk.png',
     tagline: 'Bring The Heat',
     description:
       "Mid-season. You're dialed in. Now it's time to turn up the intensity.",
