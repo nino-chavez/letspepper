@@ -149,6 +149,8 @@ pnpm dlx wrangler pages deploy .vercel/output/static --project-name=letspepper
 
 ## Content Updates
 
+Before changing website or social copy, read [`reader-contract.json`](reader-contract.json). Preserve dates, prices, eligibility, registration state, legal language, and the pepper-brand voice exactly; simplify the path to the player's next action. Review the built page or queued post as the reader encounters it, not only the component or generator source.
+
 ### Adding Tournament Results
 Edit `src/app/standings/page.tsx` - add to `tournamentResults` array:
 ```typescript

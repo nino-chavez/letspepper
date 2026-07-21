@@ -31,7 +31,7 @@ export const seededTakes: HotTake[] = [
   },
   {
     id: 'take-4',
-    text: 'Let\'s Pepper needs a doubles division. Triples is great but 2v2 grass would go crazy.',
+    text: 'Let\'s Pepper needs a doubles division. Triples is great, but 2v2 grass would test a completely different game.',
     author: 'Anonymous',
     heat: 'bell',
   },
@@ -55,13 +55,13 @@ export const seededTakes: HotTake[] = [
   },
   {
     id: 'take-8',
-    text: 'Grass volleyball > beach volleyball. The dives are crazier, the rallies are longer, and the vibes are better.',
+    text: 'Grass volleyball > beach volleyball. The rallies cover more ground and every player has to defend more court.',
     author: 'Anonymous',
     heat: 'reaper',
   },
   {
     id: 'take-9',
-    text: 'The Poblano Open is going to have the most competitive field yet. Everyone\'s been training.',
+    text: 'The Poblano Open could have the most competitive field yet. The recent results point to a deep bracket.',
     author: 'Anonymous',
     heat: 'poblano',
   },

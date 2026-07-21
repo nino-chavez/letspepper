@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "reader:check": "node tools/lib/encounter-audit.mjs --root=. --strict",
+    "reader:check:website": "node tools/lib/encounter-audit.mjs --root=. --surface=website --strict",
+    "reader:check:social": "node tools/lib/encounter-audit.mjs --root=. --surface=\"social publishing queue\" --strict",
     "check:rhq-drift": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-rhq-drift.mjs",
     "derive:mascots": "node scripts/site/derive-mascot-images.mjs"
   },

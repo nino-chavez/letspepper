@@ -26,9 +26,9 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   // Absolute base for the opengraph-image convention's generated og:image URLs.
   metadataBase: new URL('https://letspepper.com'),
-  title: "Let's Pepper | Underground Grassroots Volleyball",
+  title: "Let's Pepper | Grass Volleyball Tournament Series",
   description:
-    'Underground. Unfiltered. Unapologetically competitive. A community-powered circuit of high-level grass volleyball tournaments.',
+    'A community-powered circuit for high-level grass volleyball in Chicagoland.',
   keywords: [
     'volleyball',
     'grass volleyball',
@@ -41,18 +41,18 @@ export const metadata: Metadata = {
   authors: [{ name: "Let's Pepper" }],
   creator: "Let's Pepper",
   openGraph: {
-    title: "Let's Pepper | Underground Grassroots Volleyball",
+    title: "Let's Pepper | Grass Volleyball Tournament Series",
     description:
-      'Underground. Unfiltered. Unapologetically competitive. A community-powered circuit of high-level grass volleyball tournaments.',
+      'A community-powered circuit for high-level grass volleyball in Chicagoland.',
     type: 'website',
     locale: 'en_US',
     siteName: "Let's Pepper",
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Let's Pepper | Underground Grassroots Volleyball",
+    title: "Let's Pepper | Grass Volleyball Tournament Series",
     description:
-      'Underground. Unfiltered. Unapologetically competitive. A community-powered circuit of high-level grass volleyball tournaments.',
+      'A community-powered circuit for high-level grass volleyball in Chicagoland.',
   },
   robots: {
     index: true,

@@ -14,22 +14,22 @@ const values = [
   {
     Icon: GrassrootsIcon,
     title: 'Grassroots First',
-    description: 'Built from cow pastures and dirt patches. No corporate sponsors, no politics.',
+    description: 'Built on local grass courts with the players at the center.',
   },
   {
     Icon: PlayerOwnedIcon,
     title: 'Player-Owned',
-    description: 'By players, for players. We know what competitive volleyball needs.',
+    description: 'Designed and run by people who play the format.',
   },
   {
     Icon: MediaIcon,
     title: 'Media-Backed',
-    description: 'Professional coverage through Flickday Media. Your moments captured.',
+    description: 'Professional Flickday Media coverage organized for teams to find and share.',
   },
   {
     Icon: CompetitionIcon,
-    title: 'Pure Competition',
-    description: 'No fluff. Just skill, sweat, and the kind of fun that makes you come back.',
+    title: 'Real Competition',
+    description: 'Strong fields, clear formats, and a day players want to enter again.',
   },
 ]
 
@@ -70,9 +70,9 @@ export function EthosSection() {
               &ldquo;
             </span>
             <p className="text-xl sm:text-2xl text-zinc-300 leading-relaxed">
-              We&apos;ve played pickup in cow pastures, built nets on dirt patches, and
-              still pack lines in the trunk. This isn&apos;t about sponsorships or
-              politics—it&apos;s about skill, trust, and a little bit of madness.
+              We&apos;ve played pickup on uneven fields, built courts from what we had,
+              and kept extra lines in the trunk. Let&apos;s Pepper brings that same
+              resourcefulness to a tournament day built around the players.
             </p>
             <span
               className="absolute -bottom-4 -right-4 text-6xl text-zinc-800 font-serif"

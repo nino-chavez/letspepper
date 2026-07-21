@@ -53,7 +53,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		headline:
 			"The season opener. First tournament of the Let's Pepper Series — shake off the rust, find your rhythm, and get warmed up.",
 		description:
-			"Player-first, prize-backed, and media-covered. This is where the Let's Pepper Series begins. Bell Pepper runs the net at this one — come big or get roofed.",
+			"Player-first, prize-backed, and media-covered. The Bell Pepper Open starts the series with grass triples, a full bracket, and coverage for every team.",
 		date: 'Sunday, June 7, 2026',
 		startsAt: '2026-06-07T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',

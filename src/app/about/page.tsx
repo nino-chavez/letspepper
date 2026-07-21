@@ -29,19 +29,19 @@ const galleryImages = [
 const values = [
   {
     title: 'Grassroots First',
-    description: 'Built from cow pastures and dirt patches. No corporate sponsors, no politics. Just pure volleyball.',
+    description: 'Built on local grass courts with the players at the center.',
   },
   {
     title: 'Player-Owned',
-    description: 'By players, for players. We know what competitive volleyball actually needs.',
+    description: 'Designed and run by people who play the format.',
   },
   {
     title: 'Media-Backed',
-    description: 'Professional coverage through Flickday Media. Your moments captured, your highlights shared.',
+    description: 'Professional Flickday Media coverage organized for teams to find and share.',
   },
   {
     title: 'Real Stakes',
-    description: 'Prizes for those who earn it. Competition should be rewarded.',
+    description: 'Prizes and recognition tied to clear results.',
   },
 ]
 
@@ -67,12 +67,12 @@ export default function AboutPage() {
             >
               <p className="text-section-heading mb-4">Our Story</p>
               <h1 className="text-display mb-8">
-                Underground. Unfiltered.{' '}
-                <span className="text-heat-jalapeno">Unapologetically Competitive.</span>
+                Grassroots. Player-Owned.{' '}
+                <span className="text-heat-jalapeno">Built To Compete.</span>
               </h1>
 
               <p className="text-xl sm:text-2xl text-zinc-300 leading-relaxed max-w-3xl">
-                Let&apos;s Pepper is a grass triples tournament series built for the players who never stopped grinding.
+                Let&apos;s Pepper is a grass triples series built around strong competition and a better tournament day.
               </p>
             </motion.div>
           </div>
@@ -119,19 +119,19 @@ export default function AboutPage() {
               >
                 <div>
                   <h2 className="font-display text-4xl sm:text-5xl uppercase text-white mb-6">
-                    We&apos;re Not Here For Trophies
+                    A Better Tournament Day
                   </h2>
                   <p className="text-lg text-zinc-400 leading-relaxed mb-4">
-                    We&apos;re here for rallies that make you yell, matchups that stay in your head, and weekends you don&apos;t forget.
+                    Strong fields, clear formats, and matchups players remember.
                   </p>
                   <p className="text-lg text-zinc-400 leading-relaxed">
-                    We&apos;ve played pickup in cow pastures, built nets on dirt patches, and still pack lines in the trunk. This isn&apos;t about sponsorships or politics—it&apos;s about skill, trust, and a little bit of madness.
+                    We&apos;ve played pickup on uneven fields, built courts from what we had, and kept extra lines in the trunk. Let&apos;s Pepper brings that resourcefulness to a tournament day built around the players.
                   </p>
                 </div>
 
                 <blockquote className="border-l-4 border-heat-jalapeno pl-6 py-2">
                   <p className="text-xl text-zinc-300 italic">
-                    &ldquo;Good people, clean play, and a vibe you want to come back to.&rdquo;
+                    &ldquo;Good people, clean play, and a tournament you want to enter again.&rdquo;
                   </p>
                 </blockquote>
               </motion.div>
@@ -212,7 +212,7 @@ export default function AboutPage() {
             >
               <p className="text-section-heading mb-4">What We Stand For</p>
               <h2 className="text-display">
-                Built By <span className="text-heat-poblano">Players</span>. Fueled By Competition.
+                Built By <span className="text-heat-poblano">Players</span>. Run For The Field.
               </h2>
             </motion.div>
 
@@ -255,9 +255,9 @@ export default function AboutPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={MOTION.viewport.once}
             >
-              <p className="text-section-heading mb-4">The Universe</p>
+              <p className="text-section-heading mb-4">The Core Roster</p>
               <h2 id="universe-heading" className="text-display">
-                Four Characters. One <span className="text-heat-bell">Universe</span>.
+                Four Characters. One <span className="text-heat-bell">Visual System</span>.
               </h2>
             </motion.div>
 
@@ -276,7 +276,7 @@ export default function AboutPage() {
               <div className="relative aspect-[1992/633] w-full">
                 <Image
                   src="/images/mascots/anime/web/family-overview-1600.webp"
-                  alt="The Let's Pepper roster: Jalapeño, Bell Pepper, Poblano, and Ghost Pepper"
+                  alt="The Let's Pepper core roster: Jalapeño, Bell Pepper, Poblano, and Ghost Pepper"
                   fill
                   unoptimized
                   className="object-contain object-bottom"
@@ -288,9 +288,9 @@ export default function AboutPage() {
             <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 text-center">
               {[
                 { name: 'Jalapeño', role: 'Balanced all-rounder', note: 'Focused confidence.', color: 'text-heat-jalapeno' },
-                { name: 'Bell Pepper', role: 'Heavyweight blocker', note: 'Dominant power.', color: 'text-heat-bell' },
-                { name: 'Poblano', role: 'Elite libero', note: 'Fearless precision.', color: 'text-heat-poblano' },
-                { name: 'Ghost Pepper', role: 'Speed ace', note: 'Unnerving calm. Event unannounced.', color: 'text-red-500' },
+                { name: 'Bell Pepper', role: 'Net blocker', note: 'Power and timing.', color: 'text-heat-bell' },
+                { name: 'Poblano', role: 'Floor defender', note: 'Quiet precision.', color: 'text-heat-poblano' },
+                { name: 'Ghost Pepper', role: 'Pressure server', note: 'Calm under pressure. Event unannounced.', color: 'text-red-500' },
               ].map((c) => (
                 <div key={c.name}>
                   <h3 className={cn('font-display text-2xl uppercase', c.color)}>{c.name}</h3>

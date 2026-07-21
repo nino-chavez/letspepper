@@ -42,6 +42,7 @@
  * is marked error with the API message rather than silently dropping the tag.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -74,6 +75,12 @@ const queuePath = join(HERE, 'queue', `${event}.json`)
 if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath}`); process.exit(1) }
 const q = JSON.parse(readFileSync(queuePath, 'utf8'))
 const save = () => writeFileSync(queuePath, JSON.stringify(q, null, 2))
+
+// Refuse to publish when the current caption queue breaks its reader contract.
+// This runs before the first Graph API call and audits only JSON caption fields.
+execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
+  `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
+  { stdio: 'inherit' })
 
 function igIdFor(item) {
   const slug = accountOverride || item.account

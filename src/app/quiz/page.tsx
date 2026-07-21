@@ -192,7 +192,7 @@ export default function QuizPage() {
     if (!result) return
     const url = `${window.location.origin}/quiz?result=${result}`
     const pepperResult = pepperResults[result]
-    const text = `I'm a ${pepperResult.title}! "${pepperResult.tagline}" — Take the Pepper Quiz and find out what pepper you are.`
+    const text = `My result: ${pepperResult.title} — ${pepperResult.tagline}. Take the Pepper Quiz and find your court identity.`
 
     if (navigator.share) {
       navigator.share({ title: 'What Pepper Are You?', text, url }).catch(() => {})
@@ -226,7 +226,7 @@ export default function QuizPage() {
                     What <span className="text-heat-jalapeno">Pepper</span> Are You?
                   </h1>
                   <p className="text-xl text-zinc-400 mb-8">
-                    7 questions. One destiny. Find out which pepper matches your volleyball personality.
+                    Seven questions. One court identity. Find the pepper that matches how you play.
                   </p>
                   <button
                     type="button"

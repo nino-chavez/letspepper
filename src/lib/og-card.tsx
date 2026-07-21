@@ -192,7 +192,7 @@ export function BrandCard() {
 			</div>
 			<div style={{ display: 'flex', flex: 1 }} />
 			<div style={{ display: 'flex', fontSize: '34px', fontWeight: 700, color: 'rgba(255,255,255,0.82)', maxWidth: '900px' }}>
-				Underground. Unfiltered. Unapologetically competitive.
+				Player-owned. Media-backed. Built to compete.
 			</div>
 		</div>
 	)

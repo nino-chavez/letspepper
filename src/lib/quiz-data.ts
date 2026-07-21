@@ -35,7 +35,7 @@ export const quizQuestions: QuizQuestion[] = [
       { text: 'Serve it safe and let the team rally', scores: { bell: 3, jalapeno: 1 } },
       { text: 'Float serve to the weakest passer', scores: { poblano: 3, jalapeno: 1 } },
       { text: 'Bomb it. Full power. No hesitation.', scores: { habanero: 3, reaper: 1 } },
-      { text: 'Jump serve at 110% — it\'s all or nothing', scores: { reaper: 3, habanero: 1 } },
+      { text: 'Serve your toughest ball at a clear target', scores: { reaper: 3, habanero: 1 } },
       { text: 'Sky ball. Make the wind part of the play.', scores: {}, easterEgg: 'pepperX' },
     ],
   },
@@ -43,9 +43,9 @@ export const quizQuestions: QuizQuestion[] = [
     question: 'How do you show up to a tournament?',
     options: [
       { text: 'On time, warmed up, ready to go', scores: { jalapeno: 3, poblano: 1 } },
-      { text: 'Fashionably late with matching outfits', scores: { bell: 3, jalapeno: 1 } },
+      { text: 'Matching team outfits, music already playing', scores: { bell: 3, jalapeno: 1 } },
       { text: 'First ones there, already stretching', scores: { habanero: 3, poblano: 1 } },
-      { text: 'Roll in hot, no warm-up needed', scores: { reaper: 3, bell: 1 } },
+      { text: 'Already tracked the wind and picked a serving side', scores: { reaper: 3, bell: 1 } },
     ],
   },
   {
@@ -53,7 +53,7 @@ export const quizQuestions: QuizQuestion[] = [
     options: [
       { text: '"You\'re good! Next one!"', scores: { bell: 3, jalapeno: 1 } },
       { text: 'Say nothing, adjust your positioning', scores: { poblano: 3, jalapeno: 1 } },
-      { text: 'Clap it off and get locked in harder', scores: { habanero: 3, poblano: 1 } },
+      { text: 'Clap once, reset, and get ready for the next ball', scores: { habanero: 3, poblano: 1 } },
       { text: '"We\'ll talk about it after the set"', scores: { jalapeno: 3, habanero: 1 } },
     ],
   },
@@ -69,10 +69,10 @@ export const quizQuestions: QuizQuestion[] = [
   {
     question: 'Pick your post-tournament meal:',
     options: [
-      { text: 'Pizza and beers with the squad', scores: { bell: 3, jalapeno: 1 } },
+      { text: 'Pizza with the team', scores: { bell: 3, jalapeno: 1 } },
       { text: 'Protein shake and recovery meal', scores: { habanero: 3, poblano: 1 } },
       { text: 'Whatever\'s closest — I\'m starving', scores: { jalapeno: 3, bell: 1 } },
-      { text: 'Skip food. Reviewing game film.', scores: { reaper: 3, habanero: 1 } },
+      { text: 'Grab food, then start swapping match clips', scores: { reaper: 3, habanero: 1 } },
     ],
   },
   {
@@ -80,7 +80,7 @@ export const quizQuestions: QuizQuestion[] = [
     options: [
       { text: 'Group photo and high fives all around', scores: { bell: 3, poblano: 1 } },
       { text: 'Cool head nod — you knew it was coming', scores: { poblano: 3, jalapeno: 1 } },
-      { text: 'Full chest bump, let the crowd know', scores: { habanero: 3, reaper: 1 } },
+      { text: 'Big team huddle, let the crowd know', scores: { habanero: 3, reaper: 1 } },
       { text: '"When\'s the next tournament?"', scores: { reaper: 3, habanero: 1 } },
     ],
   },
@@ -140,9 +140,9 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
   reaper: {
     id: 'reaper',
     title: 'Carolina Reaper',
-    tagline: 'No off switch',
-    description: 'You compete at full speed on every ball, every point, every set. Your effort changes the pace of a match, and your teammates know you will stay in the rally.',
-    traits: ['Relentless', 'Fearless', 'All-out effort', 'Unstoppable'],
+    tagline: 'Sets the pace',
+    description: 'You bring urgency to every rally and reset quickly between points. Your focus changes the pace of a match, and your teammates know you will stay engaged.',
+    traits: ['Relentless', 'Composed under pressure', 'High motor', 'Sets the tempo'],
     heatLevel: 5,
     color: 'text-red-600',
     bgColor: 'bg-red-600',

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "surface": "website",
+  "reviewedAt": "2026-07-21T19:25:47.448Z",
+  "reviewedBy": "Codex browser audit",
+  "method": "local browser walkthrough",
+  "sourceDigest": "sha256:17e8202c9414c02338ad57a56c8828bc57d68dc56d8c7e3bb2d9d1db5589dc6a",
+  "sourceFiles": 91,
+  "scope": [
+    "home",
+    "flavor detail",
+    "signup",
+    "standings"
+  ]
+}

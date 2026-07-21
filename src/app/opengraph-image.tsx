@@ -6,7 +6,7 @@ import { ImageResponse } from 'next/og'
 import { BrandCard, OG_SIZE } from '@/lib/og-card'
 
 export const runtime = 'edge'
-export const alt = "Let's Pepper — underground grass volleyball tournament series"
+export const alt = "Let's Pepper — grass volleyball tournament series in Chicagoland"
 export const size = OG_SIZE
 export const contentType = 'image/png'
 
