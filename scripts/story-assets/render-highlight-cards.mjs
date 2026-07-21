@@ -8,9 +8,11 @@
  *   node scripts/story-assets/render-highlight-cards.mjs            # validation subset
  *   RENDER=all node scripts/story-assets/render-highlight-cards.mjs # full batch (all teams)
  *
+ * Reel (1080x1920) only — Stories/Reels is the only format these ever ship to.
+ *
  * Output: scripts/story-assets/highlights/
- *   generic/{intro,outro}-{reel,wide}.png
- *   teams/team-NN-<lead>-{intro,outro}-{reel,wide}.png
+ *   generic/{intro,outro}-reel.png
+ *   teams/team-NN-<lead>-intro-reel.png
  */
 import { chromium } from 'playwright'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -19,9 +21,7 @@ import { writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { EVENT, TEAMS, TIER, ordinal, byFinish } from './bell-pepper-2026.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const hero = pathToFileURL(join(HERE, 'mascot', 'pep-hero-green.png')).href
-const FD = '/Users/nino/Workspace/dev/apps/flickdaymedia/flickday-assets/outro/aperture-icon-transparent.png'
-const ap = pathToFileURL(FD).href
+const hero = pathToFileURL(join(HERE, 'bpo-mascot', 'pep-hero-green.png')).href
 const RENDER = process.env.RENDER || 'validate'
 
 // Event meta = shared canonical fields (year/date/loc/format) + highlights-only handles.
@@ -53,15 +53,10 @@ const doc = (w, h, body, transparent) =>
 
 /* ─────────────  INTRO  ───────────── */
 function intro({ w, h, team }) {
-  const reel = h > w
-  const objpos = reel ? '50% 28%' : '76% 22%'
+  const objpos = '50% 28%'
   const scrim = team
-    ? (reel
-        ? `linear-gradient(180deg, rgba(7,7,7,0.34) 0%, rgba(7,7,7,0.30) 26%, rgba(7,7,7,0.74) 46%, #070707 56%)`
-        : `linear-gradient(90deg, #070707 0%, rgba(7,7,7,0.94) 38%, rgba(7,7,7,0.5) 64%, rgba(7,7,7,0.26) 100%)`)
-    : (reel
-        ? `radial-gradient(120% 70% at 50% 28%, transparent 42%, rgba(7,7,7,0.35) 100%),linear-gradient(180deg, rgba(7,7,7,0.45) 0%, transparent 16%, transparent 38%, rgba(7,7,7,0.8) 64%, #070707 86%)`
-        : `linear-gradient(90deg, rgba(7,7,7,0.92) 0%, rgba(7,7,7,0.55) 46%, transparent 78%),linear-gradient(0deg, rgba(7,7,7,0.6) 0%, transparent 36%)`)
+    ? `linear-gradient(180deg, rgba(7,7,7,0.34) 0%, rgba(7,7,7,0.30) 26%, rgba(7,7,7,0.74) 46%, #070707 56%)`
+    : `radial-gradient(120% 70% at 50% 28%, transparent 42%, rgba(7,7,7,0.35) 100%),linear-gradient(180deg, rgba(7,7,7,0.45) 0%, transparent 16%, transparent 38%, rgba(7,7,7,0.8) 64%, #070707 86%)`
   // Placement callout — accent-coloured finish line under the eyebrow (gold = champion,
   // green = bracket run, pale = R16, neutral = play-in). Sourced from the shared TIER map.
   const tier = team ? TIER[team.place] : null
@@ -75,7 +70,7 @@ function intro({ w, h, team }) {
        <div class="year">${E.year}</div>
        <div class="meta">${E.date} &middot; <b>${E.loc}</b></div>`
 
-  const css = reel ? `
+  const css = `
     .kick{position:absolute;top:128px;left:0;right:0;text-align:center;font-size:30px;letter-spacing:0.4em;text-transform:uppercase;color:#facc15;text-shadow:0 0 18px rgba(250,204,21,0.45)}
     .block{position:absolute;left:64px;right:64px;bottom:170px;text-align:center}
     .title{font-family:'Anton',sans-serif;font-size:210px;line-height:0.96;color:#f5f5f0;text-shadow:0 8px 40px rgba(0,0,0,0.7)}
@@ -89,24 +84,11 @@ function intro({ w, h, team }) {
     .roster .pl + .pl{border-top:1px solid rgba(245,245,240,0.12)}
     .roster .tick{width:14px;height:50px;flex:none;background:#4ade80;box-shadow:0 0 18px rgba(74,222,128,0.7)}
     .tblock{left:80px;right:80px;text-align:left;z-index:1}
-    .tblock .roster .pl{font-size:118px}` : `
-    .kick{position:absolute;top:96px;left:130px;font-size:24px;letter-spacing:0.4em;text-transform:uppercase;color:#facc15;text-shadow:0 0 18px rgba(250,204,21,0.45)}
-    .block{position:absolute;left:130px;max-width:1150px;top:50%;transform:translateY(-50%)}
-    .title{font-family:'Anton',sans-serif;font-size:190px;line-height:0.94;color:#f5f5f0;text-shadow:0 8px 40px rgba(0,0,0,0.7)}
-    .title .o{color:#4ade80;text-shadow:0 0 60px rgba(74,222,128,0.6)}
-    .year{font-family:'Bebas Neue',sans-serif;font-size:104px;letter-spacing:0.18em;color:#facc15;margin-top:10px}
-    .meta{font-size:24px;letter-spacing:0.18em;text-transform:uppercase;color:rgba(245,245,240,0.82);margin-top:18px}.meta b{color:#facc15}
-    .eyebrow{font-family:'JetBrains Mono',monospace;font-size:22px;letter-spacing:0.24em;text-transform:uppercase;color:rgba(245,245,240,0.52);margin-bottom:14px}
-    .rule{width:120px;height:3px;background:#4ade80;box-shadow:0 0 16px rgba(74,222,128,0.6);margin:0 0 30px}
-    .roster .pl{display:flex;align-items:center;gap:22px;font-family:'Bebas Neue',sans-serif;font-size:96px;line-height:1.0;letter-spacing:0.01em;color:#f5f5f0;padding:12px 0;text-shadow:0 6px 30px rgba(0,0,0,0.95);white-space:nowrap}
-    .roster .pl + .pl{border-top:1px solid rgba(245,245,240,0.12)}
-    .roster .tick{width:13px;height:44px;flex:none;background:#4ade80;box-shadow:0 0 18px rgba(74,222,128,0.7)}
-    .tblock{text-align:left}
-    .tblock .roster .pl{font-size:104px;gap:24px}`
+    .tblock .roster .pl{font-size:118px}`
 
   const finishCss = tier
     ? `.finish{font-family:'JetBrains Mono',monospace;font-weight:700;text-transform:uppercase;
-        color:${tier.accent};text-shadow:0 0 24px ${tier.glow};font-size:${reel ? 30 : 26}px;
+        color:${tier.accent};text-shadow:0 0 24px ${tier.glow};font-size:30px;
         letter-spacing:0.2em;margin:2px 0 10px}`
     : ''
   return doc(w, h, `${heroLayer(w, h, objpos, scrim)}<style>${css}${finishCss}</style>
@@ -118,33 +100,22 @@ function intro({ w, h, team }) {
    One job: credit + one CTA. Generic (identical for every team). Accent = yellow
    (Flickday's). Cut from last round: slogan, readout, handles, kicker, divider. */
 function outro({ w, h }) {
-  const reel = h > w
-  const objpos = reel ? '50% 16%' : '64% 22%'
+  const objpos = '50% 16%'
   // light scrim — let the character read through the lower half behind the wordmarks;
   // a soft pocket + black text-glow carry legibility instead of a flat black floor.
-  const scrim = reel
-    ? `radial-gradient(125% 52% at 26% 82%, rgba(7,7,7,0.72), transparent 72%),linear-gradient(180deg, rgba(7,7,7,0.24) 0%, rgba(7,7,7,0.16) 32%, rgba(7,7,7,0.30) 56%, rgba(7,7,7,0.46) 100%)`
-    : `radial-gradient(74% 120% at 18% 66%, rgba(7,7,7,0.72), transparent 74%),linear-gradient(90deg, rgba(7,7,7,0.64) 0%, rgba(7,7,7,0.34) 48%, rgba(7,7,7,0.18) 100%)`
+  const scrim = `radial-gradient(125% 52% at 26% 82%, rgba(7,7,7,0.72), transparent 72%),linear-gradient(180deg, rgba(7,7,7,0.24) 0%, rgba(7,7,7,0.16) 32%, rgba(7,7,7,0.30) 56%, rgba(7,7,7,0.46) 100%)`
   const glow = 'text-shadow:0 0 46px rgba(250,204,21,0.3),0 6px 26px rgba(0,0,0,0.92),0 0 16px rgba(0,0,0,0.85)'
   const wglow = 'text-shadow:0 4px 22px rgba(0,0,0,0.92),0 0 14px rgba(0,0,0,0.8)'
   const lglow = 'text-shadow:0 2px 12px rgba(0,0,0,0.9)'
-  const css = reel ? `
+  const css = `
     .frame{position:absolute;left:80px;right:80px;bottom:170px;text-align:left}
-    .ap{width:104px;display:block;filter:drop-shadow(0 0 34px rgba(250,204,21,0.4)) drop-shadow(0 4px 14px rgba(0,0,0,0.7));margin-bottom:30px}
     .lbl{font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:0.34em;text-transform:uppercase;color:rgba(245,245,240,0.74);margin-bottom:12px;${lglow}}
     .cred{font-family:'Anton',sans-serif;font-size:124px;line-height:0.9;letter-spacing:-0.01em;color:#facc15;${glow}}
     .cta{margin-top:66px}
-    .cta .url{font-family:'Bebas Neue',sans-serif;font-size:78px;letter-spacing:0.03em;color:#f5f5f0;${wglow}}.cta .url b{color:#facc15}` : `
-    .frame{position:absolute;left:130px;right:130px;top:50%;transform:translateY(-50%);text-align:left;max-width:1320px}
-    .ap{width:92px;display:block;filter:drop-shadow(0 0 34px rgba(250,204,21,0.4)) drop-shadow(0 4px 14px rgba(0,0,0,0.7));margin-bottom:26px}
-    .lbl{font-family:'JetBrains Mono',monospace;font-size:22px;letter-spacing:0.34em;text-transform:uppercase;color:rgba(245,245,240,0.74);margin-bottom:12px;${lglow}}
-    .cred{font-family:'Anton',sans-serif;font-size:138px;line-height:0.88;letter-spacing:-0.01em;color:#facc15;${glow}}
-    .cta{margin-top:54px}
-    .cta .url{font-family:'Bebas Neue',sans-serif;font-size:74px;letter-spacing:0.03em;color:#f5f5f0;${wglow}}.cta .url b{color:#facc15}`
+    .cta .url{font-family:'Bebas Neue',sans-serif;font-size:78px;letter-spacing:0.03em;color:#f5f5f0;${wglow}}.cta .url b{color:#facc15}`
 
   return doc(w, h, `${heroLayer(w, h, objpos, scrim)}<style>${css}</style>
     <div class="frame">
-      <img class="ap" src="${ap}">
       <div class="lbl">Shot by</div>
       <div class="cred">FLICKDAY<br>MEDIA</div>
       <div class="cta">
@@ -179,22 +150,21 @@ function lowerThird({ tag, lead, sub }) {
    reshares. Not the detailed hero. Cropped to content — one asset, editor places
    it in any corner of either orientation. */
 function bug() {
-  return doc(1400, 360, `<style>
+  return doc(1400, 240, `<style>
     .cap{position:absolute;top:0;left:0;padding:30px 34px;display:inline-flex;align-items:center;gap:18px;opacity:0.9}
     .cap .wm{font-family:'Bebas Neue',sans-serif;font-size:46px;letter-spacing:0.06em;line-height:1;color:#f5f5f0;text-shadow:0 2px 12px rgba(0,0,0,0.6)}
     .cap .wm b{color:#4ade80}
     .cap .x{font-family:'JetBrains Mono',monospace;font-size:24px;color:rgba(245,245,240,0.42)}
-    .cap .ap{width:54px;height:54px;filter:drop-shadow(0 0 11px rgba(250,204,21,0.3)) drop-shadow(0 2px 8px rgba(0,0,0,0.5))}
   </style>
     <div class="cap">
       <span class="wm"><b>LET'S</b> PEPPER</span>
       <span class="x">&times;</span>
-      <img class="ap" src="${ap}">
+      <span class="wm" style="font-size:32px">${E.media}</span>
     </div>`, true)
 }
 
 /* ─────────────  queue  ───────────── */
-const FORMATS = [['reel', 1080, 1920], ['wide', 1920, 1080]]
+const FORMATS = [['reel', 1080, 1920]]
 const jobs = []
 const add = (dir, name, w, h, html, alpha = false, sel = null) => jobs.push({ path: join('highlights', dir, name), w, h, html, alpha, sel })
 
@@ -210,7 +180,7 @@ if (process.env.ITER) {
   // single-surface sign-off loop — opaque cards full-frame, overlays cropped tight
   add('teams', introName(champ, 'reel'), 1080, 1920, intro({ w: 1080, h: 1920, team: champ }))
   add('generic', `lowerthird-champs`, 1900, 520, lowerThird({ tag: 'Champions', lead: champ.surnames, sub: `1st Place · Bell Pepper Open ${E.year}` }), true, '.cap')
-  add('generic', `bug`, 1400, 360, bug(), true, '.cap')
+  add('generic', `bug`, 1400, 240, bug(), true, '.cap')
   add('generic', `outro-reel`, 1080, 1920, outro({ w: 1080, h: 1920 }))
 } else {
   // generic opaque cards — brand intro + credit outro, both orientations
@@ -219,7 +189,7 @@ if (process.env.ITER) {
     add('generic', `outro-${fmt}`, w, h, outro({ w, h }))
   }
   // tight alpha overlays — orientation-agnostic, editor places them
-  add('generic', `bug`, 1400, 360, bug(), true, '.cap')
+  add('generic', `bug`, 1400, 240, bug(), true, '.cap')
   const LOWERTHIRDS = [
     ['champions', 'Champions', champ.surnames, `1st Place · Bell Pepper Open ${E.year}`],
     ['play', 'Play of the Day', 'DIG → SET → CRANK', `Bell Pepper Open ${E.year}`],

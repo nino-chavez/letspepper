@@ -107,12 +107,32 @@ to webp on a webp-Accept fetch and Instagram rejects webp. The builder fetches t
 `large` variant as jpeg and re-hosts on R2 (which serves the stored type verbatim).
 The `flickday-social` bucket has public dev access enabled for exactly this.
 
+## Ad-hoc one-shot post (no event, no schedule)
+
+```bash
+# feed post (IMAGE from .jpg/.png, REELS from .mp4/.mov — inferred):
+node scripts/social-publish/post-now.mjs --account letspepper \
+  --file /path/to/graphic.jpg --caption "..."
+
+# story (bare media — API stories take no caption/stickers/tags):
+node scripts/social-publish/post-now.mjs --account letspepper \
+  --file /path/to/story.jpg --story
+
+# preview without touching anything:
+node scripts/social-publish/post-now.mjs ... --dry-run
+```
+
+Wraps the same pipeline: appends to `queue/adhoc.json` (permanent ledger),
+uploads via `upload-r2.mjs` (default bucket `flickday-social`), publishes just
+that item via `post-reels.mjs --id`. Reads the token from 1Password itself if
+`IG_ACCESS_TOKEN` isn't set. Posts land in under a minute for images.
+
 ## Capabilities
 - **Multi-account:** `--account <slug>` or per-item `account` field → posts to any owned IG account from the one token.
 - **User tags:** item `user_tags: ["flickday.media"]` → `user_tags=[{username}]` on the post.
 - **Collab:** item `collaborators: ["flickday.media"]` → co-author invite (reels/image/carousel; not Stories; public accounts only). `collaborators` is community-confirmed but not in Meta's main doc — first live call verifies it; on rejection the item is marked `error` with the API message, not silently dropped.
-- **Media types:** `media_type` = `REELS` (default) | `IMAGE` (`image_url`) | `CAROUSEL` (`children: [{media_type,image_url|video_url}]`).
-- **Stories / sticker features:** not in the API → owned Playwright fallback (separate, TODO).
+- **Media types:** `media_type` = `REELS` (default) | `IMAGE` (`image_url`) | `STORIES` (`image_url` or `video_url`; bare media) | `CAROUSEL` (`children: [{media_type,image_url|video_url}]`).
+- **Stories:** published via the API since 2026-07-12 (Business accounts; `media_type=STORIES`). Bare media only — sticker/link/tag decoration is NOT in the API (see STORIES-SPEC.md for the decorated-firehose design). Accidental story? `DELETE /{ig-media-id}` works (verified live) — feed-media delete is unverified.
 
 ## Notes
 - Queue is the source of truth; saved after every publish; posted items are skipped (no double-post).

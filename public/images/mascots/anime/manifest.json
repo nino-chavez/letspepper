@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "basePath": "/images/mascots/anime",
+  "overview": "/images/mascots/anime/family-overview.png",
+  "poses": [
+    "menace-walk",
+    "block",
+    "jump-serve",
+    "diving-dig",
+    "celebration",
+    "champion",
+    "exhausted"
+  ],
+  "characters": {
+    "jalapeno": {
+      "displayName": "Jalapeño",
+      "role": "Balanced all-rounder",
+      "accent": "forest-green",
+      "ball": "green-and-cream",
+      "directory": "/images/mascots/anime/jalapeno",
+      "contactSheet": "/images/mascots/anime/jalapeno/contact-sheet.png"
+    },
+    "bell-pepper": {
+      "displayName": "Bell Pepper",
+      "role": "Heavyweight opposite / blocker",
+      "accent": "chartreuse-green",
+      "ball": "green-and-cream",
+      "directory": "/images/mascots/anime/bell-pepper",
+      "contactSheet": "/images/mascots/anime/bell-pepper/contact-sheet.png"
+    },
+    "poblano": {
+      "displayName": "Poblano",
+      "role": "Elite libero / defensive specialist",
+      "accent": "deep-emerald",
+      "ball": "green-and-cream",
+      "directory": "/images/mascots/anime/poblano",
+      "contactSheet": "/images/mascots/anime/poblano/contact-sheet.png"
+    },
+    "ghost-pepper": {
+      "displayName": "Ghost Pepper",
+      "role": "Jump-server / speed ace",
+      "accent": "ember-red",
+      "ball": "cream-and-ember-red",
+      "directory": "/images/mascots/anime/ghost-pepper",
+      "contactSheet": "/images/mascots/anime/ghost-pepper/contact-sheet.png"
+    }
+  },
+  "assetPattern": "{directory}/{pose}.png"
+}

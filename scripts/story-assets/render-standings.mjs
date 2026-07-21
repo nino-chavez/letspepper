@@ -21,8 +21,7 @@ import { writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { TEAMS as TEAMS_2026, TIER, GOLD, GREEN, ordinal, byFinish } from './bell-pepper-2026.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const hero = pathToFileURL(join(HERE, 'mascot', 'pep-hero-green.png')).href
-const ap = pathToFileURL('/Users/nino/Workspace/dev/apps/flickdaymedia/flickday-assets/outro/aperture-icon-transparent.png').href
+const hero = pathToFileURL(join(HERE, 'bpo-mascot', 'pep-hero-green.png')).href
 const RENDER = process.env.RENDER || 'validate'
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@500;700&display=swap');`
@@ -153,7 +152,6 @@ function standingsStory({ w = 1080, h = 1920 } = {}) {
     .qf .h{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:${GREEN};margin-bottom:18px}
     .qf .l{font-family:'Bebas Neue',sans-serif;font-size:52px;line-height:1.16;letter-spacing:0.02em;color:rgba(245,245,240,0.86)}
     .foot{position:absolute;left:80px;right:80px;bottom:${post ? 58 : 90}px;display:flex;align-items:center;gap:16px;font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;letter-spacing:0.06em}
-    .foot .ap{width:40px;height:40px;filter:drop-shadow(0 0 10px rgba(250,204,21,0.3))}
     .foot .g{color:${GREEN}}.foot .y{color:${GOLD}}.foot .s{color:#555;margin:0 6px}
   </style>
     <div class="frame">
@@ -163,7 +161,7 @@ function standingsStory({ w = 1080, h = 1920 } = {}) {
       <div class="podium">${podium.map(row).join('')}</div>
       ${post ? '' : `<div class="qf"><div class="h">Quarterfinalists · Tied 5th</div><div class="l">${quarters.map(t => t.surnames.split(' · ')[0]).join(' · ')}</div></div>`}
     </div>
-    <div class="foot"><img class="ap" src="${ap}"><span class="g">letspepper.com</span><span class="s">/</span><span class="y">standings</span></div>`)
+    <div class="foot"><span class="g">letspepper.com</span><span class="s">/</span><span class="y">standings</span></div>`)
 }
 
 /* ─────────────────────────  3. SERIES LEADERBOARD (reel)  ───────────────────────── */
@@ -274,7 +272,6 @@ function statLeadersCard({ w = 1080, h = 1920 } = {}) {
     .row.lead .vl{color:${GOLD}}
     .dt{font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:0.02em;color:rgba(245,245,240,0.5);margin:3px 0 0 38px}
     .foot{position:absolute;left:70px;right:70px;bottom:${post ? 54 : 90}px;display:flex;align-items:center;gap:16px;font-family:'JetBrains Mono',monospace;font-size:23px;font-weight:700;letter-spacing:0.06em}
-    .foot .ap{width:38px;height:38px;filter:drop-shadow(0 0 10px rgba(250,204,21,0.3))}
     .foot .g{color:${GREEN}}.foot .s{color:#555;margin:0 6px}.foot .y{color:${GOLD}}
   </style>
     <div class="frame">
@@ -283,7 +280,7 @@ function statLeadersCard({ w = 1080, h = 1920 } = {}) {
       <div class="sub">Bell Pepper Open 2026 · By the Numbers</div>
       <div class="grid">${STAT_BOARDS.map(boardEl).join('')}</div>
     </div>
-    <div class="foot"><img class="ap" src="${ap}"><span class="g">letspepper.com</span><span class="s">/</span><span class="y">standings</span></div>`)
+    <div class="foot"><span class="g">letspepper.com</span><span class="s">/</span><span class="y">standings</span></div>`)
 }
 
 /* ─────────────────────────  queue + render  ───────────────────────── */

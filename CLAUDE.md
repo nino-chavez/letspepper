@@ -139,8 +139,9 @@ pnpm dev
 pnpm build
 
 # Deploy is automatic on push to main via .github/workflows/deploy.yml
-# Manual deploy (rare):
-pnpm exec @cloudflare/next-on-pages
+# Manual deploy (rare) — vercel build needs --yes (CLI 56+ gates unlinked builds):
+pnpm dlx vercel build --yes
+pnpm dlx @cloudflare/next-on-pages@1 --skip-build
 pnpm dlx wrangler pages deploy .vercel/output/static --project-name=letspepper
 ```
 

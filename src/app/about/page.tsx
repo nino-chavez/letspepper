@@ -246,6 +246,64 @@ export default function AboutPage() {
           </div>
         </section>
 
+        {/* The Universe — mascot family band */}
+        <section className="section-padding pt-0" aria-labelledby="universe-heading">
+          <div className="section-container">
+            <motion.div
+              className="text-center mb-10"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={MOTION.viewport.once}
+            >
+              <p className="text-section-heading mb-4">The Universe</p>
+              <h2 id="universe-heading" className="text-display">
+                Four Characters. One <span className="text-heat-bell">Universe</span>.
+              </h2>
+            </motion.div>
+
+            <motion.div
+              className="relative rounded-2xl border border-zinc-800 bg-pepper-charcoal/40 overflow-hidden px-6 sm:px-12 pt-10 sm:pt-14"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={MOTION.viewport.once}
+              transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
+            >
+              {/* floor glow — the roster stands on lit ground, not floating clip art */}
+              <div
+                className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-heat-jalapeno/10 via-heat-jalapeno/[0.04] to-transparent"
+                aria-hidden="true"
+              />
+              <div className="relative aspect-[1992/633] w-full">
+                <Image
+                  src="/images/mascots/anime/web/family-overview-1600.webp"
+                  alt="The Let's Pepper roster: Jalapeño, Bell Pepper, Poblano, and Ghost Pepper"
+                  fill
+                  unoptimized
+                  className="object-contain object-bottom"
+                />
+              </div>
+            </motion.div>
+
+            {/* character roster — order matches the band art */}
+            <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 text-center">
+              {[
+                { name: 'Jalapeño', role: 'Balanced all-rounder', note: 'Focused confidence.', color: 'text-heat-jalapeno' },
+                { name: 'Bell Pepper', role: 'Heavyweight blocker', note: 'Dominant power.', color: 'text-heat-bell' },
+                { name: 'Poblano', role: 'Elite libero', note: 'Fearless precision.', color: 'text-heat-poblano' },
+                { name: 'Ghost Pepper', role: 'Speed ace', note: 'Unnerving calm. Event unannounced.', color: 'text-red-500' },
+              ].map((c) => (
+                <div key={c.name}>
+                  <h3 className={cn('font-display text-2xl uppercase', c.color)}>{c.name}</h3>
+                  <p className="font-accent text-[0.65rem] uppercase tracking-[0.14em] text-zinc-400 mt-1">
+                    {c.role}
+                  </p>
+                  <p className="text-sm text-zinc-500 mt-1">{c.note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* The Series Overview */}
         <section className="section-padding">
           <div className="section-container">

@@ -12,6 +12,10 @@
 **Voice:** Raw, authentic, player-first
 **Personality:** The tournament that doesn't need a federation
 
+### Mascot Artwork
+
+Canonical tournament/social mascot art is the gritty sports-anime pose library at `public/images/mascots/anime/<character>/` (see its `README.md` for character language and pose semantics, `manifest.json` for programmatic access). Site pages reference the committed WebP derivatives in `anime/web/` only — regenerate with `pnpm derive:mascots`. Two retro survivors remain by design: `bell-pepper-logo.png` (Header/Footer logo mark — charm-mascot styling still governs logo marks) and `pepper-belle-action.png` (Pepper Belle; no anime belle set exists yet).
+
 ---
 
 ## Color Palette

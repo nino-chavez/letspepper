@@ -9,10 +9,16 @@ Stories carry breadth.
 clutter, no feed-algo fatigue), and are exactly where participants hunt for
 themselves. Highlights make them permanent and browsable by team/round.
 
-## Hard constraint: no Graph API for Stories publishing
-The IG Content Publishing API does **not** publish Stories. So this is **owned
-Playwright automation** driving a logged-in session — which carries
-action-block/ban risk if run like a bot. The whole design is risk-mitigated.
+## Constraint (corrected 2026-07-12): Graph API publishes bare Stories, not decorated ones
+The Content Publishing API **does** publish Stories (`media_type=STORIES`,
+image or video — verified live: post-reels.mjs published story media
+18074251679368802 to @letspepper.open). What it **cannot** do is add the
+interactive layer this spec's UX depends on: no stickers, no link sticker, no
+tagging, no Highlight placement. So bare media stories go through the owned
+API pipeline (post-reels.mjs), and only the *decorated* firehose (team labels,
+gallery link stickers, participant tags) needs **owned Playwright automation**
+driving a logged-in session — which carries action-block/ban risk if run like
+a bot. That decorated path is what the rest of this design risk-mitigates.
 
 ## Risk mitigations (non-negotiable)
 - **Human cadence:** post N stories then long randomized pauses; never burst.

@@ -116,6 +116,14 @@ async function buildContainer(token, ig, it) {
     const { id } = await api(token, `${ig}/media`, { image_url: it.image_url, caption: it.caption, ...tagParams(it) })
     return id
   }
+  if (it.media_type === 'STORIES') {
+    // Stories containers take media only — no caption/user_tags (Graph v16+).
+    // Mirrors post-reels.mjs's STORIES branch; image containers finish fast so
+    // the non-IMAGE pollStatus below returns FINISHED same-run.
+    const media = it.video_url ? { video_url: it.video_url } : { image_url: it.image_url }
+    const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media })
+    return id
+  }
   const thumb_offset = String(500 + Math.floor(Math.random() * 5500)) // random cover frame
   const { id } = await api(token, `${ig}/media`, {
     media_type: 'REELS', video_url: it.video_url, caption: it.caption,
