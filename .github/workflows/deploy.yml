@@ -35,7 +35,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build for Cloudflare Pages
-        run: pnpm dlx @cloudflare/next-on-pages@1
+        # Vercel CLI 56 gates unlinked `vercel build` behind a project-settings
+        # prompt (fails non-interactively), and next-on-pages shells out to it
+        # unpinned. Run the build ourselves with --yes (derive settings from
+        # framework detection) and hand next-on-pages the prebuilt output.
+        run: |
+          pnpm dlx vercel build --yes
+          pnpm dlx @cloudflare/next-on-pages@1 --skip-build
 
       - name: Deploy to Cloudflare Pages
         env:
