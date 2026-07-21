@@ -26,12 +26,22 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const SRC = path.join(ROOT, 'public', 'images', 'mascots', 'anime')
 const OUT = path.join(SRC, 'web')
 
+/** The logo mark: a controlled head-crop (face + stem) of the bell-pepper anchor pose. */
+const LOGO_CROP = '470x470+267+95'
+
 /** [source (relative to anime/), output name, target width, crop?] — site-referenced
  *  assets only. `crop` is an ImageMagick geometry applied before the resize
- *  (used for the logo mark, a controlled head-crop of the anchor pose). */
+ *  (used for the logo mark, a controlled head-crop of the anchor pose).
+ *  .png outputs are for the next/og share cards — Satori can't decode WebP, and
+ *  they get palette-quantized (cel shade survives it) to stay edge-bundle small. */
 const JOBS = [
   // header/footer logo mark — bell-pepper face + stem from the anchor pose
-  ['bell-pepper/menace-walk.png', 'bell-pepper-logo-160.webp', 160, '470x470+267+95'],
+  ['bell-pepper/menace-walk.png', 'bell-pepper-logo-160.webp', 160, LOGO_CROP],
+  // OG share-card mascots (PNG for Satori; bundled into the edge og routes)
+  ['jalapeno/menace-walk.png', 'og-jalapeno-menace-walk-360.png', 360],
+  ['bell-pepper/block.png', 'og-bell-pepper-block-360.png', 360],
+  ['jalapeno/jump-serve.png', 'og-jalapeno-jump-serve-360.png', 360],
+  ['poblano/menace-walk.png', 'og-poblano-menace-walk-360.png', 360],
   // homepage tournament cards — rendered ≤64 CSS px wide; 1.1 hover × 3 DPR ≈ 211 device px
   ['bell-pepper/menace-walk.png', 'bell-pepper-menace-walk-256.webp', 256],
   ['jalapeno/menace-walk.png', 'jalapeno-menace-walk-256.webp', 256],
@@ -62,7 +72,7 @@ if (process.argv.includes('--check')) {
       const p = path.join(dir, entry.name)
       if (entry.isDirectory()) walk(p)
       else if (/\.(tsx?|css)$/.test(entry.name)) {
-        for (const m of readFileSync(p, 'utf8').matchAll(/images\/mascots\/anime\/web\/([\w.-]+\.webp)/g)) {
+        for (const m of readFileSync(p, 'utf8').matchAll(/images\/mascots\/anime\/web\/([\w.-]+\.(?:webp|png))/g)) {
           refs.add(m[1])
         }
       }
@@ -102,13 +112,45 @@ for (const [srcRel, outName, width, crop] of JOBS) {
     '-strip',
     '-filter', 'Lanczos',
     '-resize', `${width}x>`, // shrink-only: never upscale a source
-    '-quality', '82',
-    '-define', 'webp:alpha-quality=95', // hard ink contours — keep alpha edges clean
-    '-define', 'webp:method=6', // slowest/best encode; this is a build-time script
+    ...(outName.endsWith('.png')
+      ? ['-colors', '256'] // palette PNG — Satori-safe and edge-bundle small
+      : [
+          '-quality', '82',
+          '-define', 'webp:alpha-quality=95', // hard ink contours — keep alpha edges clean
+          '-define', 'webp:method=6', // slowest/best encode; this is a build-time script
+        ]),
     out,
   ])
   console.log(`✓ ${outName}  ${(statSync(out).size / 1024).toFixed(0)} KB`)
   written++
 }
-console.log(`\n${written} written, ${fresh} up-to-date → public/images/mascots/anime/web/`)
+// App icons — same controlled head-crop as the logo mark, emitted into src/app/
+// where Next's file conventions auto-wire the favicon + apple-touch link.
+const LOGO_SRC = path.join(SRC, 'bell-pepper', 'menace-walk.png')
+const ICONS = [
+  ['icon.png', 256, null], // favicon — transparent
+  ['apple-icon.png', 180, '#0a0a0a'], // iOS wants opaque; pepper-black tile
+]
+for (const [name, size, bg] of ICONS) {
+  const out = path.join(ROOT, 'src', 'app', name)
+  if (!force && existsSync(out) && statSync(out).mtimeMs >= statSync(LOGO_SRC).mtimeMs) {
+    fresh++
+    continue
+  }
+  execFileSync('magick', [
+    LOGO_SRC,
+    '-crop', LOGO_CROP, '+repage',
+    '-strip',
+    '-filter', 'Lanczos',
+    ...(bg
+      ? ['-resize', `${Math.round(size * 0.86)}x${Math.round(size * 0.86)}`, '-background', bg, '-gravity', 'center', '-extent', `${size}x${size}`]
+      : ['-resize', `${size}x${size}`]),
+    '-colors', '256',
+    out,
+  ])
+  console.log(`✓ src/app/${name}  ${(statSync(out).size / 1024).toFixed(0)} KB`)
+  written++
+}
+
+console.log(`\n${written} written, ${fresh} up-to-date → public/images/mascots/anime/web/ + src/app icons`)
 if (failed) process.exit(1)
