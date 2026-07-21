@@ -22,8 +22,12 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const SRC = path.join(ROOT, 'public', 'images', 'mascots', 'anime')
 const OUT = path.join(SRC, 'web')
 
-/** [source (relative to anime/), output name, target width] — site-referenced assets only. */
+/** [source (relative to anime/), output name, target width, crop?] — site-referenced
+ *  assets only. `crop` is an ImageMagick geometry applied before the resize
+ *  (used for the logo mark, a controlled head-crop of the anchor pose). */
 const JOBS = [
+  // header/footer logo mark — bell-pepper face + stem from the anchor pose
+  ['bell-pepper/menace-walk.png', 'bell-pepper-logo-160.webp', 160, '470x470+267+95'],
   // homepage tournament cards — rendered ≤64 CSS px wide; 1.1 hover × 3 DPR ≈ 211 device px
   ['bell-pepper/menace-walk.png', 'bell-pepper-menace-walk-256.webp', 256],
   ['jalapeno/menace-walk.png', 'jalapeno-menace-walk-256.webp', 256],
@@ -48,7 +52,7 @@ mkdirSync(OUT, { recursive: true })
 let written = 0
 let fresh = 0
 let failed = 0
-for (const [srcRel, outName, width] of JOBS) {
+for (const [srcRel, outName, width, crop] of JOBS) {
   const src = path.join(SRC, srcRel)
   const out = path.join(OUT, outName)
   if (!existsSync(src)) {
@@ -62,6 +66,7 @@ for (const [srcRel, outName, width] of JOBS) {
   }
   execFileSync('magick', [
     src,
+    ...(crop ? ['-crop', crop, '+repage'] : []),
     '-strip',
     '-filter', 'Lanczos',
     '-resize', `${width}x>`, // shrink-only: never upscale a source

@@ -219,7 +219,7 @@ const upcomingEvents = [
 
 /**
  * Dynamic "Next Up" announcement marquee
- * Shows the next upcoming event, or Pepper Belle fallback in the off-season.
+ * Shows the next upcoming event, or an off-season fallback (belle-purple variant).
  * Progressive enhancement: checks /api/rhq/summary for is_live and upgrades
  * the banner to a LIVE NOW state (--live coral) when the event is active.
  * Falls back to date-gated logic if the fetch fails.

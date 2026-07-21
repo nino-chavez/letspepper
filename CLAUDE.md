@@ -38,7 +38,6 @@ src/
 │   ├── Footer.tsx            # Site footer with links
 │   ├── HeroSection.tsx       # Homepage hero
 │   ├── TournamentSeries.tsx  # Tournament cards
-│   ├── PepperBelle.tsx       # Pepper Belle section
 │   ├── EthosSection.tsx      # Values/ethos section
 │   ├── GalleryPreview.tsx    # Photo gallery preview
 │   └── icons.tsx             # Custom SVG icons
@@ -104,7 +103,6 @@ https://photos.smugmug.com/Sports/Volleyball/Grass/[ALBUM]/[IMAGE-ID]/0/[HASH]/[
 ### Homepage (/)
 - Hero with animated tagline
 - Tournament series cards
-- Pepper Belle section
 - Ethos/values section
 - Gallery preview
 

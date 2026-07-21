@@ -75,9 +75,9 @@ export const tournaments: Record<string, TournamentDetail> = {
 		name: 'Jalapeño Open',
 		heat: 'jalapeno',
 		tagline: 'Bring The Heat',
-		headline: "Now it's time to bring the heat. The Jalapeño Open hits fast, sharp, and fully spiced.",
+		headline: 'Mid-season pressure. Fast rallies, sharp decisions, and no room to coast.',
 		description:
-			"Mid-season. You're dialed in — turn up the intensity. Jalapeño does everything well and expects the same: clean hands, crisp touches, spicy pulls. Tighter rallies and peak competitive intensity.",
+			"By mid-season, everyone is dialed in. Expect clean hands, crisp touches, tighter rallies, and a field ready to compete.",
 		date: 'Saturday, July 18, 2026',
 		startsAt: '2026-07-18T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',
@@ -99,9 +99,9 @@ export const tournaments: Record<string, TournamentDetail> = {
 		name: 'Poblano Pepper Open',
 		heat: 'poblano',
 		tagline: 'Season Finale',
-		headline: "Cooling things down. The Poblano Pepper Open — final stop of the Let's Pepper Series.",
+		headline: 'The season closes at the Poblano Open. One final field, one final bracket.',
 		description:
-			'The finale belongs to Poblano, the series libero — grinders, diggers, and defenders who know that touch beats torque. Long rallies, dirty knees, and stakes that stay spicy. Leave it all on the grass.',
+			'The finale rewards defense, touch, and patience under pressure. Expect long rallies, tight decisions, and a field playing for the final standings.',
 		date: 'Saturday, August 1, 2026',
 		startsAt: '2026-08-01T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',

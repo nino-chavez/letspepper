@@ -56,7 +56,7 @@ const tournaments: Tournament[] = [
     mascot: '/images/mascots/anime/web/poblano-menace-walk-256.webp',
     tagline: 'Season Finale',
     description:
-      "Cooling things down. Poblano's finale rewards defense. Leave it all on the grass.",
+      "The season closes with long rallies, tight decisions, and one final bracket.",
     date: '2026-08-01',
     displayDate: 'August 1, 2026',
     features: ['Season Closer', 'Final Standings', 'Year-End Celebration'],
