@@ -1,13 +1,15 @@
 /**
  * OG share-card builders — 1200×630, rendered via next/og (Satori + resvg).
  *
- * Two cards, one brand language (Pepper Black + heat color):
- *   - BrandCard()      site / home default
+ * Two cards, one brand language (Pepper Black + heat color + anime mascot):
+ *   - BrandCard()      site / home default (and every page without its own card)
  *   - TournamentCard() per flavor — the heat color IS the accent (brand-native)
  *
  * Satori notes: every element with >1 child must declare `display: flex`; CSS
- * custom properties don't resolve, so colors are passed as hex. The cards never
- * depend on a remote fetch, so they can't fail the most-shared URL.
+ * custom properties don't resolve, so colors are passed as hex. The mascot is a
+ * palette-quantized PNG bundled INTO the edge route (fetch(new URL(...))) and
+ * passed in as an ArrayBuffer — never a remote fetch, so the most-shared URL
+ * can't fail on a network dependency. Satori can't decode WebP; keep these PNG.
  */
 
 import { HEAT_HEX, HEAT_LEVEL, type TournamentDetail } from './tournaments'
@@ -46,7 +48,30 @@ function HeatMeter({ heat }: { heat: TournamentDetail['heat'] }) {
 	)
 }
 
-export function TournamentCard(t: TournamentDetail) {
+/** Bottom-right mascot figure — behind the type, backlit by the heat glow
+ *  (mirrors the site's flavor-hero composition). Satori accepts an ArrayBuffer
+ *  as img src at runtime; the cast keeps TS quiet. */
+function MascotFigure({ data }: { data: ArrayBuffer }) {
+	return (
+		// eslint-disable-next-line @next/next/no-img-element
+		<img
+			src={data as unknown as string}
+			alt=""
+			width={380}
+			height={570}
+			style={{
+				position: 'absolute',
+				right: '36px',
+				bottom: '-14px',
+				width: '380px',
+				height: '570px',
+				objectFit: 'contain'
+			}}
+		/>
+	)
+}
+
+export function TournamentCard(t: TournamentDetail, mascot?: ArrayBuffer) {
 	const accent = HEAT_HEX[t.heat]
 	return (
 		<div
@@ -75,6 +100,7 @@ export function TournamentCard(t: TournamentDetail) {
 					background: `radial-gradient(circle, ${accent}3a 0%, transparent 66%)`
 				}}
 			/>
+			{mascot ? <MascotFigure data={mascot} /> : null}
 			{/* eyebrow */}
 			<div
 				style={{
@@ -105,7 +131,7 @@ export function TournamentCard(t: TournamentDetail) {
 					lineHeight: '0.9',
 					letterSpacing: '-0.02em',
 					textTransform: 'uppercase',
-					maxWidth: '960px',
+					maxWidth: '780px',
 					zIndex: 1
 				}}
 			>
@@ -118,13 +144,15 @@ export function TournamentCard(t: TournamentDetail) {
 				<div style={{ display: 'flex', fontSize: '30px', fontWeight: 700, color: '#ffffff' }}>{t.date}</div>
 				<div style={{ display: 'flex', fontSize: '22px', color: 'rgba(255,255,255,0.55)' }}>{shortVenue(t.location)}</div>
 			</div>
-			{/* footer */}
+			{/* footer — capped short of the mascot zone so the domain never sits under its feet */}
 			<div
 				style={{
 					display: 'flex',
 					flexDirection: 'row',
 					justifyContent: 'space-between',
 					alignItems: 'center',
+					maxWidth: '740px',
+					width: '100%',
 					zIndex: 1
 				}}
 			>
@@ -137,7 +165,7 @@ export function TournamentCard(t: TournamentDetail) {
 	)
 }
 
-export function BrandCard() {
+export function BrandCard(mascot?: ArrayBuffer) {
 	return (
 		<div
 			style={{
@@ -164,6 +192,20 @@ export function BrandCard() {
 					background: `linear-gradient(90deg, ${HEAT_SPECTRUM[0]} 0%, ${HEAT_SPECTRUM[1]} 50%, ${HEAT_SPECTRUM[2]} 100%)`
 				}}
 			/>
+			{/* heat glow — grounds the mascot like the site heroes */}
+			<div
+				style={{
+					display: 'flex',
+					position: 'absolute',
+					top: '-100px',
+					right: '-100px',
+					width: '500px',
+					height: '500px',
+					borderRadius: '50%',
+					background: `radial-gradient(circle, ${HEAT_SPECTRUM[2]}33 0%, transparent 66%)`
+				}}
+			/>
+			{mascot ? <MascotFigure data={mascot} /> : null}
 			<div
 				style={{
 					display: 'flex',
@@ -180,7 +222,7 @@ export function BrandCard() {
 			<div
 				style={{
 					display: 'flex',
-					fontSize: '150px',
+					fontSize: '128px',
 					fontWeight: 900,
 					color: '#ffffff',
 					lineHeight: '0.86',
@@ -191,7 +233,7 @@ export function BrandCard() {
 				Let&apos;s Pepper
 			</div>
 			<div style={{ display: 'flex', flex: 1 }} />
-			<div style={{ display: 'flex', fontSize: '34px', fontWeight: 700, color: 'rgba(255,255,255,0.82)', maxWidth: '900px' }}>
+			<div style={{ display: 'flex', fontSize: '34px', fontWeight: 700, color: 'rgba(255,255,255,0.82)', maxWidth: '760px' }}>
 				Underground. Unfiltered. Unapologetically competitive.
 			</div>
 		</div>
