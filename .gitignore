@@ -39,9 +39,19 @@ Thumbs.db
 next-env.d.ts
 .wrangler
 
-# Generated social/story assets (regenerable via scripts/story-assets/*.mjs)
+# Generated social/story assets (regenerable via scripts/story-assets/*.mjs —
+# renders are hermetic: source art in *-mascot/, fonts in fonts/, both tracked)
 scripts/story-assets/*.png
+scripts/story-assets/2026-jpo/
+scripts/story-assets/highlights/
+scripts/story-assets/teams/
+scripts/story-assets/standings/
 
 # Local scratch / per-event scratch assets (not repo content)
 scripts/apparel/ref/
 scripts/story-assets/2026-bpo/
+tmp/
+
+# Real-event roster inputs carry registration/payment status — keep local
+# (demo-roster.csv is the committed, scrubbed stand-in for walkthroughs)
+scripts/story-assets/jpo-mens.csv
