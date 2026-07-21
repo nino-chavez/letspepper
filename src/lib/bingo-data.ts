@@ -55,7 +55,7 @@ export const bingoSquarePool: BingoSquareData[] = [
   { id: 'upset', text: 'Major upset in bracket', category: 'wild' },
   { id: 'celebration', text: 'Over-the-top celebration', category: 'wild' },
   { id: 'food-truck', text: 'Food truck spotted', category: 'wild' },
-  { id: 'grass-dive', text: 'Full send grass dive', category: 'wild' },
+  { id: 'grass-dive', text: 'Full-extension grass save', category: 'wild' },
   { id: 'lost-shoe', text: 'Someone loses a shoe', category: 'wild' },
   { id: 'delayed-start', text: 'Late start to a match', category: 'wild' },
   { id: 'double-contact', text: 'Questionable double contact', category: 'wild' },

@@ -97,7 +97,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How do playoffs work?',
-        answer: 'Early rounds are 1 game to 30, no cap — win by 2. Semifinals and finals are best of 3: games to 21, 21, 15 if needed.',
+        answer: 'Early rounds are 1 game to 30 with no scoring cap — win by 2. Semifinals and finals are best of 3: games to 21, 21, 15 if needed.',
       },
       {
         question: 'How many players per team?',

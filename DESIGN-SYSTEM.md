@@ -14,7 +14,7 @@
 
 ### Mascot Artwork
 
-Canonical tournament/social mascot art is the gritty sports-anime pose library at `public/images/mascots/anime/<character>/` (see its `README.md` for character language and pose semantics, `manifest.json` for programmatic access). Site pages reference the committed WebP derivatives in `anime/web/` only — regenerate with `pnpm derive:mascots`. Two retro survivors remain by design: `bell-pepper-logo.png` (Header/Footer logo mark — charm-mascot styling still governs logo marks) and `pepper-belle-action.png` (Pepper Belle; no anime belle set exists yet).
+Canonical tournament/social mascot art is the gritty sports-anime pose library at `public/images/mascots/anime/<character>/` (see its `README.md` for character language and pose semantics, `manifest.json` for programmatic access). Site pages reference the committed WebP derivatives in `anime/web/` only — regenerate with `pnpm derive:mascots`. The Header/Footer logo mark is a controlled head-crop of the anime bell-pepper anchor pose (`bell-pepper-logo-160.webp`, crop job in the derive script). No retro mascot assets remain; Pepper Belle (women's series) is archived — recover the section from git history when a women's event is planned.
 
 ---
 
@@ -39,7 +39,9 @@ The heat level system creates visual hierarchy for tournament tiers:
 | Hot | Jalapeño | Orange | `#f97316` | High intensity, flagship |
 | Extreme | Habanero | Red | `#ef4444` | Reserved for future use |
 
-### Pepper Belle (Women's Series)
+### Pepper Belle (Women's Series — archived)
+
+The series is on hold and its homepage section is archived (recoverable from git history). The purple palette remains in `globals.css` for the off-season marquee variant.
 
 | Token | Hex | Usage |
 |-------|-----|-------|
@@ -154,15 +156,6 @@ The heat level system creates visual hierarchy for tournament tiers:
   border: 1px solid var(--border-subtle);
   padding: 0.75rem 1.5rem;
   border-radius: 9999px;
-}
-```
-
-**Belle (Women's):**
-```css
-.btn-belle {
-  background: var(--belle-primary);
-  color: var(--pepper-black);
-  /* Same structure as primary */
 }
 ```
 
@@ -321,7 +314,6 @@ src/
 │   ├── Header.tsx        # Navigation
 │   ├── HeroSection.tsx   # Hero with animated tagline
 │   ├── TournamentSeries.tsx  # Heat cards grid
-│   ├── PepperBelle.tsx   # Women's tournament
 │   ├── EthosSection.tsx  # Brand story
 │   ├── GalleryPreview.tsx # Photo grid
 │   └── Footer.tsx        # Site footer

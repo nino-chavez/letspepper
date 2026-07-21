@@ -36,7 +36,7 @@ export const quizQuestions: QuizQuestion[] = [
       { text: 'Float serve to the weakest passer', scores: { poblano: 3, jalapeno: 1 } },
       { text: 'Bomb it. Full power. No hesitation.', scores: { habanero: 3, reaper: 1 } },
       { text: 'Jump serve at 110% — it\'s all or nothing', scores: { reaper: 3, habanero: 1 } },
-      { text: 'Sky ball. Straight up. Assert dominance.', scores: {}, easterEgg: 'pepperX' },
+      { text: 'Sky ball. Make the wind part of the play.', scores: {}, easterEgg: 'pepperX' },
     ],
   },
   {
@@ -60,7 +60,7 @@ export const quizQuestions: QuizQuestion[] = [
   {
     question: 'What\'s your ideal tournament soundtrack?',
     options: [
-      { text: 'Chill vibes — lo-fi or reggae', scores: { bell: 3, jalapeno: 1 } },
+      { text: 'Lo-fi or reggae — something steady', scores: { bell: 3, jalapeno: 1 } },
       { text: 'Whatever the DJ plays, I\'m locked in', scores: { poblano: 3, bell: 1 } },
       { text: 'Hype playlist — rap, EDM, pump-up anthems', scores: { habanero: 3, reaper: 1 } },
       { text: 'Silence. I need to focus.', scores: { reaper: 3, poblano: 1 } },
@@ -99,9 +99,9 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
   bell: {
     id: 'bell',
     title: 'Bell Pepper',
-    tagline: 'Here for the vibes',
-    description: 'You\'re the heart of the team. Win or lose, you make sure everyone\'s having a good time. You bring the snacks, the energy, and the post-game hangout plans. Every squad needs a Bell Pepper.',
-    traits: ['Team player', 'Positive energy', 'Community builder', 'Good vibes only'],
+    tagline: 'Keeps the team connected',
+    description: 'You make the whole team better. You communicate, keep people engaged, and know competition and community can share the same court. Every roster needs that presence.',
+    traits: ['Team player', 'Positive energy', 'Community builder', 'Raises the group'],
     heatLevel: 1,
     color: 'text-heat-bell',
     bgColor: 'bg-heat-bell',
@@ -109,8 +109,8 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
   poblano: {
     id: 'poblano',
     title: 'Poblano',
-    tagline: 'Sneaky dangerous',
-    description: 'Quiet confidence, deadly execution. You don\'t need to be the loudest on the court — your game speaks for itself. Opponents underestimate you once. Never twice.',
+    tagline: 'Quietly dangerous',
+    description: 'Quiet confidence, clean execution. You don\'t need to be the loudest on the court — your game speaks for itself. Opponents learn quickly.',
     traits: ['Calculated', 'Clutch performer', 'Under the radar', 'Smart player'],
     heatLevel: 2,
     // Maps to heat level 2 (poblano) in the shared heat color system — see heat-config.ts
@@ -131,7 +131,7 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
     id: 'habanero',
     title: 'Habanero',
     tagline: 'Intense competitor',
-    description: 'You bring the heat every single rally. Your intensity is contagious — when you\'re locked in, the whole team elevates. You play to win and everyone knows it.',
+    description: 'Your intensity shows on every rally. When you lock in, the whole team raises its level. You play to win and everyone knows it.',
     traits: ['Intense', 'Passionate', 'Competitive', 'Motivator'],
     heatLevel: 4,
     color: 'text-heat-habanero',
@@ -140,8 +140,8 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
   reaper: {
     id: 'reaper',
     title: 'Carolina Reaper',
-    tagline: 'Unhinged energy',
-    description: 'There is no off switch. You go 100% on every ball, every point, every set. Your warm-up is someone else\'s full match. You\'re the player opponents fear and teammates love having.',
+    tagline: 'No off switch',
+    description: 'You compete at full speed on every ball, every point, every set. Your effort changes the pace of a match, and your teammates know you will stay in the rally.',
     traits: ['Relentless', 'Fearless', 'All-out effort', 'Unstoppable'],
     heatLevel: 5,
     color: 'text-red-600',
@@ -150,9 +150,9 @@ export const pepperResults: Record<PepperPersonality, PepperResult> = {
   pepperX: {
     id: 'pepperX',
     title: 'Pepper X',
-    tagline: 'Beyond the Scoville scale',
-    description: 'You chose the sky ball. There\'s no quiz needed — you\'re already operating on a level the rest of us can\'t comprehend. You don\'t play volleyball. Volleyball plays you. The hottest pepper known to man, and it\'s not even close.',
-    traits: ['Chaotic energy', 'Sky ball specialist', 'Menace to society', 'Legend'],
+    tagline: 'The wildcard',
+    description: 'You chose the sky ball. That says enough. You read the court differently, take calculated risks, and make unconventional plays work.',
+    traits: ['Unpredictable', 'Sky ball specialist', 'Creative', 'Confident'],
     heatLevel: 5,
     color: 'text-fuchsia-500',
     bgColor: 'bg-fuchsia-500',

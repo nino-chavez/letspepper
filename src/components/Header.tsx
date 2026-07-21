@@ -9,7 +9,6 @@ import { MOTION } from '@/lib/motion'
 
 const navLinks = [
   { href: '/#series', label: 'The Series' },
-  { href: '/#belle', label: 'Pepper Belle' },
   { href: '/about', label: 'About' },
   { href: '/standings', label: 'Standings' },
   { href: '/gallery', label: 'Gallery' },
@@ -65,9 +64,10 @@ export function Header() {
           >
             <div className="relative w-10 h-10 sm:w-12 sm:h-12 transition-transform group-hover:scale-110">
               <Image
-                src="/images/mascots/bell-pepper-logo.png"
+                src="/images/mascots/anime/web/bell-pepper-logo-160.webp"
                 alt=""
                 fill
+                unoptimized
                 className="object-contain"
                 aria-hidden="true"
               />

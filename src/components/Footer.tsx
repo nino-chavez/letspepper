@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 const socialLinks = [
   {
     name: 'Instagram',
-    href: 'https://instagram.com/letspepper',
+    href: 'https://instagram.com/letspepper.open',
     ariaLabel: 'Follow Let\'s Pepper on Instagram (opens in new tab)',
     icon: (
       <svg
@@ -55,7 +55,6 @@ const socialLinks = [
 
 const footerLinks = [
   { label: 'The Series', href: '/#series' },
-  { label: 'Pepper Belle', href: '/#belle' },
   { label: 'About', href: '/about' },
   { label: 'Standings', href: '/standings' },
   { label: 'FAQ', href: '/faq' },
@@ -91,9 +90,10 @@ export function Footer() {
             <Link href="/" className="inline-flex items-center gap-2 group">
               <div className="relative w-10 h-10">
                 <Image
-                  src="/images/mascots/bell-pepper-logo.png"
+                  src="/images/mascots/anime/web/bell-pepper-logo-160.webp"
                   alt=""
                   fill
+                  unoptimized
                   className="object-contain group-hover:scale-110 transition-transform"
                   aria-hidden="true"
                 />

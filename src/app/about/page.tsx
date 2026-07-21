@@ -370,7 +370,7 @@ export default function AboutPage() {
                   Jalapeño Open
                 </h3>
                 <p className="text-zinc-500 text-sm mb-4">
-                  Mid-season heat. Fast pace, high intensity. Time to bring the heat.
+                  Mid-season pressure. Fast pace, high intensity, no room to coast.
                 </p>
                 <Link
                   href="/flavors/jalapeno-open"
@@ -397,7 +397,7 @@ export default function AboutPage() {
                   Poblano Open
                 </h3>
                 <p className="text-zinc-500 text-sm mb-4">
-                  Season finale. Cooling things down. Leave it all on the grass.
+                  Season finale. One final field, one final bracket.
                 </p>
                 <Link
                   href="/flavors/poblano-open"

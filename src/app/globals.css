@@ -26,7 +26,8 @@
     --gold: hsl(45, 85%, 55%);
     --heat-habanero: #ef4444;
 
-    /* Pepper Belle - Royal Purple */
+    /* Belle - Royal Purple (women's series is archived; palette retained
+       for the off-season marquee variant) */
     --belle-primary: #9333ea;
     --belle-glow: #7c3aed;
 
@@ -160,14 +161,6 @@
     box-shadow: 0 0 40px -10px var(--heat-jalapeno);
   }
 
-  .heat-card-belle {
-    @apply border-belle-primary/20;
-  }
-  .heat-card-belle:hover {
-    @apply border-belle-primary/60;
-    box-shadow: 0 0 40px -10px var(--belle-primary);
-  }
-
   /* ═══════════════════════════════════════════
      BUTTONS
      ═══════════════════════════════════════════ */
@@ -206,16 +199,6 @@
     min-height: var(--touch-target-min);
   }
 
-  .btn-belle {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3;
-    @apply font-accent text-sm uppercase tracking-wider;
-    @apply bg-belle-primary text-pepper-black font-bold;
-    @apply rounded-full transition-all duration-200;
-    @apply hover:bg-belle-glow hover:scale-105;
-    @apply active:scale-95;
-    min-height: var(--touch-target-min);
-  }
-
   /* ═══════════════════════════════════════════
      HEAT INDICATORS
      ═══════════════════════════════════════════ */
@@ -231,7 +214,6 @@
   .heat-dot-bell { @apply bg-heat-bell; }
   .heat-dot-poblano { @apply bg-heat-poblano; }
   .heat-dot-jalapeno { @apply bg-heat-jalapeno; }
-  .heat-dot-belle { @apply bg-belle-primary; }
 
   /* ═══════════════════════════════════════════
      GRAIN TEXTURE OVERLAY

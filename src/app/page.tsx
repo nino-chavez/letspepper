@@ -3,7 +3,6 @@ import {
   HeroSection,
   TournamentSeries,
   StandingsCallout,
-  PepperBelle,
   EthosSection,
   GalleryPreview,
   Footer,
@@ -18,7 +17,6 @@ export default function HomePage() {
         <HeroSection />
         <TournamentSeries />
         <StandingsCallout />
-        <PepperBelle />
         <EthosSection />
         <GalleryPreview />
       </main>
