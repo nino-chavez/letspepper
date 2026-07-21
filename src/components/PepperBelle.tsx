@@ -75,7 +75,7 @@ export function PepperBelle() {
             {/* Description */}
             <p className="text-xl text-zinc-400 max-w-lg">
               The women&apos;s 3v3 tournament series. Same grassroots energy, same
-              competitive fire, built for the queens of the court.
+              competitive fire, built for women who compete.
             </p>
 
             {/* Features */}
