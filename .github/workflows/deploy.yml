@@ -35,11 +35,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build for Cloudflare Pages
-        # Vercel CLI 56 gates unlinked `vercel build` behind a project-settings
-        # prompt (fails non-interactively), and next-on-pages shells out to it
-        # unpinned. Run the build ourselves with --yes (derive settings from
-        # framework detection) and hand next-on-pages the prebuilt output.
+        # Vercel CLI 56 gates unlinked `vercel build` behind project settings,
+        # and `--yes` tries to auto-link via the Vercel API (needs auth — fails
+        # here with "token is not valid"). Writing local settings first keeps
+        # the build fully offline: no Vercel account, no linking. next-on-pages
+        # then consumes the prebuilt output.
         run: |
+          mkdir -p .vercel
+          echo '{"projectId":"_","orgId":"_","settings":{"framework":"nextjs"}}' > .vercel/project.json
           pnpm dlx vercel build --yes
           pnpm dlx @cloudflare/next-on-pages@1 --skip-build
 

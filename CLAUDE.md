@@ -139,7 +139,11 @@ pnpm dev
 pnpm build
 
 # Deploy is automatic on push to main via .github/workflows/deploy.yml
-# Manual deploy (rare) — vercel build needs --yes (CLI 56+ gates unlinked builds):
+# Manual deploy (rare). Write dummy project settings first — it keeps
+# `vercel build` offline (CLI 56+ otherwise tries to auto-link a Vercel
+# project, which needs auth and creates a project as a side effect):
+mkdir -p .vercel
+echo '{"projectId":"_","orgId":"_","settings":{"framework":"nextjs"}}' > .vercel/project.json
 pnpm dlx vercel build --yes
 pnpm dlx @cloudflare/next-on-pages@1 --skip-build
 pnpm dlx wrangler pages deploy .vercel/output/static --project-name=letspepper
