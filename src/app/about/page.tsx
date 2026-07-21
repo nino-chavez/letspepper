@@ -246,6 +246,50 @@ export default function AboutPage() {
           </div>
         </section>
 
+        {/* The Universe — mascot family band */}
+        <section className="section-padding pt-0" aria-labelledby="universe-heading">
+          <div className="section-container">
+            <motion.div
+              className="text-center mb-10"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={MOTION.viewport.once}
+            >
+              <p className="text-section-heading mb-4">The Universe</p>
+              <h2 id="universe-heading" className="text-display">
+                Four Characters. One <span className="text-heat-bell">Universe</span>.
+              </h2>
+            </motion.div>
+
+            <motion.div
+              className="relative rounded-2xl border border-zinc-800 bg-pepper-charcoal/40 overflow-hidden px-6 sm:px-12 pt-10 sm:pt-14"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={MOTION.viewport.once}
+              transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
+            >
+              {/* floor glow — the roster stands on lit ground, not floating clip art */}
+              <div
+                className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-heat-jalapeno/10 via-heat-jalapeno/[0.04] to-transparent"
+                aria-hidden="true"
+              />
+              <div className="relative aspect-[1992/633] w-full">
+                <Image
+                  src="/images/mascots/anime/web/family-overview-1600.webp"
+                  alt="The Let's Pepper roster: Jalapeño, Bell Pepper, Poblano, and Ghost Pepper"
+                  fill
+                  unoptimized
+                  className="object-contain object-bottom"
+                />
+              </div>
+            </motion.div>
+
+            <p className="mt-5 text-center font-accent text-[0.65rem] uppercase tracking-[0.14em] text-zinc-500">
+              Bell Pepper · Jalapeño · Poblano · <span className="text-zinc-300">and one flavor we haven&apos;t announced yet</span>
+            </p>
+          </div>
+        </section>
+
         {/* The Series Overview */}
         <section className="section-padding">
           <div className="section-container">

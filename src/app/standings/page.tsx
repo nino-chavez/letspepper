@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
@@ -264,22 +265,41 @@ export default function StandingsPage() {
         {/* Hero Section */}
         <section className="section-padding">
           <div className="section-container">
-            <motion.div
-              className="max-w-3xl"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
-            >
-              <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-4">
-                Tournament Results
-              </p>
-              <h1 className="text-display mb-6">
-                {selectedSeason} <span className="text-heat-jalapeno">Standings</span>
-              </h1>
-              <p className="text-xl text-zinc-400">
-                Results from the Let&apos;s Pepper tournament series. Every point earned, every rally won.
-              </p>
-            </motion.div>
+            <div className="flex items-end justify-between gap-8">
+              <motion.div
+                className="max-w-3xl"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
+              >
+                <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-4">
+                  Tournament Results
+                </p>
+                <h1 className="text-display mb-6">
+                  {selectedSeason} <span className="text-heat-jalapeno">Standings</span>
+                </h1>
+                <p className="text-xl text-zinc-400">
+                  Results from the Let&apos;s Pepper tournament series. Every point earned, every rally won.
+                </p>
+              </motion.div>
+
+              {/* season champion figure — decorative, gold-adjacent */}
+              <motion.div
+                className="hidden lg:block relative w-52 xl:w-60 aspect-[2/3] shrink-0 pointer-events-none select-none"
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, ease: MOTION.ease.outExpo, delay: 0.2 }}
+                aria-hidden="true"
+              >
+                <Image
+                  src="/images/mascots/anime/web/jalapeno-champion-1024.webp"
+                  alt=""
+                  fill
+                  unoptimized
+                  className="object-contain object-bottom"
+                />
+              </motion.div>
+            </div>
           </div>
         </section>
 

@@ -16,12 +16,27 @@ import { usePhase, type EventPhase } from '@/components/rhq/usePhase'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { CourtBoard } from '@/components/rhq/CourtBoard'
 import { cn } from '@/lib/utils'
-import { tournaments } from '@/lib/tournaments'
+import { tournaments, type TournamentDetail } from '@/lib/tournaments'
 
 const heatConfig = {
   bell: { color: 'var(--heat-bell)', textClass: 'text-heat-bell', borderClass: 'border-heat-bell', bgClass: 'bg-heat-bell', glowClass: 'hover:bg-heat-bell-glow', level: 'Mild', bars: 1 },
   poblano: { color: 'var(--heat-poblano)', textClass: 'text-heat-poblano', borderClass: 'border-heat-poblano', bgClass: 'bg-heat-poblano', glowClass: 'hover:bg-heat-poblano-glow', level: 'Medium', bars: 2 },
   jalapeno: { color: 'var(--heat-jalapeno)', textClass: 'text-heat-jalapeno', borderClass: 'border-heat-jalapeno', bgClass: 'bg-heat-jalapeno', glowClass: 'hover:bg-heat-jalapeno-glow', level: 'Hot', bars: 3 },
+}
+
+/** heat → canonical anime-library character slug (dir names differ from heat keys). */
+const mascotCharacter: Record<TournamentDetail['heat'], string> = {
+  bell: 'bell-pepper',
+  jalapeno: 'jalapeno',
+  poblano: 'poblano',
+}
+
+/** heat → role pose per the library README (bell = blocker, jalapeño = all-rounder serve,
+ *  poblano = libero — her dig pose is landscape, so the shared portrait slot gets menace-walk). */
+const mascotRolePose: Record<TournamentDetail['heat'], string> = {
+  bell: 'block',
+  jalapeno: 'jump-serve',
+  poblano: 'menace-walk',
 }
 
 /** Reads a `?phase=` preview override (pre|live|post) once on mount. Forces which
@@ -91,6 +106,9 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
   const isLive = phase === 'live'
   const isPost = phase === 'post'
 
+  const mascotPose = isPost ? 'champion' : mascotRolePose[tournament.heat]
+  const mascotSrc = `/images/mascots/anime/web/${mascotCharacter[tournament.heat]}-${mascotPose}-1024.webp`
+
   return (
     <>
       <Header />
@@ -114,6 +132,26 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
               aria-hidden="true"
             />
           )}
+          {/* mascot layer — behind the scrim so the atmosphere grounds it (feet dissolve into
+              the floor shadow, heat glow backlights the head); hidden below lg where the type
+              column owns the full width. key re-runs the entrance when post-phase swaps the
+              role pose for champion, so the flip reads as a reveal. */}
+          <motion.div
+            key={mascotPose}
+            className="hidden lg:block absolute bottom-0 right-0 xl:right-8 h-[48vh] max-h-[520px] xl:h-[54vh] xl:max-h-[600px] aspect-[2/3] pointer-events-none select-none"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, ease: MOTION.ease.outExpo, delay: 0.15 }}
+            aria-hidden="true"
+          >
+            <Image
+              src={mascotSrc}
+              alt=""
+              fill
+              unoptimized
+              className="object-contain object-bottom"
+            />
+          </motion.div>
           {/* cinematic scrim — keeps oversized type legible over the grit */}
           <div
             className="absolute inset-0"
