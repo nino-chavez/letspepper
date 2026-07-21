@@ -84,7 +84,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		location: 'Nature Meadows Park · 1861 Westridge Pl, Aurora, IL 60504',
 		division: 'Grass Triples (One Division)',
 		entryFee: '',
-		format: 'Pool Play + Single Elimination Bracket',
+		format: 'Pool Play + Double Elimination Bracket',
 		payouts: ['Prizes for top finishers', 'Full content coverage', 'Merch for finalists'],
 		features: ['Peak Competition', 'High Intensity', 'Fast Pace'],
 		mediaPerks: [
