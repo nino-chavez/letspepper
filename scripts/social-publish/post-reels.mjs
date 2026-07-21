@@ -13,19 +13,27 @@
  *
  * Per queue item (see build-queue.mjs):
  *   account        slug into accounts.json (e.g. "letspepper")
- *   media_type     REELS | IMAGE | CAROUSEL
- *   video_url      REELS / carousel video child
- *   image_url      IMAGE / carousel image child
+ *   media_type     REELS | IMAGE | CAROUSEL | STORIES
+ *   video_url      REELS / STORIES video / carousel video child
+ *   image_url      IMAGE / STORIES image / carousel image child
  *   children       [{media_type,image_url|video_url}, ...]  (CAROUSEL only)
  *   caption        post caption
- *   user_tags      ["username", ...]      tag owned accounts in the post
+ *   user_tags      ["username", ...] or [{username,x,y}, ...]   real Graph API
+ *                  tags (not caption mentions) — IGNORED on STORIES (Graph API
+ *                  has no caption/tag support for Stories, media only). On a
+ *                  single IMAGE, tagParams() defaults bare usernames to a
+ *                  dead-center (0.5, 0.5) position — pass {username,x,y} for
+ *                  a precise spot. CAROUSEL/REELS take bare usernames as-is.
  *   collaborators  ["username", ...]      send Collab co-author invites
  *
- * Flags: --count N (default 2) · --account slug (override) · --force · --dry-run
+ * Flags: --count N (default 2) · --account slug (override) · --id <item-id>
+ *        (publish only that queue item) · --force · --dry-run
  *
  * Flow (Graph API v25.0):
  *   POST /{ig}/media  (build container; carousel = children first) → creation_id
- *   GET  /{container}?fields=status_code   poll until FINISHED (video only)
+ *   GET  /{container}?fields=status_code   poll until FINISHED (every type —
+ *        image containers race too: publishing one before it's ready throws
+ *        "Media ID is not available")
  *   POST /{ig}/media_publish  creation_id  → media id
  * Queue persisted after every item so a crash never double-posts.
  *
@@ -55,6 +63,7 @@ const count = Number(args.count ?? 2)
 const force = !!args.force
 const dryRun = !!args['dry-run']
 const accountOverride = typeof args.account === 'string' ? args.account : null
+const idFilter = typeof args.id === 'string' ? args.id : null
 
 const TOKEN = process.env.IG_ACCESS_TOKEN
 if (!event) { console.error('Required: --event <slug>'); process.exit(1) }
@@ -77,9 +86,11 @@ function igIdFor(item) {
 const now = Date.now()
 const ready = (it) => it.status !== 'posted' &&
   (it.media_type === 'CAROUSEL' ? Array.isArray(it.children) && it.children.length : (it.video_url || it.image_url))
-const due = q.items.filter((it) => ready(it) && (force || new Date(it.scheduledAt).getTime() <= now))
+const due = q.items.filter((it) => ready(it) && (!idFilter || it.id === idFilter) &&
+  (force || new Date(it.scheduledAt).getTime() <= now))
 
 if (!due.length) {
+  if (idFilter) { console.error(`No due item with id "${idFilter}" (missing, already posted, or not hosted).`); process.exit(1) }
   const remaining = q.items.filter((it) => it.status !== 'posted')
   const notReady = remaining.filter((it) => !ready(it)).length
   if (!remaining.length) console.log('Queue empty — all posted.')
@@ -93,25 +104,58 @@ async function api(path, params, method = 'POST') {
   const body = new URLSearchParams({ ...params, access_token: TOKEN })
   const res = method === 'GET' ? await fetch(`${url}?${body}`) : await fetch(url, { method, body })
   const json = await res.json()
-  if (!res.ok || json.error) throw new Error(json.error?.message || JSON.stringify(json))
+  if (!res.ok || json.error) {
+    // json.error.message alone is often generic ("Invalid parameter") — the
+    // actionable text (e.g. "User tag positions are required for image.") is
+    // in error_user_msg. Surface both so a failure is diagnosable without a
+    // manual curl round-trip.
+    const { message, error_user_msg: userMsg } = json.error || {}
+    throw new Error([message, userMsg].filter(Boolean).join(' — ') || JSON.stringify(json))
+  }
   return json
 }
 
 async function waitFinished(containerId) {
   for (let i = 0; i < 60; i++) {
-    await sleep(5000)
     const { status_code } = await api(`${containerId}`, { fields: 'status_code' }, 'GET')
     if (status_code === 'FINISHED') return
     if (status_code === 'ERROR' || status_code === 'EXPIRED') throw new Error(`container ${status_code}`)
+    await sleep(5000)
   }
   throw new Error('container not ready after 5 min')
 }
 
-// optional cross-account params shared by single + carousel-parent containers
+// media_publish reliably throws Meta's generic "unexpected error, please retry"
+// on the FIRST attempt for some accounts, then succeeds on a retry. Without this
+// the drip fails every post and only retries on the next hourly run (or stalls if
+// the laptop slept). Retry the transient error in-run with backoff; let real
+// errors (bad container, permissions) surface immediately.
+async function publishWithRetry(ig, creationId, attempts = 5) {
+  for (let i = 0; ; i++) {
+    try {
+      return await api(`${ig}/media_publish`, { creation_id: creationId })
+    } catch (e) {
+      const transient = /unexpected error|please retry|temporar|try again|media id is not available/i.test(e.message)
+      if (i >= attempts - 1 || !transient) throw e
+      await sleep(8000 * (i + 1))
+    }
+  }
+}
+
+// optional cross-account params shared by single + carousel-parent containers.
+// A single feed IMAGE tag REQUIRES x/y (fractional position on the photo) —
+// verified live 2026-07-20: omitting it 400s with error_subcode 2207063
+// ("User tag positions are required for image."). CAROUSEL/REELS tags don't
+// pin to a point on a photo, so no coordinates needed there. Default bare
+// usernames to dead-center (0.5, 0.5) on IMAGE; pass {username,x,y} in
+// user_tags for a precise position instead.
 function tagParams(it) {
   const p = {}
   if (Array.isArray(it.user_tags) && it.user_tags.length)
-    p.user_tags = JSON.stringify(it.user_tags.map((u) => (typeof u === 'string' ? { username: u } : u)))
+    p.user_tags = JSON.stringify(it.user_tags.map((u) => {
+      if (typeof u !== 'string') return u
+      return it.media_type === 'IMAGE' ? { username: u, x: 0.5, y: 0.5 } : { username: u }
+    }))
   if (Array.isArray(it.collaborators) && it.collaborators.length)
     p.collaborators = JSON.stringify(it.collaborators)
   return p
@@ -137,11 +181,16 @@ async function buildContainer(ig, it) {
     const { id } = await api(`${ig}/media`, { image_url: it.image_url, caption: it.caption, ...tagParams(it) })
     return id
   }
+  if (it.media_type === 'STORIES') {
+    // Stories containers take no caption/user_tags — media only (Graph v16+).
+    const media = it.video_url ? { video_url: it.video_url } : { image_url: it.image_url }
+    const { id } = await api(`${ig}/media`, { media_type: 'STORIES', ...media })
+    return id
+  }
   // REELS (default)
   const { id } = await api(`${ig}/media`, {
     media_type: 'REELS', video_url: it.video_url, caption: it.caption, share_to_feed: 'true', ...tagParams(it),
   })
-  await waitFinished(id)
   return id
 }
 
@@ -160,9 +209,27 @@ for (const it of batch) {
   try {
     const ig = igIdFor(it)
     process.stdout.write(`→ ${it.id} (@${registry[slug].handle}) ... `)
-    const containerId = await buildContainer(ig, it)
-    it.ig_container_id = containerId; save()
-    const { id: mediaId } = await api(`${ig}/media_publish`, { creation_id: containerId })
+    // Reuse a prior failed run's container — a "failed" media_publish can still
+    // land on Meta's side, and rebuilding a fresh container is how the Worker's
+    // 2026-06-14 duplicate happened. Same creation_id retries are idempotent.
+    let containerId = it.ig_container_id ?? null
+    if (containerId) {
+      const status = await api(`${containerId}`, { fields: 'status_code' }, 'GET')
+        .then((r) => r.status_code).catch(() => null)
+      if (status === 'PUBLISHED') {
+        it.status = 'posted'; it.posted_at = new Date().toISOString()
+        it.error = 'published by a prior run — ig_media_id unknown, reconcile via GET /{ig}/media'
+        save(); console.log('already published by a prior run — marked posted'); ok++
+        continue
+      }
+      if (status !== 'FINISHED' && status !== 'IN_PROGRESS') containerId = null // expired/errored — rebuild
+    }
+    if (!containerId) {
+      containerId = await buildContainer(ig, it)
+      it.ig_container_id = containerId; save()
+    }
+    await waitFinished(containerId)
+    const { id: mediaId } = await publishWithRetry(ig, containerId)
     it.status = 'posted'; it.ig_media_id = mediaId; it.posted_at = new Date().toISOString(); it.error = null
     save()
     console.log(`posted (media ${mediaId})`)

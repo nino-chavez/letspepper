@@ -4,8 +4,17 @@
 set -u
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin"
 REPO="/Users/nino/Workspace/dev/apps/letspepper"
-EVENT="${1:-bell-pepper-2026}"
+EVENT="${1:-}"
 LOG="/tmp/lp-reels.log"
+
+# Require an explicit event. Previously this defaulted to bell-pepper-2026, so a
+# stray argless run would silently start dripping that queue's backlog. Each
+# launchd agent passes its own event, so refusing the default breaks nothing
+# intentional and removes the accidental-letspepper-drip footgun.
+if [[ -z "$EVENT" ]]; then
+  echo "$(date) FATAL: no event arg — refusing to default (pass the event slug explicitly)." >> "$LOG"
+  exit 1
+fi
 
 cd "$REPO" || { echo "$(date) FATAL: repo not found" >> "$LOG"; exit 1; }
 

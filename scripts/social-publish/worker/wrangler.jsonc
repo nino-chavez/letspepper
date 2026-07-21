@@ -2,9 +2,11 @@
   "name": "letspepper-reels-worker",
   "main": "src/index.js",
   "compatibility_date": "2026-01-01",
-  // hourly check; posts at most ONE reel per allowed slot (ALLOWED_HOURS_UTC),
-  // so the slot count is the daily cap. No dependency on any local machine.
-  "triggers": { "crons": ["0 * * * *"] },
+  // DRIP KILLED 2026-07-18: cron pulled so scheduled() never fires. The
+  // flickday-drip-3x branch's posting cadence is being retired in favor of a
+  // dedicated JPO content drip — re-add "0 * * * *" (hourly check; posts at
+  // most ONE reel per allowed slot / ALLOWED_HOURS_UTC) when that's built.
+  "triggers": { "crons": [] },
   "kv_namespaces": [
     { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
   ],
@@ -12,16 +14,17 @@
     // event slugs in PRIORITY order — newest/highest-priority FIRST. Each slot
     // posts from the first event with pending; older events backfill only when
     // newer ones are exhausted. jpo-teams (Jalapeño Open roster reveal, Stories,
-    // time-boxed to the 2026-07-18 event) is priority — it drains first, then
-    // flickday-grass-drip resumes/backfills. bell-pepper-2026 stays dropped (its
-    // 7 pending sit inert in KV); re-add after flickday to resume/backfill.
-    "ACTIVE_EVENTS": "jpo-teams,flickday-grass-drip",
+    // time-boxed to the 2026-07-18 event) is priority. flickday-grass-drip
+    // dropped 2026-07-16 (its 26/26 were already posted — fully drained, not
+    // mid-drip); bell-pepper-2026 stays dropped too (its 7 pending sit inert in
+    // KV). Re-add either to ACTIVE_EVENTS to resume/backfill.
+    "ACTIVE_EVENTS": "jpo-teams",
     // UTC hours that are posting slots = the daily cap.
     // TEMPORARY 4/day for the jpo-teams reveal → 15 = 10a, 18 = 1p, 21 = 4p,
     // 23 = 6p CDT. Seeded Wed 2026-07-15 ~17:16 CDT, the 7 teams complete Fri
     // 2026-07-17 ~1p CDT (Wed 6p; Thu 10a/1p/4p/6p; Fri 10a/1p), ahead of Sat.
-    // REVERT to 3/day "16,20,23" (11a/3p/6p CDT) once jpo-teams drains so the
-    // flickday evergreen drip returns to its tuned cadence.
+    // REVERT to 3/day "16,20,23" (11a/3p/6p CDT) once jpo-teams drains and a
+    // new active event is queued.
     "ALLOWED_HOURS_UTC": "15,18,21,23",
     // --- engagement sweep (see SWEEP.md) ---
     "SWEEP_ENABLED": "1",          // run the comment sweep after each post step
