@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "project": "Let's Pepper",
+  "defaults": {
+    "reader": "a volleyball player, captain, spectator, or parent",
+    "job": "understand the event, decide whether to join, and know the next action",
+    "assumedKnowledge": [
+      "basic volleyball terms"
+    ],
+    "plainness": "lay",
+    "precisionLocks": [
+      "event dates",
+      "entry fees",
+      "prize amounts",
+      "division and eligibility rules",
+      "registration status",
+      "waiver and legal language"
+    ]
+  },
+  "surfaces": [
+    {
+      "name": "website",
+      "renderedRoots": [],
+      "sourceRoots": [
+        "src/app",
+        "src/components"
+      ],
+      "manualReview": {
+        "evidencePath": "docs/reader-audits/website.json"
+      },
+      "allowTerms": [
+        "Bell Pepper Open",
+        "Jalapeño Open",
+        "Poblano Open",
+        "Flickday",
+        "grass volleyball"
+      ],
+      "denyTerms": [
+        {
+          "term": "source of truth",
+          "reason": "implementation governance is not part of the player's decision",
+          "replacement": "the current event details"
+        },
+        {
+          "term": "RHQ sync",
+          "reason": "the integration mechanism is not a user-facing action",
+          "replacement": "updated standings"
+        },
+        {
+          "term": "Second Screen",
+          "reason": "an internal product category does not tell a player what the activity is",
+          "replacement": "pick the winner"
+        },
+        {
+          "term": "second-screen",
+          "reason": "an internal product category does not explain what the standings contain",
+          "replacement": "fan standings"
+        },
+        {
+          "term": "Brand-native orientation",
+          "reason": "brand-system language is not event guidance",
+          "replacement": "what to know"
+        },
+        {
+          "term": "auto-scored off",
+          "reason": "implementation phrasing obscures when a pick receives points",
+          "replacement": "scored automatically when the live bracket updates"
+        }
+      ]
+    },
+    {
+      "name": "social publishing queue",
+      "renderedRoots": [
+        "scripts/social-publish/queue"
+      ],
+      "sourceRoots": [
+        "scripts/social-publish/vary-captions.mjs",
+        "scripts/social-publish/queue"
+      ],
+      "includeJsonKeys": [
+        "caption"
+      ],
+      "reader": "a volleyball player encountering Let's Pepper in a social feed",
+      "job": "understand the post in one pass and take the intended action",
+      "assumedKnowledge": [
+        "basic volleyball and social media terms"
+      ],
+      "plainness": "lay",
+      "precisionLocks": [
+        "event dates",
+        "entry fees",
+        "prize amounts",
+        "registration status",
+        "sponsor names and handles"
+      ],
+      "allowTerms": [
+        "Bell Pepper Open",
+        "Jalapeño Open",
+        "Poblano Open",
+        "Flickday",
+        "Open division",
+        "AA division",
+        "IL",
+        "AM",
+        "CDT",
+        "MSOE",
+        "JALAPE",
+        "OPEN",
+        "FINAL",
+        "THE",
+        "SERIES",
+        "manny_camp"
+      ],
+      "denyTerms": [],
+      "maxWordsPerText": 55
+    }
+  ]
+}

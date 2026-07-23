@@ -198,7 +198,7 @@ if (process.env.ITER) {
   add('generic', `bug`, 1400, 240, bug(), true, '.cap')
   const LOWERTHIRDS = [
     ['champions', 'Champions', champ.surnames, `1st Place · Jalapeño Open ${E.year}`],
-    ['play', 'Play of the Day', 'DIG → SET → CRANK', `Jalapeño Open ${E.year}`],
+    ['play', 'Jalapeño Open', 'FULL RALLY', `${E.date} · ${E.loc}`],
     ['finalists', 'Finalists', finalist.surnames, `2nd Place · Jalapeño Open ${E.year}`],
   ]
   for (const [slug, tag, lead, sub] of LOWERTHIRDS)

@@ -19,6 +19,20 @@ Characters:
 - `poblano`
 - `ghost-pepper`
 
+Anchor-only expansion characters:
+
+- `habanero`
+- `reaper`
+- `pepper-x`
+- `chipotle`
+- `pepper-belle`
+- `pepperoncini`
+- `banana-pepper`
+- `shishito`
+
+Anchor-only characters use `/images/mascots/anime/{character}/anchor.png`. They
+are approved identity anchors, not implied seven-pose libraries.
+
 Poses:
 
 - `menace-walk`
@@ -78,15 +92,15 @@ For layout, reserve clear negative space for copy and keep the mascot outside pr
 
 At Reel size, start near 18–28% of canvas height for a corner stamp and 40–65% for a deliberate hero transition. Test every placement over both bright and dark footage.
 
-## Recommended next pepper roster
+## Expansion status
 
-Prioritize characters that add a new silhouette, color, role, or storytelling function.
+Eight new identity anchors now cover missing editorial jobs: high-energy launches
+(Habanero), championships (Reaper), predictions and quiz wildcards (Pepper X),
+captaincy and history (Chipotle), the women's series and assists (Pepper Belle),
+rules and commentary (Pepperoncini), setter/explainer content (Banana Pepper), and
+utility/upset content (Shishito).
 
-1. **Banana Pepper — playful setter / strategist.** Long curved yellow body adds the clearest missing color and shape. Useful for assists, schedules, explainers, beginner content, playful polls, and youth-facing graphics. A legacy action reference already exists in the project.
-2. **Orange Habanero — explosive outside hitter.** Compact lantern shape and orange palette support spike/heat campaigns, event launches, limited merch, and high-energy hero art without overlapping Ghost Pepper's long red silhouette.
-3. **Shishito — unpredictable utility player.** Slim wrinkled green silhouette and the familiar "occasionally hot" story create natural randomizer posts, upset alerts, bracket surprises, quizzes, and weekly wildcard content.
-4. **Carolina Reaper — rare final-boss character.** Distinct red body and stinger tail should be reserved for championships, invitational finals, difficulty tiers, milestone drops, and premium apparel so it remains special.
-5. **Pepperoncini — veteran coach/commentator.** Pale yellow-green, softer curved silhouette, clipboard/headset variations. Useful for rules explainers, FAQ pages, instructional carousels, announcements, and commentary graphics rather than another player pose set.
-6. **Serrano — compact speed setter.** Dark green, smaller and sharper than Jalapeño. Useful for fast cuts, assists, quick-set graphics, mobile UI badges, and compact stickers, but lower priority because its silhouette is closest to Jalapeño.
-
-Do not generate all of these with the full seven-pose set immediately. Start each with `menace-walk`, one signature volleyball action, and one reaction pose; expand only after the character earns a recurring content role.
+Do not automatically generate seven poses for each. The next production gate is usage:
+after a character appears successfully in at least three real posts or web modules,
+add one signature action and one reaction pose. This prevents a large but repetitive
+library and keeps Reaper rare enough to retain championship value.

@@ -16,7 +16,7 @@ const IRON_CATEGORY = {
   id: 'iron',
   name: 'Iron Player',
   pepperName: 'Iron Pepper Award',
-  description: 'The player who competed in every match — no substitutions, no breaks, no excuses.',
+  description: 'The player who competed in every match — steady from the first round through the last.',
   heat: 'jalapeno' as const,
   nominees: [] as { id: string; name: string; reason: string }[],
 }

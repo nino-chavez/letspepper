@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>JPO Footage Desk · Let's Pepper</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">Let's Pepper · Jalapeño Open 2026</p>
+        <h1>JPO Footage Desk</h1>
+        <p class="lede">Review the vertical 120 fps source library, keep editorial judgments separate from match facts, and hand a clean shortlist to CapCut.</p>
+      </div>
+      <div class="masthead-actions">
+        <button class="button button-accent" id="chooseSource" type="button">Choose JPO source folder</button>
+        <input id="sourceInput" type="file" accept="video/mp4,.mp4" webkitdirectory multiple hidden>
+        <p id="sourceStatus" class="source-status">Source video not linked in this browser.</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="stats" id="stats" aria-label="Library summary"></section>
+
+      <section class="toolbar" aria-label="Footage filters">
+        <label class="search-control">
+          <span>Search</span>
+          <input id="search" type="search" placeholder="File, type, role, or note">
+        </label>
+        <label>
+          <span>Rating</span>
+          <select id="ratingFilter">
+            <option value="all">All ratings</option>
+            <option value="shortlist">A + B shortlist</option>
+            <option value="A">A · hero</option>
+            <option value="B">B · support</option>
+            <option value="C">C · archive</option>
+            <option value="pass">Pass</option>
+            <option value="unreviewed">Unreviewed</option>
+          </select>
+        </label>
+        <label>
+          <span>Content</span>
+          <select id="typeFilter"><option value="all">All content</option></select>
+        </label>
+        <label>
+          <span>Capture block</span>
+          <select id="blockFilter"><option value="all">All blocks</option></select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="sortOrder">
+            <option value="capture">Capture time</option>
+            <option value="rating">Rating</option>
+            <option value="duration-desc">Longest first</option>
+            <option value="duration-asc">Shortest first</option>
+            <option value="file">Filename</option>
+          </select>
+        </label>
+        <button class="button button-quiet" id="resetFilters" type="button">Reset filters</button>
+      </section>
+
+      <section class="result-line" aria-live="polite">
+        <p id="resultCount"></p>
+        <p>Initial ratings are visual recommendations. Verify teams, score, round, play, outcome, rights, and copy before publishing.</p>
+      </section>
+
+      <section class="clip-grid" id="clipGrid" aria-label="JPO clips"></section>
+
+      <section class="export-bar" aria-label="Export review data">
+        <div>
+          <p class="eyebrow">Handoff</p>
+          <h2>Move decisions, not guesses.</h2>
+          <p>The Clip Desk export carries A/B picks and edit notes forward while deliberately leaving unverified match facts blank.</p>
+        </div>
+        <div class="export-actions">
+          <button class="button" id="copyFilenames" type="button">Copy shortlist filenames</button>
+          <button class="button" id="exportReview" type="button">Export review CSV</button>
+          <button class="button button-accent" id="exportClipMap" type="button">Export A/B Clip Desk CSV</button>
+          <button class="button button-quiet" id="exportJson" type="button">Back up review JSON</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="detailDialog" class="detail-dialog">
+      <form method="dialog" class="dialog-close-row">
+        <p id="detailPosition"></p>
+        <button class="icon-button" value="close" aria-label="Close clip detail">×</button>
+      </form>
+      <div class="detail-layout">
+        <section class="viewer-column">
+          <div class="video-shell">
+            <video id="sourceVideo" controls playsinline></video>
+            <div class="video-empty" id="videoEmpty">
+              <strong>Source video is not linked.</strong>
+              <span>Choose the JPO folder once to preview originals here.</span>
+              <button class="button button-accent" id="chooseSourceFromDetail" type="button">Choose source folder</button>
+            </div>
+          </div>
+          <div class="playback-row" aria-label="Playback speed">
+            <span>Playback</span>
+            <button type="button" data-speed="1">1×</button>
+            <button type="button" data-speed="0.5">0.5×</button>
+            <button type="button" data-speed="0.25">0.25×</button>
+          </div>
+          <div class="detail-filmstrip" id="detailFilmstrip"></div>
+          <dl class="technical-list" id="technicalList"></dl>
+        </section>
+
+        <section class="decision-column">
+          <div class="detail-heading">
+            <div>
+              <p class="eyebrow" id="detailMeta"></p>
+              <h2 id="detailTitle"></h2>
+            </div>
+            <div class="detail-nav">
+              <button class="icon-button" id="previousClip" type="button" aria-label="Previous visible clip">←</button>
+              <button class="icon-button" id="nextClip" type="button" aria-label="Next visible clip">→</button>
+            </div>
+          </div>
+
+          <fieldset class="rating-fieldset">
+            <legend>Editorial rating</legend>
+            <div class="rating-buttons" id="detailRatings"></div>
+          </fieldset>
+
+          <div class="form-grid">
+            <label>
+              <span>Content type</span>
+              <select id="detailType"></select>
+            </label>
+            <label>
+              <span>Suggested role</span>
+              <select id="detailRole"></select>
+            </label>
+          </div>
+
+          <div class="form-grid time-grid">
+            <label><span>Clip in</span><input id="clipIn" placeholder="0:00.000"></label>
+            <label><span>Moment</span><input id="momentTime" placeholder="0:00.000"></label>
+            <label><span>Clip out</span><input id="clipOut" placeholder="0:00.000"></label>
+          </div>
+
+          <label class="stacked-field">
+            <span>Why keep or pass</span>
+            <textarea id="keepReason" rows="4" placeholder="Describe what is visibly useful or unusable."></textarea>
+          </label>
+          <label class="stacked-field">
+            <span>Editor notes</span>
+            <textarea id="reviewNotes" rows="4" placeholder="Crop, speed-ramp, audio, sequence, or verification notes."></textarea>
+          </label>
+
+          <aside class="verification-note">
+            <strong>Do not infer match facts from uniforms or faces.</strong>
+            <span>Team, player, score, round, outcome, and rights confirmation belong in the Clip Desk after this visual pass.</span>
+          </aside>
+        </section>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

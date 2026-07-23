@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-21T18:57:10.759Z",
+  "canvas": "1080x1920",
+  "frameRate": 30,
+  "alphaUse": "Import the ProRes 4444 MOV directly.",
+  "screenUse": "Import the MP4 and set CapCut blend mode to Screen.",
+  "clips": [
+    {
+      "id": "brand-intro",
+      "source": "creative/exports/media-kit-v1/capcut/bugs/brand-light.png",
+      "height": 250,
+      "y": 170,
+      "x": 54,
+      "duration": 1.05,
+      "audio": "sonic-logo.wav",
+      "alpha": "alpha/brand-intro.mov",
+      "screen": "screen/brand-intro.mp4"
+    },
+    {
+      "id": "ace-stamp",
+      "source": "creative/exports/media-kit-v1/capcut/moments/ace.png",
+      "width": 960,
+      "y": 320,
+      "x": 40,
+      "duration": 0.82,
+      "audio": "serve-snap.wav",
+      "alpha": "alpha/ace-stamp.mov",
+      "screen": "screen/ace-stamp.mp4"
+    },
+    {
+      "id": "block-stamp",
+      "source": "creative/exports/media-kit-v1/capcut/moments/stuff-block.png",
+      "width": 960,
+      "y": 320,
+      "x": 40,
+      "duration": 0.88,
+      "audio": "block-hit.wav",
+      "alpha": "alpha/block-stamp.mov",
+      "screen": "screen/block-stamp.mp4"
+    },
+    {
+      "id": "dig-stamp",
+      "source": "creative/exports/media-kit-v1/capcut/moments/dig.png",
+      "width": 960,
+      "y": 320,
+      "x": 40,
+      "duration": 0.84,
+      "audio": "digital-cut.wav",
+      "alpha": "alpha/dig-stamp.mov",
+      "screen": "screen/dig-stamp.mp4"
+    },
+    {
+      "id": "jalapeno-entry",
+      "source": "public/images/mascots/anime/jalapeno/menace-walk.png",
+      "height": 720,
+      "y": 940,
+      "x": 520,
+      "duration": 1.08,
+      "audio": "impact-slam.wav",
+      "alpha": "alpha/jalapeno-entry.mov",
+      "screen": "screen/jalapeno-entry.mp4"
+    },
+    {
+      "id": "bell-block",
+      "source": "public/images/mascots/anime/bell-pepper/block.png",
+      "height": 750,
+      "y": 875,
+      "x": 480,
+      "duration": 1.02,
+      "audio": "block-hit.wav",
+      "alpha": "alpha/bell-block.mov",
+      "screen": "screen/bell-block.mp4"
+    },
+    {
+      "id": "poblano-dig",
+      "source": "public/images/mascots/anime/poblano/diving-dig.png",
+      "width": 990,
+      "y": 990,
+      "x": 120,
+      "duration": 1.12,
+      "audio": "digital-cut.wav",
+      "alpha": "alpha/poblano-dig.mov",
+      "screen": "screen/poblano-dig.mp4"
+    },
+    {
+      "id": "ghost-serve",
+      "source": "public/images/mascots/anime/ghost-pepper/jump-serve.png",
+      "height": 800,
+      "y": 825,
+      "x": 470,
+      "duration": 1.08,
+      "audio": "serve-snap.wav",
+      "alpha": "alpha/ghost-serve.mov",
+      "screen": "screen/ghost-serve.mp4"
+    },
+    {
+      "id": "champion-hit",
+      "source": "public/images/mascots/anime/poblano/champion.png",
+      "height": 790,
+      "y": 850,
+      "x": 470,
+      "duration": 1.18,
+      "audio": "bracket-lock.wav",
+      "alpha": "alpha/champion-hit.mov",
+      "screen": "screen/champion-hit.mp4"
+    },
+    {
+      "id": "flickday-credit",
+      "source": "creative/exports/media-kit-v1/capcut/bugs/credit-light.png",
+      "height": 250,
+      "y": 1520,
+      "x": 54,
+      "duration": 1.25,
+      "audio": null,
+      "alpha": "alpha/flickday-credit.mov",
+      "screen": "screen/flickday-credit.mp4"
+    }
+  ]
+}

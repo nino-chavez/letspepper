@@ -85,7 +85,7 @@ function defaultCaption(n) {
   return [
     `Most-loved frames ${when} — ${n} fan favorites from the gallery, ranked by what you all engaged with.`,
     '',
-    'Players: find your team in the full gallery — link in bio. Tag yourselves and your crew.',
+    'Players: find your team at letspepper.com/gallery. Tag yourselves and your crew.',
     '',
     'Motion. Emotion. Frame by Frame.',
     '',

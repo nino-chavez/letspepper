@@ -51,6 +51,9 @@ jobs:
           pnpm dlx vercel build --yes
           pnpm dlx @cloudflare/next-on-pages@1 --skip-build
 
+      - name: Reader clarity contract
+        run: pnpm reader:check:website
+
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

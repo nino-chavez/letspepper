@@ -1,0 +1,14 @@
+{
+  "generatedAt": "2026-07-21T20:13:45.953Z",
+  "copyVersion": 2,
+  "filesScanned": 148,
+  "queueCaptionsScanned": 78,
+  "approvedPhrases": 91,
+  "errors": [],
+  "warnings": [
+    "scripts/social-publish/queue/bell-pepper-2026.json has 74 pending feed posts; select and schedule a smaller reviewed set before publishing",
+    "scripts/social-publish/queue/bell-pepper-2026.json has 74 pending item(s) with a past schedule time",
+    "scripts/social-publish/queue/bell-pepper-2026.json repeats 10 opening line(s) more than four times; clip-specific copy is still needed",
+    "scripts/social-publish/queue/flickday-grass-drip.json has 4 pending item(s) with a past schedule time"
+  ]
+}

@@ -103,8 +103,8 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-sm text-zinc-500 max-w-xs">
-              Underground. Unfiltered. Unapologetically competitive. A
-              community-powered circuit of grassroots volleyball tournaments.
+              Player-owned grass volleyball tournaments with strong fields, useful
+              media, and a better day on the grass.
             </p>
           </div>
 
@@ -173,7 +173,7 @@ export function Footer() {
 
             {/* Tagline */}
             <p className="mt-6 text-sm text-zinc-600 italic">
-              &ldquo;No fluff. Just skill, sweat, and fun.&rdquo;
+              &ldquo;Player-owned. Media-backed. Built to compete.&rdquo;
             </p>
           </div>
         </div>

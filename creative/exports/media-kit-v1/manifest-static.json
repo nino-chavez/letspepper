@@ -1,0 +1,781 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-21T18:57:02.303Z",
+  "count": 86,
+  "assets": [
+    {
+      "path": "creative/exports/media-kit-v1/capcut/guides/reel-safe-zones.png",
+      "category": "capcut/guides",
+      "name": "reel-safe-zones",
+      "width": 1080,
+      "height": 1920,
+      "alpha": true,
+      "note": "Temporary CapCut guide; remove before export."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/bugs/brand-light.png",
+      "category": "capcut/bugs",
+      "name": "brand-light",
+      "width": 800,
+      "height": 220,
+      "alpha": true,
+      "note": "Persistent corner mark."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/bugs/brand-dark.png",
+      "category": "capcut/bugs",
+      "name": "brand-dark",
+      "width": 800,
+      "height": 220,
+      "alpha": true,
+      "note": "Persistent corner mark."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/bugs/event-light.png",
+      "category": "capcut/bugs",
+      "name": "event-light",
+      "width": 800,
+      "height": 220,
+      "alpha": true,
+      "note": "Persistent corner mark."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/bugs/event-dark.png",
+      "category": "capcut/bugs",
+      "name": "event-dark",
+      "width": 800,
+      "height": 220,
+      "alpha": true,
+      "note": "Persistent corner mark."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/bugs/credit-light.png",
+      "category": "capcut/bugs",
+      "name": "credit-light",
+      "width": 800,
+      "height": 220,
+      "alpha": true,
+      "note": "Use only when Flickday supplied the footage."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/bugs/credit-dark.png",
+      "category": "capcut/bugs",
+      "name": "credit-dark",
+      "width": 800,
+      "height": 220,
+      "alpha": true,
+      "note": "Use only when Flickday supplied the footage."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/bugs/mark-white.png",
+      "category": "capcut/bugs",
+      "name": "mark-white",
+      "width": 800,
+      "height": 220,
+      "alpha": true,
+      "note": "Persistent corner mark."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/bugs/mark-orange.png",
+      "category": "capcut/bugs",
+      "name": "mark-orange",
+      "width": 800,
+      "height": 220,
+      "alpha": true,
+      "note": "Persistent corner mark."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/ace.png",
+      "category": "capcut/moments",
+      "name": "ace",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "ACE editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/stuff-block.png",
+      "category": "capcut/moments",
+      "name": "stuff-block",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "STUFF BLOCK editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/dig.png",
+      "category": "capcut/moments",
+      "name": "dig",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "DIG editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/pancake.png",
+      "category": "capcut/moments",
+      "name": "pancake",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "PANCAKE editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/finish.png",
+      "category": "capcut/moments",
+      "name": "finish",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "THE FINISH editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/match-point.png",
+      "category": "capcut/moments",
+      "name": "match-point",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "MATCH POINT editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/final-point.png",
+      "category": "capcut/moments",
+      "name": "final-point",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "FINAL POINT editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/clutch.png",
+      "category": "capcut/moments",
+      "name": "clutch",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "CLUTCH editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/upset.png",
+      "category": "capcut/moments",
+      "name": "upset",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "UPSET ALERT editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/comeback.png",
+      "category": "capcut/moments",
+      "name": "comeback",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "COMEBACK editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/play-of-day.png",
+      "category": "capcut/moments",
+      "name": "play-of-day",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "PLAY OF THE DAY editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/photo-of-day.png",
+      "category": "capcut/moments",
+      "name": "photo-of-day",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "PHOTO OF THE DAY editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/champions.png",
+      "category": "capcut/moments",
+      "name": "champions",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "CHAMPIONS editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/moments/finalists.png",
+      "category": "capcut/moments",
+      "name": "finalists",
+      "width": 1000,
+      "height": 280,
+      "alpha": true,
+      "note": "FINALISTS editorial stamp."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/lower-thirds/player.png",
+      "category": "capcut/lower-thirds",
+      "name": "player",
+      "width": 1000,
+      "height": 300,
+      "alpha": true,
+      "note": "Template data only — replace placeholder text."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/lower-thirds/team.png",
+      "category": "capcut/lower-thirds",
+      "name": "team",
+      "width": 1000,
+      "height": 300,
+      "alpha": true,
+      "note": "Template data only — replace placeholder text."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/lower-thirds/match.png",
+      "category": "capcut/lower-thirds",
+      "name": "match",
+      "width": 1000,
+      "height": 300,
+      "alpha": true,
+      "note": "Template data only — replace placeholder text."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/lower-thirds/round.png",
+      "category": "capcut/lower-thirds",
+      "name": "round",
+      "width": 1000,
+      "height": 300,
+      "alpha": true,
+      "note": "Template data only — replace placeholder text."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/lower-thirds/credit.png",
+      "category": "capcut/lower-thirds",
+      "name": "credit",
+      "width": 1000,
+      "height": 300,
+      "alpha": true,
+      "note": "Template data only — replace placeholder text."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/lower-thirds/score-light.png",
+      "category": "capcut/lower-thirds",
+      "name": "score-light",
+      "width": 1000,
+      "height": 300,
+      "alpha": true,
+      "note": "Template data only — replace placeholder text."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/lower-thirds/score-dark.png",
+      "category": "capcut/lower-thirds",
+      "name": "score-dark",
+      "width": 1000,
+      "height": 300,
+      "alpha": true,
+      "note": "Template data only — replace placeholder text."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/trackers/ring.png",
+      "category": "capcut/trackers",
+      "name": "ring",
+      "width": 512,
+      "height": 512,
+      "alpha": true,
+      "note": "Use briefly and keyframe manually; this is not automated tracking."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/trackers/reticle.png",
+      "category": "capcut/trackers",
+      "name": "reticle",
+      "width": 512,
+      "height": 512,
+      "alpha": true,
+      "note": "Use briefly and keyframe manually; this is not automated tracking."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/trackers/arrow.png",
+      "category": "capcut/trackers",
+      "name": "arrow",
+      "width": 512,
+      "height": 512,
+      "alpha": true,
+      "note": "Use briefly and keyframe manually; this is not automated tracking."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/trackers/landing-marker.png",
+      "category": "capcut/trackers",
+      "name": "landing-marker",
+      "width": 512,
+      "height": 512,
+      "alpha": true,
+      "note": "Use briefly and keyframe manually; this is not automated tracking."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/trackers/spotlight.png",
+      "category": "capcut/trackers",
+      "name": "spotlight",
+      "width": 512,
+      "height": 512,
+      "alpha": true,
+      "note": "Use briefly and keyframe manually; this is not automated tracking."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/covers/rally.png",
+      "category": "capcut/covers",
+      "name": "rally",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Headline and focal point stay inside the 4:5 profile-grid crop."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/covers/match-point.png",
+      "category": "capcut/covers",
+      "name": "match-point",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Headline and focal point stay inside the 4:5 profile-grid crop."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/covers/comeback.png",
+      "category": "capcut/covers",
+      "name": "comeback",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Headline and focal point stay inside the 4:5 profile-grid crop."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/covers/play-day.png",
+      "category": "capcut/covers",
+      "name": "play-day",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Headline and focal point stay inside the 4:5 profile-grid crop."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/covers/final-point.png",
+      "category": "capcut/covers",
+      "name": "final-point",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Headline and focal point stay inside the 4:5 profile-grid crop."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/capcut/covers/champions.png",
+      "category": "capcut/covers",
+      "name": "champions",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Headline and focal point stay inside the 4:5 profile-grid crop."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/01-next-up.png",
+      "category": "event/poblano/stories",
+      "name": "01-next-up",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/02-registration.png",
+      "category": "event/poblano/stories",
+      "name": "02-registration",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/03-field-set.png",
+      "category": "event/poblano/stories",
+      "name": "03-field-set",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/04-schedule-live.png",
+      "category": "event/poblano/stories",
+      "name": "04-schedule-live",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/05-pool-play.png",
+      "category": "event/poblano/stories",
+      "name": "05-pool-play",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/06-bracket-live.png",
+      "category": "event/poblano/stories",
+      "name": "06-bracket-live",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/07-live.png",
+      "category": "event/poblano/stories",
+      "name": "07-live",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/08-weather.png",
+      "category": "event/poblano/stories",
+      "name": "08-weather",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/09-standings.png",
+      "category": "event/poblano/stories",
+      "name": "09-standings",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/10-gallery.png",
+      "category": "event/poblano/stories",
+      "name": "10-gallery",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/11-recap.png",
+      "category": "event/poblano/stories",
+      "name": "11-recap",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/12-season-close.png",
+      "category": "event/poblano/stories",
+      "name": "12-season-close",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/01-registration.png",
+      "category": "event/poblano/feed",
+      "name": "01-registration",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/02-field-set.png",
+      "category": "event/poblano/feed",
+      "name": "02-field-set",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/03-schedule-live.png",
+      "category": "event/poblano/feed",
+      "name": "03-schedule-live",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/04-standings.png",
+      "category": "event/poblano/feed",
+      "name": "04-standings",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/05-gallery.png",
+      "category": "event/poblano/feed",
+      "name": "05-gallery",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/templates/im-in.png",
+      "category": "share/templates",
+      "name": "im-in",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Fan-share Story with placeholder data where shown."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/templates/my-pick.png",
+      "category": "share/templates",
+      "name": "my-pick",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Fan-share Story with placeholder data where shown."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/templates/vote-cast.png",
+      "category": "share/templates",
+      "name": "vote-cast",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Fan-share Story with placeholder data where shown."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/templates/pepper-bingo.png",
+      "category": "share/templates",
+      "name": "pepper-bingo",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Fan-share Story with placeholder data where shown."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/templates/my-pepper.png",
+      "category": "share/templates",
+      "name": "my-pepper",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Fan-share Story with placeholder data where shown."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/templates/my-season.png",
+      "category": "share/templates",
+      "name": "my-season",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Fan-share Story with placeholder data where shown."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/templates/final-finish.png",
+      "category": "share/templates",
+      "name": "final-finish",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Fan-share Story with placeholder data where shown."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/quiz-results/bell.png",
+      "category": "share/quiz-results",
+      "name": "bell",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Shareable result from What Pepper Are You?"
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/quiz-results/poblano.png",
+      "category": "share/quiz-results",
+      "name": "poblano",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Shareable result from What Pepper Are You?"
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/quiz-results/jalapeno.png",
+      "category": "share/quiz-results",
+      "name": "jalapeno",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Shareable result from What Pepper Are You?"
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/quiz-results/habanero.png",
+      "category": "share/quiz-results",
+      "name": "habanero",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Shareable result from What Pepper Are You?"
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/quiz-results/reaper.png",
+      "category": "share/quiz-results",
+      "name": "reaper",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Shareable result from What Pepper Are You?"
+    },
+    {
+      "path": "creative/exports/media-kit-v1/share/quiz-results/pepper-x.png",
+      "category": "share/quiz-results",
+      "name": "pepper-x",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Shareable result from What Pepper Are You?"
+    },
+    {
+      "path": "creative/exports/media-kit-v1/web/og/standings.png",
+      "category": "web/og",
+      "name": "standings",
+      "width": 1200,
+      "height": 630,
+      "alpha": false,
+      "note": "Open Graph and link-preview card."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/web/og/rankings.png",
+      "category": "web/og",
+      "name": "rankings",
+      "width": 1200,
+      "height": 630,
+      "alpha": false,
+      "note": "Open Graph and link-preview card."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/web/og/gallery.png",
+      "category": "web/og",
+      "name": "gallery",
+      "width": 1200,
+      "height": 630,
+      "alpha": false,
+      "note": "Open Graph and link-preview card."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/web/og/quiz.png",
+      "category": "web/og",
+      "name": "quiz",
+      "width": 1200,
+      "height": 630,
+      "alpha": false,
+      "note": "Open Graph and link-preview card."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/web/og/awards.png",
+      "category": "web/og",
+      "name": "awards",
+      "width": 1200,
+      "height": 630,
+      "alpha": false,
+      "note": "Open Graph and link-preview card."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/season.png",
+      "category": "social/highlights",
+      "name": "season",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/bell.png",
+      "category": "social/highlights",
+      "name": "bell",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/jalapeno.png",
+      "category": "social/highlights",
+      "name": "jalapeno",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/poblano.png",
+      "category": "social/highlights",
+      "name": "poblano",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/results.png",
+      "category": "social/highlights",
+      "name": "results",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/players.png",
+      "category": "social/highlights",
+      "name": "players",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/rules.png",
+      "category": "social/highlights",
+      "name": "rules",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/bts.png",
+      "category": "social/highlights",
+      "name": "bts",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/photos.png",
+      "category": "social/highlights",
+      "name": "photos",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/social/highlights/awards.png",
+      "category": "social/highlights",
+      "name": "awards",
+      "width": 1080,
+      "height": 1080,
+      "alpha": false,
+      "note": "Instagram Story Highlight cover; circle-safe."
+    }
+  ]
+}

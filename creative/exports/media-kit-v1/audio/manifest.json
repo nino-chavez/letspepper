@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-21T18:57:03.384Z",
+  "license": "Original procedural synthesis created for Let’s Pepper; no samples or third-party recordings.",
+  "format": {
+    "sampleRate": 48000,
+    "channels": 2,
+    "bitDepth": 16
+  },
+  "cues": [
+    {
+      "id": "impact-slam",
+      "seconds": 0.58,
+      "use": "Mascot entrance or title impact",
+      "file": "impact-slam.wav"
+    },
+    {
+      "id": "serve-snap",
+      "seconds": 0.34,
+      "use": "Serve contact or quick cut",
+      "file": "serve-snap.wav"
+    },
+    {
+      "id": "block-hit",
+      "seconds": 0.46,
+      "use": "Stuff block stamp",
+      "file": "block-hit.wav"
+    },
+    {
+      "id": "ref-whistle",
+      "seconds": 0.62,
+      "use": "Round, schedule, or match start",
+      "file": "ref-whistle.wav"
+    },
+    {
+      "id": "energy-rise",
+      "seconds": 0.92,
+      "use": "Pre-impact rise",
+      "file": "energy-rise.wav"
+    },
+    {
+      "id": "sizzle-tail",
+      "seconds": 0.78,
+      "use": "Short visual tail; use sparingly",
+      "file": "sizzle-tail.wav"
+    },
+    {
+      "id": "camera-shutter",
+      "seconds": 0.24,
+      "use": "Photo-of-the-day or gallery cut",
+      "file": "camera-shutter.wav"
+    },
+    {
+      "id": "digital-cut",
+      "seconds": 0.31,
+      "use": "Score or bracket transition",
+      "file": "digital-cut.wav"
+    },
+    {
+      "id": "bracket-lock",
+      "seconds": 0.52,
+      "use": "Field set or bracket live",
+      "file": "bracket-lock.wav"
+    },
+    {
+      "id": "sonic-logo",
+      "seconds": 1.08,
+      "use": "End card only",
+      "file": "sonic-logo.wav"
+    }
+  ]
+}

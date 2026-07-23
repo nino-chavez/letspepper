@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { MOTION, useReducedMotion } from '@/lib/motion'
 import { NextEventMarquee } from './Marquee'
 
-const taglineWords = ['UNDERGROUND.', 'UNFILTERED.', 'UNAPOLOGETICALLY', 'COMPETITIVE.']
+const taglineWords = ['GRASSROOTS.', 'PLAYER-OWNED.', 'BUILT TO', 'COMPETE.']
 
 export function HeroSection() {
   const prefersReducedMotion = useReducedMotion()
@@ -89,7 +89,7 @@ export function HeroSection() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1, duration: 0.6, ease: MOTION.ease.outExpo }}
             >
-              No fluff. Just skill, sweat, and fun.
+              Competitive grass triples, player-first events, and photos worth keeping.
             </motion.p>
 
             {/* CTAs */}
@@ -100,7 +100,7 @@ export function HeroSection() {
               transition={{ delay: 1.2, duration: 0.6, ease: MOTION.ease.outExpo }}
             >
               <a href="#series" className="btn-primary">
-                <span>Find Your Heat</span>
+                <span>Explore The Series</span>
                 <span aria-hidden="true">→</span>
               </a>
               <a href="#gallery" className="btn-secondary">

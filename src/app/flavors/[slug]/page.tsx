@@ -334,7 +334,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
               <div className="flex items-baseline justify-between gap-4 flex-wrap mb-6">
                 <h2 className="block-heading">At the Park</h2>
                 <span className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500">
-                  Brand-native orientation
+                  What to know
                 </span>
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">

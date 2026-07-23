@@ -114,7 +114,7 @@ export function ChampionPick({ tournament, tournamentName, deadline, champion, h
       <div className="flex items-start justify-between gap-4 mb-1">
         <div>
           <span className={cn('block font-accent text-[0.62rem] font-bold uppercase tracking-[0.14em] mb-2', tint.text)}>
-            Second Screen <span className="text-zinc-500">·</span> Points, No Money
+            Pick the winner <span className="text-zinc-500">·</span> Points only
           </span>
           <h2 className="font-display text-2xl uppercase text-white">
             Predict the <span className={tint.text}>Champion</span>
@@ -125,8 +125,8 @@ export function ChampionPick({ tournament, tournamentName, deadline, champion, h
         </span>
       </div>
       <p className="text-zinc-400 text-sm mb-5">
-        Call the {tournamentName} winner. Auto-scored off the live bracket — and your pick
-        rides the same leaderboard whether you call it here or on Rally HQ.
+        Choose the {tournamentName} champion. When the live bracket updates, your pick is
+        scored automatically on the same leaderboard here and on Rally HQ.
       </p>
 
       {champion && (

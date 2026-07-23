@@ -20,7 +20,7 @@ export const powerRankings: PowerRanking[] = [
     players: ['Colin Merk', 'Ryan Merk', 'Dave Wieczorek'],
     scovilleRating: 5,
     trend: 'new',
-    blurb: 'The Merks crashed the party. The #1 reseed ran the table at the 2026 Bell Pepper Open and dethroned the two-time kings in the final. New champions, maximum heat.',
+    blurb: 'The #1 reseed went undefeated in bracket play at the 2026 Bell Pepper Open and beat the two-time champions in the final. They enter the rankings at No. 1.',
     highlights: ['2026 Bell Pepper Open Champions', 'Undefeated bracket run', 'Beat Meyer/Podgorny in the final'],
   },
   {
@@ -28,7 +28,7 @@ export const powerRankings: PowerRanking[] = [
     players: ['Nate Meyer', 'Charlie Podgorny'],
     scovilleRating: 5,
     trend: 'down',
-    blurb: 'Still the winningest names in the series — two golds and a finals appearance in every single event. But in 2026 the crown finally slipped. The dynasty is on notice.',
+    blurb: 'Still the winningest names in the series: two titles and a finals appearance at every event. The 2026 runner-up finish keeps them at No. 2.',
     highlights: ['2x Series Champions', '275 series points', 'Finalists at all 3 events'],
   },
   {
@@ -36,15 +36,15 @@ export const powerRankings: PowerRanking[] = [
     players: ['David Hill', 'Quinn Bozarth', 'Braxton Francis'],
     scovilleRating: 4,
     trend: 'up',
-    blurb: 'The breakout of 2026. Came in as the #12 reseed and knocked off the #5 and #4 seeds back-to-back to reach the Final Four. The series\' premier giant killer.',
-    highlights: ['2026 Semifinalist', '2x Giant Killer (beat #5, #4)', '#12 reseed → 3rd'],
+    blurb: 'The breakout of 2026. The #12 reseed eliminated the #5 and #4 seeds back-to-back to reach the semifinals and move to No. 3.',
+    highlights: ['2026 Semifinalist', 'Beat the #5 and #4 seeds', '#12 reseed → 3rd'],
   },
   {
     rank: 4,
     players: ['Urvil Patel', 'Evan Hughes', 'Jake Reishus'],
     scovilleRating: 4,
     trend: 'up',
-    blurb: 'Quiet bite. Upset the #3 seed Maruyama to crash the semifinals in 2026, out-playing their seed at every turn. A real problem for the top of the bracket.',
+    blurb: 'The #6 reseed upset No. 3 Maruyama and finished tied for third in 2026. That result moves them into the top four.',
     highlights: ['2026 Semifinalist', 'Upset #3 Maruyama', 'Reseed 6 → tied 3rd'],
   },
   {
@@ -52,7 +52,7 @@ export const powerRankings: PowerRanking[] = [
     players: ['Nick Maruyama', 'Lincoln Geist'],
     scovilleRating: 4,
     trend: 'steady',
-    blurb: 'The perennial contenders — a podium in two of three events and 150 series points. But the 2026 quarterfinals were a wall. Always dangerous, still chasing the chip.',
+    blurb: 'A podium in two of three events and 150 series points keep them in the top five after a 2026 quarterfinal finish.',
     highlights: ['Silver + Bronze finishes', '150 series points', 'Most consistent non-champion'],
   },
   {
@@ -60,7 +60,7 @@ export const powerRankings: PowerRanking[] = [
     players: ['Mitchell Carrera', 'Connor Jaral', 'Connor Studer'],
     scovilleRating: 3,
     trend: 'up',
-    blurb: 'The field\'s most underrated team. Seeded 14th, finished tied-5th, and posted one of the best pool differentials in the bracket. Sneaky-good and trending up.',
+    blurb: 'The field\'s most underrated team. Seeded 14th, finished tied-5th, and posted one of the best pool differentials in the bracket. Underestimated and moving up.',
     highlights: ['Seed 14 → tied 5th', '+4 pool set differential', 'Elite Eight'],
   },
   {
@@ -68,7 +68,7 @@ export const powerRankings: PowerRanking[] = [
     players: ['Ian Schuller'],
     scovilleRating: 3,
     trend: 'steady',
-    blurb: 'A champion\'s champion. A ring at the Grass Launch and a finals run in 2026 — quietly stacking hardware on the Meyer/Podgorny squad.',
+    blurb: 'Won the Grass Launch and returned to the final in 2026 with Meyer and Podgorny. The results keep adding up.',
     highlights: ['Grass Launch Champion', '2026 Finalist', '175 series points'],
   },
   {

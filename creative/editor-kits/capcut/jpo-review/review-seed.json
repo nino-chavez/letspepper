@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "basis": "Initial visual review of three-frame filmstrips and 12-frame candidate storyboards. Ratings are editorial recommendations, not verified match facts.",
+  "decisions": {
+    "C2260": {
+      "rating": "A",
+      "contentType": "net-play",
+      "keepReason": "Compact net exchange, defensive pursuit, and a clean post-point beat in four seconds.",
+      "suggestedRole": "fast-open"
+    },
+    "C2262": {
+      "rating": "B",
+      "contentType": "full-rally",
+      "keepReason": "Serve-to-defense arc with a visible late pursuit; useful when the edit needs a complete point.",
+      "suggestedRole": "support"
+    },
+    "C2285": {
+      "rating": "A",
+      "contentType": "full-rally",
+      "keepReason": "Close serve setup, readable net action, and a natural regroup at the end.",
+      "suggestedRole": "hero-rally"
+    },
+    "C2292": {
+      "rating": "A",
+      "contentType": "player-cutaway",
+      "keepReason": "Clean shallow-depth portrait with the ball; a strong breath between action beats.",
+      "suggestedRole": "character-beat"
+    },
+    "C2293": {
+      "rating": "B",
+      "contentType": "full-rally",
+      "keepReason": "Long, readable point with several transitions and a clean reset.",
+      "suggestedRole": "long-rally"
+    },
+    "C2300": {
+      "rating": "B",
+      "contentType": "defense",
+      "keepReason": "Short defensive pursuit with a visible low save attempt and immediate reset.",
+      "suggestedRole": "support"
+    },
+    "C2316": {
+      "rating": "B",
+      "contentType": "net-play",
+      "keepReason": "Serve-to-net sequence with a readable contest above the tape.",
+      "suggestedRole": "support"
+    },
+    "C2318": {
+      "rating": "A",
+      "contentType": "serve",
+      "keepReason": "Tight three-second jump-serve action with almost no setup to trim.",
+      "suggestedRole": "transition-hit"
+    },
+    "C2344": {
+      "rating": "B",
+      "contentType": "full-rally",
+      "keepReason": "Complete rally with a late attacking beat and team regroup; dramatic cloud texture.",
+      "suggestedRole": "support"
+    },
+    "C2353": {
+      "rating": "A",
+      "contentType": "defense",
+      "keepReason": "The defensive player commits to the grass and the save remains readable in-frame.",
+      "suggestedRole": "hero-save"
+    },
+    "C2354": {
+      "rating": "B",
+      "contentType": "serve",
+      "keepReason": "Close serve setup that develops into a rally; trim the dead time before the toss.",
+      "suggestedRole": "serve-build"
+    },
+    "C2359": {
+      "rating": "A",
+      "contentType": "serve",
+      "keepReason": "Isolated jump serve with a clean silhouette and a short usable duration.",
+      "suggestedRole": "transition-hit"
+    },
+    "C2361": {
+      "rating": "B",
+      "contentType": "net-play",
+      "keepReason": "Short, close net sequence with the contact area held in frame.",
+      "suggestedRole": "support"
+    },
+    "C2369": {
+      "rating": "B",
+      "contentType": "full-rally",
+      "keepReason": "Low-angle court-level perspective adds visual variety to the wider rally coverage.",
+      "suggestedRole": "texture"
+    },
+    "C2374": {
+      "rating": "A",
+      "contentType": "net-play",
+      "keepReason": "Close, readable contest at the net followed by a clean release from the play.",
+      "suggestedRole": "hero-net"
+    },
+    "C2386": {
+      "rating": "A",
+      "contentType": "defense",
+      "keepReason": "Full point with a committed dive and a human reaction beat at the end.",
+      "suggestedRole": "hero-rally"
+    },
+    "C2398": {
+      "rating": "A",
+      "contentType": "net-play",
+      "keepReason": "Brief 4K net action with clear elevation and deflection; ideal for controlled slow motion.",
+      "suggestedRole": "hero-hit"
+    },
+    "C2399": {
+      "rating": "A",
+      "contentType": "full-rally",
+      "keepReason": "The strongest long-form 4K rally candidate, including multiple transitions and a late attack.",
+      "suggestedRole": "anchor-rally"
+    },
+    "C2401": {
+      "rating": "B",
+      "contentType": "serve",
+      "keepReason": "Four-second serve isolation with a clean sky field for a restrained opening label.",
+      "suggestedRole": "transition-hit"
+    },
+    "C2402": {
+      "rating": "A",
+      "contentType": "full-rally",
+      "keepReason": "Serve-to-attack arc with close framing and a natural end beat.",
+      "suggestedRole": "hero-rally"
+    },
+    "C2415": {
+      "rating": "A",
+      "contentType": "net-play",
+      "keepReason": "Short rally resolving in a two-player net contest and immediate group reaction.",
+      "suggestedRole": "hero-net"
+    },
+    "C2428": {
+      "rating": "A",
+      "contentType": "serve",
+      "keepReason": "Clean five-second jump serve in late-day light with a readable full-body silhouette.",
+      "suggestedRole": "transition-hit"
+    },
+    "C2431": {
+      "rating": "A",
+      "contentType": "reaction",
+      "keepReason": "The point resolves into a clear team huddle, making it the best reaction bridge in the reviewed set.",
+      "suggestedRole": "reaction-payoff"
+    },
+    "C2436": {
+      "rating": "B",
+      "contentType": "full-rally",
+      "keepReason": "Late-day serve and rally with useful defensive movement and clean color.",
+      "suggestedRole": "support"
+    },
+    "C2439": {
+      "rating": "A",
+      "contentType": "reaction",
+      "keepReason": "Close attacking action resolves into a sustained group beat that can close a reel.",
+      "suggestedRole": "closer"
+    },
+    "C2298": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "The frame is heavily washed out and offers weaker action than adjacent takes.",
+      "suggestedRole": ""
+    },
+    "C2320": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "Foreground flag and bystander repeatedly obstruct the live action.",
+      "suggestedRole": ""
+    },
+    "C2329": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "The 106-second take is dominated by accidental obstruction and camera repositioning.",
+      "suggestedRole": ""
+    },
+    "C2378": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "One-second fragment with no complete action.",
+      "suggestedRole": ""
+    },
+    "C2384": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "Three-second fragment with no clear editorial payoff.",
+      "suggestedRole": ""
+    },
+    "C2388": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "Net hardware obstructs a large portion of the action corridor.",
+      "suggestedRole": ""
+    },
+    "C2389": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "Net hardware enters the action corridor and stronger adjacent coverage exists.",
+      "suggestedRole": ""
+    },
+    "C2411": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "The principal action remains visibly out of focus through the sampled frames.",
+      "suggestedRole": ""
+    },
+    "C2412": {
+      "rating": "pass",
+      "contentType": "technical-reject",
+      "keepReason": "One-second tilted fragment ending on the ball in grass.",
+      "suggestedRole": ""
+    }
+  }
+}

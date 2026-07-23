@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "styleReference": "public/images/mascots/anime/family-overview.png",
+  "mechanicsReference": "public/images/mascots/anime/jalapeno/menace-walk.png",
+  "characters": [
+    { "id": "habanero", "chroma": "#00ff00", "role": "Explosive outside hitter", "status": "accepted", "source": "creative/mascots/sources/habanero-chroma.png", "asset": "public/images/mascots/anime/habanero/anchor.png" },
+    { "id": "reaper", "chroma": "#00ff00", "role": "Championship closer", "status": "accepted", "source": "creative/mascots/sources/reaper-chroma.png", "asset": "public/images/mascots/anime/reaper/anchor.png" },
+    { "id": "pepper-x", "chroma": "#ff00ff", "role": "Experimental wildcard", "status": "accepted", "source": "creative/mascots/sources/pepper-x-chroma.png", "asset": "public/images/mascots/anime/pepper-x/anchor.png" },
+    { "id": "chipotle", "chroma": "#00ff00", "role": "Veteran captain", "status": "accepted-after-sensitivity-revision", "source": "creative/mascots/sources/chipotle-chroma.png", "asset": "public/images/mascots/anime/chipotle/anchor.png" },
+    { "id": "pepper-belle", "chroma": "#00ff00", "role": "Elite setter and captain", "status": "accepted", "source": "creative/mascots/sources/pepper-belle-chroma.png", "asset": "public/images/mascots/anime/pepper-belle/anchor.png" },
+    { "id": "pepperoncini", "chroma": "#ff00ff", "role": "Coach and commentator", "status": "accepted", "source": "creative/mascots/sources/pepperoncini-chroma.png", "asset": "public/images/mascots/anime/pepperoncini/anchor.png" },
+    { "id": "banana-pepper", "chroma": "#ff00ff", "role": "Setter and strategist", "status": "accepted-after-silhouette-revision", "source": "creative/mascots/sources/banana-pepper-chroma.png", "asset": "public/images/mascots/anime/banana-pepper/anchor.png" },
+    { "id": "shishito", "chroma": "#ff00ff", "role": "Utility wildcard", "status": "accepted", "source": "creative/mascots/sources/shishito-chroma.png", "asset": "public/images/mascots/anime/shishito/anchor.png" }
+  ]
+}

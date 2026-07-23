@@ -45,11 +45,11 @@ export function CommunityBoard() {
           <div className="flex items-start justify-between gap-4 p-6 border-b border-zinc-800/50">
             <div>
               <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-1">
-                Second-screen standings
+                Fan standings
               </p>
               <h2 className="block-heading">Community Board</h2>
               <p className="text-sm text-zinc-500 mt-1">
-                Champion picks and game-day points — bingo, award votes — on one board. Play counts.
+                Champion picks, bingo points, and award votes all count on this board.
               </p>
             </div>
             <span className="flex-shrink-0 font-accent text-[10px] uppercase tracking-wider text-zinc-500 border border-zinc-700/60 rounded-full px-2 py-1">

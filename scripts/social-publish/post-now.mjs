@@ -94,6 +94,13 @@ q.items.push(item)
 writeFileSync(queuePath, JSON.stringify(q, null, 2))
 console.log(`Queued ${id} [${media_type}] → @${registry[account].handle}\n`)
 
+// Copy is part of the publish payload. Gate the rendered queue before any
+// upload or Graph API mutation; a local queue write is recoverable, a live post
+// is not. The contract limits JSON inspection to caption fields.
+execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
+  `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
+  { stdio: 'inherit' })
+
 execFileSync('node', [join(HERE, 'upload-r2.mjs'),
   '--event', EVENT, '--bucket', bucket, '--prefix', EVENT, '--public-base', publicBase],
   { stdio: 'inherit' })

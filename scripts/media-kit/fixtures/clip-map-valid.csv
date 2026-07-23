@@ -1,0 +1,2 @@
+clip_id,file,event,event_date,team_a,team_b,players,participant_handles,court,round,play_type,outcome,score,clip_in,moment_time,clip_out,footage_tone,ball_visibility,footage_credit,editor_credit,rights_status,copy_status,caption_action,asset_cue,notes
+demo-001,demo-ace.mp4,Demo Event,2026-01-01,Northline,Sideout,Jordan Lee,@demo.player,Court 2,Quarterfinal,ace,Northline wins the point,18–16,0:02.000,0:04.250,0:06.500,mostly-light,clear,@demo.creator,@demo.editor,approved,approved,gallery,,Automated fixture only

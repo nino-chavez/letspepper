@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "event": "Jalapeño Open 2026",
+  "purpose": "Centralized CapCut import kit for JPO highlight reels",
+  "canvas": "1080x1920",
+  "frameRate": 30,
+  "sourceFrameRate": 119.88,
+  "preferredSlowMotion": "25%",
+  "inventory": {
+    "motionAlpha": 6,
+    "motionScreen": 6,
+    "jpoEventGraphics": 6,
+    "momentStamps": 14,
+    "bugsAndCredits": 8,
+    "lowerThirds": 7,
+    "trackers": 5,
+    "audioCues": 10,
+    "luts": 5,
+    "guides": 1
+  },
+  "preferredMotionFormat": "01-motion-alpha/*.mov",
+  "fallbackMotionFormat": "02-motion-screen/*.mp4 with Screen blend mode",
+  "copyReview": "Pass; factual stamps still require clip-level verification",
+  "creditWarning": "Use Flickday credit assets only when Flickday Media supplied the footage"
+}
