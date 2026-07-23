@@ -105,7 +105,7 @@ function werein(e, players) {
         <ul class="roster">${players.map(p => `<li><span class="tick"></span><span class="nm">${p}</span></li>`).join('')}</ul>
         <div class="when"><span class="b">${e.date}, 2026</span></div>
         <div class="where">${e.location}</div>
-        <div class="cta"><span class="btn">Enter &rarr; letspepper.com</span><span class="h">Link in bio</span></div>
+        <div class="cta"><span class="btn">Enter &rarr; letspepper.com</span><span class="h">@letspepper.open</span></div>
       </div>
     </div>
   </body></html>`

@@ -10,6 +10,16 @@ export const metadata: Metadata = {
       'Professional action sports photography from Let\'s Pepper grassroots volleyball tournaments.',
     type: 'website',
     siteName: "Let's Pepper",
+    images: [{
+      url: '/images/og/creative/gallery.jpg',
+      width: 1200,
+      height: 630,
+      alt: "Let's Pepper full gallery",
+    }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['/images/og/creative/gallery.jpg'],
   },
 }
 

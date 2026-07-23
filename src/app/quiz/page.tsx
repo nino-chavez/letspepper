@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
@@ -35,6 +36,24 @@ const PERSONALITY_COLORS: Record<string, string> = {
   habanero: 'bg-zinc-400',
   reaper: 'bg-zinc-300',
   pepperX: 'bg-zinc-500',
+}
+
+const PERSONALITY_MASCOTS: Record<PepperPersonality, string> = {
+  bell: '/images/mascots/anime/web/bell-pepper-menace-walk-256.webp',
+  poblano: '/images/mascots/anime/web/poblano-menace-walk-256.webp',
+  jalapeno: '/images/mascots/anime/web/jalapeno-menace-walk-256.webp',
+  habanero: '/images/mascots/anime/web/habanero-anchor-256.webp',
+  reaper: '/images/mascots/anime/web/reaper-anchor-256.webp',
+  pepperX: '/images/mascots/anime/web/pepper-x-anchor-256.webp',
+}
+
+const PERSONALITY_STORY_CARDS: Record<PepperPersonality, string> = {
+  bell: '/images/share/quiz/bell.webp',
+  poblano: '/images/share/quiz/poblano.webp',
+  jalapeno: '/images/share/quiz/jalapeno.webp',
+  habanero: '/images/share/quiz/habanero.webp',
+  reaper: '/images/share/quiz/reaper.webp',
+  pepperX: '/images/share/quiz/pepper-x.webp',
 }
 
 // Personalities that own a series event heat (heat.ts supports only these three)
@@ -287,7 +306,17 @@ export default function QuizPage() {
 
                   {/* Result Card */}
                   <div className="bg-zinc-900/30 rounded-2xl border border-zinc-800/50 p-8 sm:p-12 mb-8">
-                    <div className="text-6xl mb-4">🌶️</div>
+                    <div className="relative h-72 sm:h-80 mb-5" aria-hidden="true">
+                      <div className="absolute inset-6 rounded-full border border-heat-jalapeno/20 bg-heat-jalapeno/5" />
+                      <Image
+                        src={PERSONALITY_MASCOTS[result]}
+                        alt=""
+                        fill
+                        sizes="(max-width: 640px) 256px, 320px"
+                        className="object-contain drop-shadow-[0_24px_38px_rgba(0,0,0,0.55)]"
+                        priority
+                      />
+                    </div>
                     <h2 className={cn(
                       'font-display text-4xl sm:text-5xl uppercase mb-2',
                       SERIES_HEATS[result] ? heatText[SERIES_HEATS[result]!] : 'text-zinc-300'
@@ -306,10 +335,11 @@ export default function QuizPage() {
                         Array.from({ length: 5 }, (_, i) => (
                           <span
                             key={i}
-                            className={cn('text-lg', i < pepperResult.heatLevel ? 'opacity-100' : 'opacity-20')}
-                          >
-                            🌶️
-                          </span>
+                            className={cn(
+                              'h-6 w-2.5 rounded-full bg-heat-jalapeno',
+                              i < pepperResult.heatLevel ? 'opacity-100' : 'opacity-20'
+                            )}
+                          />
                         ))
                       )}
                     </div>
@@ -352,6 +382,13 @@ export default function QuizPage() {
                     >
                       Share Result
                     </button>
+                    <a
+                      href={PERSONALITY_STORY_CARDS[result]}
+                      download={`lets-pepper-${result}-story-card.webp`}
+                      className="btn-secondary"
+                    >
+                      Download Story Card
+                    </a>
                     <button type="button" onClick={handleRetake} className="btn-secondary">
                       Retake Quiz
                     </button>

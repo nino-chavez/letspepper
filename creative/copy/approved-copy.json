@@ -1,0 +1,135 @@
+{
+  "version": 2,
+  "reviewedAt": "2026-07-21",
+  "principle": "Concrete sports language over performed internet language.",
+  "moments": [
+    { "id": "ace", "label": "ACE", "detail": "Clean from the line.", "status": "approved" },
+    { "id": "stuff-block", "label": "STUFF BLOCK", "detail": "Closed at the net.", "status": "approved" },
+    { "id": "dig", "label": "DIG", "detail": "Kept the rally alive.", "status": "approved" },
+    { "id": "pancake", "label": "PANCAKE", "detail": "Just off the grass.", "status": "approved" },
+    { "id": "finish", "label": "THE FINISH", "detail": "Three touches. Point down.", "status": "approved" },
+    { "id": "match-point", "label": "MATCH POINT", "detail": "One point from the match.", "status": "approved" },
+    { "id": "final-point", "label": "FINAL POINT", "detail": "That closed it.", "status": "approved" },
+    { "id": "clutch", "label": "CLUTCH", "detail": "Delivered under pressure.", "status": "approved" },
+    { "id": "upset", "label": "UPSET ALERT", "detail": "The bracket just moved.", "status": "approved" },
+    { "id": "comeback", "label": "COMEBACK", "detail": "Down early. Still here.", "status": "approved" },
+    { "id": "play-of-day", "label": "PLAY OF THE DAY", "detail": "The rally to run back.", "status": "approved" },
+    { "id": "photo-of-day", "label": "PHOTO OF THE DAY", "detail": "One frame from the grass.", "status": "approved" },
+    { "id": "champions", "label": "CHAMPIONS", "detail": "Finished the day on top.", "status": "approved" },
+    { "id": "finalists", "label": "FINALISTS", "detail": "Played through the last match.", "status": "approved" }
+  ],
+  "eventStages": [
+    { "id": "next-up", "label": "NEXT UP", "detail": "Poblano Open · August 1", "status": "approved" },
+    { "id": "registration", "label": "REGISTRATION OPEN", "detail": "Grass triples · Aurora, IL", "status": "approved" },
+    { "id": "field-set", "label": "FIELD SET", "detail": "Teams are locked.", "status": "approved" },
+    { "id": "schedule-live", "label": "SCHEDULE LIVE", "detail": "Courts and first matches are posted.", "status": "approved" },
+    { "id": "pool-play", "label": "POOL PLAY", "detail": "Every point affects the bracket.", "status": "approved" },
+    { "id": "bracket-live", "label": "BRACKET LIVE", "detail": "Win and move on.", "status": "approved" },
+    { "id": "live", "label": "LIVE NOW", "detail": "Poblano Open · Aurora, IL", "status": "approved" },
+    { "id": "weather", "label": "WEATHER UPDATE", "detail": "Check the latest event status.", "status": "approved" },
+    { "id": "standings", "label": "FINAL STANDINGS", "detail": "The season finale is complete.", "status": "approved" },
+    { "id": "gallery", "label": "FULL GALLERY", "detail": "Find your team at letspepper.com/gallery.", "status": "approved" },
+    { "id": "recap", "label": "THE RECAP", "detail": "One more day on the grass.", "status": "approved" },
+    { "id": "season-close", "label": "THE SEASON CLOSES HERE", "detail": "Poblano Open · August 1, 2026", "status": "approved" }
+  ],
+  "share": [
+    { "id": "im-in", "label": "I'M IN", "detail": "Poblano Open · August 1", "status": "approved" },
+    { "id": "my-pick", "label": "MY PICK", "detail": "Locked before first serve.", "status": "approved" },
+    { "id": "vote-cast", "label": "VOTE CAST", "detail": "MVP vote recorded.", "status": "approved" },
+    { "id": "pepper-bingo", "label": "PEPPER BINGO", "detail": "Five in a row on tournament day.", "status": "approved" },
+    { "id": "my-pepper", "label": "MY PEPPER", "detail": "Result from What Pepper Are You?", "status": "approved" },
+    { "id": "my-season", "label": "MY SEASON", "detail": "Events, points, podiums.", "status": "approved" },
+    { "id": "final-finish", "label": "FINAL FINISH", "detail": "Poblano Open result.", "status": "approved" }
+  ],
+  "coverHeadlines": [
+    { "id": "rally", "label": "THE RALLY", "detail": "Watch the point develop.", "status": "approved" },
+    { "id": "match-point", "label": "MATCH POINT", "detail": "One point from the match.", "status": "approved" },
+    { "id": "comeback", "label": "THE COMEBACK", "detail": "Down early. Still here.", "status": "approved" },
+    { "id": "play-day", "label": "PLAY OF THE DAY", "detail": "The rally to run back.", "status": "approved" },
+    { "id": "final-point", "label": "FINAL POINT", "detail": "That closed it.", "status": "approved" },
+    { "id": "champions", "label": "CHAMPIONS", "detail": "Finished the day on top.", "status": "approved" }
+  ],
+  "highlightLabels": [
+    { "id": "season", "label": "2026", "status": "approved" },
+    { "id": "bell", "label": "BELL OPEN", "status": "approved" },
+    { "id": "jalapeno", "label": "JALAPEÑO", "status": "approved" },
+    { "id": "poblano", "label": "POBLANO", "status": "approved" },
+    { "id": "results", "label": "RESULTS", "status": "approved" },
+    { "id": "players", "label": "PLAYERS", "status": "approved" },
+    { "id": "rules", "label": "RULES", "status": "approved" },
+    { "id": "bts", "label": "BEHIND THE SCENES", "status": "approved" },
+    { "id": "photos", "label": "PHOTOS", "status": "approved" },
+    { "id": "awards", "label": "AWARDS", "status": "approved" }
+  ],
+  "webCards": [
+    { "id": "standings", "label": "SEASON STANDINGS", "detail": "Events. Points. Podiums.", "status": "approved" },
+    { "id": "rankings", "label": "POWER RANKINGS", "detail": "The current read on the field.", "status": "approved" },
+    { "id": "gallery", "label": "FULL GALLERY", "detail": "Find your team and download the frame.", "status": "approved" },
+    { "id": "quiz", "label": "WHAT PEPPER ARE YOU?", "detail": "Seven questions. One court identity.", "status": "approved" },
+    { "id": "awards", "label": "SEASON AWARDS", "detail": "Vote for the performances that defined 2026.", "status": "approved" }
+  ],
+  "quizResults": [
+    { "id": "bell", "label": "BELL PEPPER", "detail": "Keeps the team connected.", "status": "approved" },
+    { "id": "poblano", "label": "POBLANO", "detail": "Quietly dangerous.", "status": "approved" },
+    { "id": "jalapeno", "label": "JALAPEÑO", "detail": "Smooth veteran.", "status": "approved" },
+    { "id": "habanero", "label": "HABANERO", "detail": "Intense competitor.", "status": "approved" },
+    { "id": "reaper", "label": "CAROLINA REAPER", "detail": "Sets the pace.", "status": "approved" },
+    { "id": "pepper-x", "label": "PEPPER X", "detail": "The wildcard.", "status": "approved" }
+  ],
+  "systemLabels": [
+    { "id": "replay", "label": "REPLAY", "status": "approved" },
+    { "id": "live", "label": "LIVE", "status": "approved" },
+    { "id": "player", "label": "PLAYER", "status": "approved" },
+    { "id": "team", "label": "TEAM", "status": "approved" },
+    { "id": "match", "label": "MATCH", "status": "approved" },
+    { "id": "round", "label": "ROUND", "status": "approved" },
+    { "id": "court", "label": "COURT", "status": "approved" },
+    { "id": "score", "label": "SCORE", "status": "approved" },
+    { "id": "credit", "label": "CREDIT", "status": "approved" }
+  ],
+  "templateText": [
+    { "id": "player-name", "label": "PLAYER NAME", "status": "approved" },
+    { "id": "team-name", "label": "TEAM NAME", "status": "approved" },
+    { "id": "team-a", "label": "TEAM A", "status": "approved" },
+    { "id": "team-b", "label": "TEAM B", "status": "approved" },
+    { "id": "pool-play", "label": "POOL PLAY", "status": "approved" },
+    { "id": "court-two", "label": "COURT 2", "status": "approved" },
+    { "id": "quarterfinal", "label": "QUARTERFINAL", "status": "approved" },
+    { "id": "set-one", "label": "SET 1", "status": "approved" },
+    { "id": "photographer", "label": "PHOTOGRAPHER", "status": "approved" },
+    { "id": "replace", "label": "REPLACE PLACEHOLDER TEXT", "status": "approved" }
+  ],
+  "captionTemplates": [
+    { "id": "rally", "label": "Three touches, no wasted movement. {event} · {round}. Full gallery at letspepper.com/gallery. {credit}.", "status": "approved" },
+    { "id": "play", "label": "{play_detail}. {event} · {team_a} vs {team_b}. {credit}.", "status": "approved" },
+    { "id": "final-point", "label": "Final point. {winner} closes {round}, {score}. {event}. {credit}.", "status": "approved" },
+    { "id": "photo", "label": "One frame from {event}. Find your team at letspepper.com/gallery. {credit}.", "status": "approved" },
+    { "id": "schedule", "label": "The bracket is set. First matches: {time}. Courts and matchups at {url}.", "status": "approved" },
+    { "id": "weather", "label": "Weather update: {status}. Next update at {time}. Details at {url}.", "status": "approved" }
+  ],
+  "callsToAction": [
+    { "id": "register", "label": "REGISTER AT LETSPEPPER.COM", "status": "approved" },
+    { "id": "gallery", "label": "FULL GALLERY → LETSPEPPER.COM/GALLERY", "status": "approved" },
+    { "id": "pick", "label": "MAKE YOUR PICK", "status": "approved" },
+    { "id": "vote", "label": "VOTE NOW", "status": "approved" },
+    { "id": "tag", "label": "TAG YOUR TEAM", "status": "approved" },
+    { "id": "download-story", "label": "DOWNLOAD STORY CARD", "status": "approved" }
+  ],
+  "blocked": [
+    { "phrase": "queens of the court", "reason": "Patronizing gender shorthand; use the same competitive register as the main series." },
+    { "phrase": "good vibes only", "reason": "Dated lifestyle cliché that erases the competitive identity." },
+    { "phrase": "unhinged energy", "reason": "Mental-health-coded slang used as a personality label." },
+    { "phrase": "menace to society", "reason": "Turns the participant into the joke and reads like late brand slang." },
+    { "phrase": "you got destroyed", "reason": "Humiliation framing creates a loser as content." },
+    { "phrase": "choke", "reason": "Targets a player or team rather than describing the play." },
+    { "phrase": "she ate", "reason": "Trend imitation; likely to date quickly in brand-authored copy." },
+    { "phrase": "no cap", "reason": "Trend imitation; not the brand's natural voice." },
+    { "phrase": "it's giving", "reason": "Trend imitation; not the brand's natural voice." },
+    { "phrase": "built different", "reason": "Overused sports cliché without useful context." },
+    { "phrase": "maximum vibes", "reason": "Generic brand slang that does not describe the team or the moment." },
+    { "phrase": "pure chaos", "reason": "Vague highlight language; name the actual play instead." },
+    { "phrase": "unapologetically competitive", "reason": "Brand-manifesto filler; state how the competition is run." },
+    { "phrase": "no warm-up needed", "reason": "Rewards an avoidable injury risk." },
+    { "phrase": "skip food", "reason": "Rewards skipping recovery in order to appear committed." }
+  ]
+}

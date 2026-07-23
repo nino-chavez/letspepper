@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "basePath": "/images/mascots/anime",
   "overview": "/images/mascots/anime/family-overview.png",
   "poses": [
@@ -43,7 +43,82 @@
       "ball": "cream-and-ember-red",
       "directory": "/images/mascots/anime/ghost-pepper",
       "contactSheet": "/images/mascots/anime/ghost-pepper/contact-sheet.png"
+    },
+    "habanero": {
+      "displayName": "Habanero",
+      "role": "Explosive outside hitter",
+      "accent": "burnt-orange",
+      "ball": "none",
+      "directory": "/images/mascots/anime/habanero",
+      "anchor": "/images/mascots/anime/habanero/anchor.png"
+    },
+    "reaper": {
+      "displayName": "Carolina Reaper",
+      "role": "Championship closer",
+      "accent": "deep-crimson",
+      "ball": "cream-and-ember-red",
+      "directory": "/images/mascots/anime/reaper",
+      "anchor": "/images/mascots/anime/reaper/anchor.png"
+    },
+    "pepper-x": {
+      "displayName": "Pepper X",
+      "role": "Experimental wildcard",
+      "accent": "acid-yellow-green",
+      "ball": "green-and-cream",
+      "directory": "/images/mascots/anime/pepper-x",
+      "anchor": "/images/mascots/anime/pepper-x/anchor.png"
+    },
+    "chipotle": {
+      "displayName": "Chipotle",
+      "role": "Veteran captain",
+      "accent": "smoky-burgundy",
+      "ball": "green-and-cream",
+      "directory": "/images/mascots/anime/chipotle",
+      "anchor": "/images/mascots/anime/chipotle/anchor.png"
+    },
+    "pepper-belle": {
+      "displayName": "Pepper Belle",
+      "role": "Elite setter / captain",
+      "accent": "deep-red",
+      "ball": "none",
+      "directory": "/images/mascots/anime/pepper-belle",
+      "anchor": "/images/mascots/anime/pepper-belle/anchor.png"
+    },
+    "pepperoncini": {
+      "displayName": "Pepperoncini",
+      "role": "Coach / commentator",
+      "accent": "pale-yellow-green",
+      "ball": "none",
+      "directory": "/images/mascots/anime/pepperoncini",
+      "anchor": "/images/mascots/anime/pepperoncini/anchor.png"
+    },
+    "banana-pepper": {
+      "displayName": "Banana Pepper",
+      "role": "Setter / strategist",
+      "accent": "golden-yellow",
+      "ball": "green-and-cream",
+      "directory": "/images/mascots/anime/banana-pepper",
+      "anchor": "/images/mascots/anime/banana-pepper/anchor.png"
+    },
+    "shishito": {
+      "displayName": "Shishito",
+      "role": "Utility wildcard",
+      "accent": "wrinkled-green",
+      "ball": "none",
+      "directory": "/images/mascots/anime/shishito",
+      "anchor": "/images/mascots/anime/shishito/anchor.png"
     }
   },
-  "assetPattern": "{directory}/{pose}.png"
+  "anchorOnly": [
+    "habanero",
+    "reaper",
+    "pepper-x",
+    "chipotle",
+    "pepper-belle",
+    "pepperoncini",
+    "banana-pepper",
+    "shishito"
+  ],
+  "assetPattern": "{directory}/{pose}.png",
+  "anchorPattern": "{directory}/anchor.png"
 }

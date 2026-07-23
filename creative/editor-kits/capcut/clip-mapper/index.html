@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090a09" />
+    <title>Let's Pepper Clip Desk</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Let's Pepper home">
+        <span class="brand-mark">LP</span>
+        <span>LET'S PEPPER</span>
+      </a>
+      <span class="header-label">LOCAL EDITOR TOOL · NOTHING UPLOADS</span>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">CAPCUT HANDOFF / CLIP IDENTIFICATION</p>
+          <h1 id="page-title">Build a verified Reel plan.</h1>
+          <p class="hero-copy">Review the footage, lock the match facts, and get the exact stamp, audio cue, credit, cover, and caption.</p>
+        </div>
+        <div class="hero-actions" aria-label="Clip map actions">
+          <label class="button button-primary" for="video-input">Choose video</label>
+          <label class="button" for="csv-input">Import clip map</label>
+          <button class="button button-quiet" id="new-clip" type="button">New clip</button>
+          <input id="video-input" class="visually-hidden" type="file" accept="video/*" />
+          <input id="csv-input" class="visually-hidden" type="file" accept=".csv,text/csv" />
+        </div>
+      </section>
+
+      <section class="clip-tray" aria-labelledby="clip-tray-title">
+        <div class="tray-heading">
+          <div>
+            <p class="section-kicker">WORKING SET</p>
+            <h2 id="clip-tray-title">Clips</h2>
+          </div>
+          <button class="text-button danger" id="remove-clip" type="button">Remove selected</button>
+        </div>
+        <div class="clip-list" id="clip-list" role="list"></div>
+      </section>
+
+      <section class="workspace">
+        <aside class="preview-column" aria-label="Clip preview and readiness">
+          <div class="panel preview-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="section-kicker">FRAME CHECK</p>
+                <h2>Preview</h2>
+              </div>
+              <label class="switch">
+                <input id="safe-zone-toggle" type="checkbox" />
+                <span aria-hidden="true"></span>
+                Show safe zones
+              </label>
+            </div>
+
+            <div class="reel-stage" id="reel-stage">
+              <video id="video-preview" playsinline controls hidden></video>
+              <div class="stage-empty" id="stage-empty">
+                <span class="stage-number">9:16</span>
+                <strong>Choose a video to review it here.</strong>
+                <span>The file stays in this browser.</span>
+              </div>
+              <img id="safe-zone-preview" class="safe-zone-preview" alt="Reel safe-zone guide" hidden />
+              <img id="stamp-preview" class="stamp-preview" alt="Recommended moment stamp preview" hidden />
+              <div class="bug-preview" id="bug-preview">LET'S PEPPER</div>
+              <div class="preview-credit" id="preview-credit">CREDIT NEEDED</div>
+            </div>
+
+            <div class="preview-note" id="preview-note">The recommended stamp appears after you choose a play type.</div>
+          </div>
+
+          <div class="panel readiness-panel" aria-live="polite">
+            <div class="readiness-topline">
+              <span class="status-dot" id="status-dot"></span>
+              <div>
+                <p class="section-kicker" id="readiness-kicker">NOT READY</p>
+                <h2 id="readiness-title">Add the clip facts</h2>
+              </div>
+              <span class="count-badge" id="readiness-count">0/14</span>
+            </div>
+            <p id="readiness-summary">Missing facts stay visible. The tool never fills them in for you.</p>
+            <div class="issue-list" id="issue-list"></div>
+          </div>
+        </aside>
+
+        <form class="form-column" id="clip-form" novalidate>
+          <section class="panel form-section" aria-labelledby="identify-heading">
+            <div class="step-heading">
+              <span>01</span>
+              <div>
+                <p class="section-kicker">IDENTIFY</p>
+                <h2 id="identify-heading">Which clip is this?</h2>
+              </div>
+            </div>
+            <div class="field-grid">
+              <label class="field span-2">
+                <span>Video file</span>
+                <input data-field="file" type="text" placeholder="C2276.MP4" autocomplete="off" />
+                <small>Use the original filename so the plan can be matched back to the footage.</small>
+              </label>
+              <label class="field">
+                <span>Clip ID</span>
+                <input data-field="clip_id" type="text" placeholder="bpo-c2-qf-001" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Event date</span>
+                <input data-field="event_date" type="date" />
+              </label>
+              <label class="field span-2">
+                <span>Event</span>
+                <input data-field="event" type="text" placeholder="Bell Pepper Open 2026" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Team A</span>
+                <input data-field="team_a" type="text" placeholder="Verified team name" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Team B</span>
+                <input data-field="team_b" type="text" placeholder="Verified team name" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Court</span>
+                <input data-field="court" type="text" placeholder="Court 2" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Round</span>
+                <input data-field="round" type="text" placeholder="Quarterfinal" autocomplete="off" />
+              </label>
+              <label class="field span-2">
+                <span>Players shown</span>
+                <input data-field="players" type="text" placeholder="Names separated by commas" autocomplete="off" />
+              </label>
+              <label class="field span-2">
+                <span>Verified Instagram handles</span>
+                <input data-field="participant_handles" type="text" placeholder="@handle, @handle" autocomplete="off" />
+                <small>Leave blank instead of guessing. Only verified handles become platform tags.</small>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel form-section" aria-labelledby="moment-heading">
+            <div class="step-heading">
+              <span>02</span>
+              <div>
+                <p class="section-kicker">DESCRIBE</p>
+                <h2 id="moment-heading">What happened?</h2>
+              </div>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>Play type</span>
+                <select data-field="play_type" id="play-type-select">
+                  <option value="">Choose the moment</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Score after the point</span>
+                <input data-field="score" type="text" placeholder="18–16" autocomplete="off" />
+              </label>
+              <label class="field span-2">
+                <span>Outcome</span>
+                <input data-field="outcome" type="text" placeholder="Team A wins the point" autocomplete="off" />
+                <small>State the result. Do not turn the losing player into the punchline.</small>
+              </label>
+              <label class="field">
+                <span>Caption action</span>
+                <select data-field="caption_action">
+                  <option value="none">No call to action</option>
+                  <option value="gallery">Send viewers to the gallery</option>
+                  <option value="tag-team">Ask viewers to tag their team</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Can viewers find the ball?</span>
+                <select data-field="ball_visibility">
+                  <option value="clear">Yes — no tracker</option>
+                  <option value="hard-to-follow">No — recommend a brief ring</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel form-section" aria-labelledby="edit-heading">
+            <div class="step-heading">
+              <span>03</span>
+              <div>
+                <p class="section-kicker">MARK</p>
+                <h2 id="edit-heading">Where does the edit land?</h2>
+              </div>
+            </div>
+            <div class="field-grid timecode-grid">
+              <label class="field">
+                <span>Clip in</span>
+                <input data-field="clip_in" type="text" inputmode="decimal" placeholder="0:02.000" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Point contact</span>
+                <input data-field="moment_time" type="text" inputmode="decimal" placeholder="0:04.250" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Clip out</span>
+                <input data-field="clip_out" type="text" inputmode="decimal" placeholder="0:06.500" autocomplete="off" />
+              </label>
+              <button class="button timecode-button" id="use-video-time" type="button">Use preview time</button>
+              <label class="field span-2">
+                <span>Background behind the corner mark</span>
+                <select data-field="footage_tone">
+                  <option value="mixed">Mixed or changing</option>
+                  <option value="mostly-light">Mostly light</option>
+                  <option value="mostly-dark">Mostly dark</option>
+                </select>
+                <small>This selects a dark or light mark; it does not apply a color grade.</small>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel form-section" aria-labelledby="rights-heading">
+            <div class="step-heading">
+              <span>04</span>
+              <div>
+                <p class="section-kicker">VERIFY</p>
+                <h2 id="rights-heading">Can this be published?</h2>
+              </div>
+            </div>
+            <div class="field-grid">
+              <label class="field span-2">
+                <span>Who owns or shot the footage?</span>
+                <input data-field="footage_credit" type="text" placeholder="@creator or full name" autocomplete="off" />
+              </label>
+              <label class="field span-2">
+                <span>Editor credit <em>optional</em></span>
+                <input data-field="editor_credit" type="text" placeholder="@editor or full name" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>Permission for this post</span>
+                <select data-field="rights_status" id="rights-select"></select>
+              </label>
+              <label class="field">
+                <span>Has the caption been checked?</span>
+                <select data-field="copy_status" id="copy-select"></select>
+              </label>
+              <label class="field span-2">
+                <span>Notes <em>optional</em></span>
+                <textarea data-field="notes" rows="3" placeholder="Release limits, sponsor requirements, crop notes, or anything the next editor needs to know."></textarea>
+              </label>
+            </div>
+          </section>
+        </form>
+      </section>
+
+      <section class="output-section" aria-labelledby="plan-heading">
+        <div class="output-heading">
+          <div>
+            <p class="section-kicker">CAPCUT HANDOFF</p>
+            <h2 id="plan-heading">Recommended edit plan</h2>
+          </div>
+          <button class="button" id="copy-checklist" type="button">Copy CapCut checklist</button>
+        </div>
+        <div class="asset-grid" id="asset-grid"></div>
+
+        <div class="caption-panel panel">
+          <div>
+            <p class="section-kicker">CAPTION DRAFT · <span id="caption-count">0 WORDS</span></p>
+            <p class="caption-copy" id="caption-copy"></p>
+          </div>
+          <button class="button button-quiet" id="copy-caption" type="button">Copy caption</button>
+        </div>
+
+        <div class="export-bar">
+          <div>
+            <strong>Save the handoff</strong>
+            <span>Exports stay local. A queue draft never posts on its own.</span>
+          </div>
+          <div class="export-actions">
+            <button class="button" id="download-csv" type="button">Download clip map</button>
+            <button class="button button-primary" id="download-plan" type="button">Download edit plans</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -159,7 +159,7 @@ function defaultCaption(name, total, n) {
   return [
     `${name}. ${total} frames in the gallery — ${n} favorites here.`,
     '',
-    'Players: find your team in the full album — link in bio. Tag yourselves and your crew so nobody misses theirs.',
+    'Players: find your team at letspepper.com/gallery. Tag yourselves and your crew so nobody misses theirs.',
     '',
     'Motion. Emotion. Frame by Frame.',
     '',

@@ -96,7 +96,7 @@ function heatComing(e) {
         <div class="when"><span class="b">${e.date}, 2026</span></div>
         <div class="where">${e.location}</div>
         <div class="cta"><span class="btn">Enter &rarr; letspepper.com</span></div>
-        <div class="h">Link in bio</div>
+        <div class="h">@letspepper.open</div>
       </div>
     </div>
   </body></html>`
@@ -136,7 +136,7 @@ function nextUp(e) {
         <div class="sub">${e.name} &middot; ${e.tier}</div>
         <div class="when"><span class="b">${e.date}, 2026</span></div>
         <div class="where">${e.location}</div>
-        <div class="cta"><span class="btn">Enter &rarr; letspepper.com</span><span class="h">Link in bio</span></div>
+        <div class="cta"><span class="btn">Enter &rarr; letspepper.com</span><span class="h">@letspepper.open</span></div>
       </div>
     </div>
   </body></html>`
@@ -180,7 +180,7 @@ function nextUpTemplate(e) {
         <div class="sub">${e.name} &middot; Grass Triples &middot; 3v3</div>
         <div class="when"><span class="b">${e.date}, 2026</span></div>
         <div class="where">${e.location}</div>
-        <div class="cta"><span class="btn">Enter &rarr; letspepper.com</span><span class="h">Link in bio</span></div>
+        <div class="cta"><span class="btn">Enter &rarr; letspepper.com</span><span class="h">@letspepper.open</span></div>
       </div>
     </div>
   </body></html>`

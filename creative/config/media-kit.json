@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "brand": {
+    "name": "LET'S PEPPER",
+    "handle": "@letspepper.open",
+    "site": "letspepper.com",
+    "credit": "FOOTAGE · FLICKDAY MEDIA"
+  },
+  "event": {
+    "name": "Poblano Open",
+    "fullName": "Poblano Pepper Open",
+    "date": "Saturday · August 1, 2026",
+    "dateShort": "08·01·26",
+    "time": "Check-in 8:30 AM · Serve by 9:00 AM",
+    "location": "Nature Meadows Park · Aurora, IL",
+    "format": "Grass Triples · One Division",
+    "url": "letspepper.com/tournaments/poblano-open"
+  },
+  "palette": {
+    "ink": "#070707",
+    "paper": "#f4f1e8",
+    "orange": "#f97316",
+    "yellow": "#facc15",
+    "green": "#4ade80",
+    "poblano": "#a3e635",
+    "cyan": "#22d3ee",
+    "red": "#ef4444"
+  },
+  "mascots": {
+    "jalapeno": "public/images/mascots/anime/jalapeno/menace-walk.png",
+    "bell-pepper": "public/images/mascots/anime/bell-pepper/block.png",
+    "poblano": "public/images/mascots/anime/poblano/diving-dig.png",
+    "ghost-pepper": "public/images/mascots/anime/ghost-pepper/jump-serve.png",
+    "habanero": "public/images/mascots/anime/habanero/anchor.png",
+    "reaper": "public/images/mascots/anime/reaper/anchor.png",
+    "pepper-x": "public/images/mascots/anime/pepper-x/anchor.png",
+    "chipotle": "public/images/mascots/anime/chipotle/anchor.png",
+    "pepper-belle": "public/images/mascots/anime/pepper-belle/anchor.png",
+    "pepperoncini": "public/images/mascots/anime/pepperoncini/anchor.png",
+    "banana-pepper": "public/images/mascots/anime/banana-pepper/anchor.png",
+    "shishito": "public/images/mascots/anime/shishito/anchor.png"
+  }
+}

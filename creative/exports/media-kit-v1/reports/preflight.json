@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-21T18:57:15.656Z",
+  "ok": true,
+  "checks": [
+    {
+      "name": "copy-gate",
+      "ok": true,
+      "detail": "✓ Copy gate passed: 148 source files, 78 pending captions, 91 approved phrases"
+    },
+    {
+      "name": "clip-planner",
+      "ok": true,
+      "detail": "✓ Clip plan tests passed: CSV, routing, copy, permission, placeholders, timing, and duplicate IDs"
+    },
+    {
+      "name": "clip-desk",
+      "ok": true,
+      "detail": "4/4 local editor files"
+    },
+    {
+      "name": "static-assets",
+      "ok": true,
+      "detail": "86/86 PNGs match dimensions and alpha requirements"
+    },
+    {
+      "name": "mascot-anchors",
+      "ok": true,
+      "detail": "8/8 alpha anchors with two WebP derivatives"
+    },
+    {
+      "name": "motion-clips",
+      "ok": true,
+      "detail": "10/10 alpha/fallback pairs"
+    },
+    {
+      "name": "audio-cues",
+      "ok": true,
+      "detail": "10/10 original 48kHz stereo WAVs"
+    },
+    {
+      "name": "field-luts",
+      "ok": true,
+      "detail": "5/5 valid 33-point LUTs"
+    },
+    {
+      "name": "contact-sheets",
+      "ok": true,
+      "detail": "5/5 review sheets"
+    },
+    {
+      "name": "public-derivatives",
+      "ok": true,
+      "detail": "11/11 website-ready share and Open Graph files"
+    }
+  ],
+  "errors": [],
+  "inventory": {
+    "files": 156,
+    "bytes": 114920486,
+    "byExtension": {
+      ".md": 3,
+      ".wav": 10,
+      ".json": 6,
+      ".png": 87,
+      ".cube": 5,
+      ".mov": 10,
+      ".mp4": 10,
+      ".jpg": 25
+    }
+  }
+}
