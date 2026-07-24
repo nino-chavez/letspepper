@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "generatedAt": "2026-07-21T18:57:02.303Z",
-  "count": 86,
+  "generatedAt": "2026-07-24T14:41:32.438Z",
+  "count": 90,
   "assets": [
     {
       "path": "creative/exports/media-kit-v1/capcut/guides/reel-safe-zones.png",
@@ -481,6 +481,24 @@
       "note": "Poblano Open lifecycle Story master."
     },
     {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/13-payout.png",
+      "category": "event/poblano/stories",
+      "name": "13-payout",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/14-field-target.png",
+      "category": "event/poblano/stories",
+      "name": "14-field-target",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open lifecycle Story master."
+    },
+    {
       "path": "creative/exports/media-kit-v1/event/poblano/feed/01-registration.png",
       "category": "event/poblano/feed",
       "name": "01-registration",
@@ -520,6 +538,24 @@
       "path": "creative/exports/media-kit-v1/event/poblano/feed/05-gallery.png",
       "category": "event/poblano/feed",
       "name": "05-gallery",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/06-payout.png",
+      "category": "event/poblano/feed",
+      "name": "06-payout",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/07-field-target.png",
+      "category": "event/poblano/feed",
+      "name": "07-field-target",
       "width": 1080,
       "height": 1350,
       "alpha": false,

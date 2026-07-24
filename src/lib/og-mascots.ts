@@ -14,7 +14,8 @@ const FILES = {
 	brand: 'og-jalapeno-menace-walk-360.png',
 	bell: 'og-bell-pepper-block-360.png',
 	jalapeno: 'og-jalapeno-jump-serve-360.png',
-	poblano: 'og-poblano-menace-walk-360.png',
+	// Poblano Verde fronts the poblano event (men's divisions only; see flavors/[slug] note).
+	poblano: 'og-poblano-verde-menace-walk-360.png',
 } satisfies Record<TournamentDetail['heat'] | 'brand', string>
 
 export async function loadMascot(key: keyof typeof FILES): Promise<ArrayBuffer | undefined> {

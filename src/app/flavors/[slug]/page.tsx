@@ -24,15 +24,18 @@ const heatConfig = {
   jalapeno: { color: 'var(--heat-jalapeno)', textClass: 'text-heat-jalapeno', borderClass: 'border-heat-jalapeno', bgClass: 'bg-heat-jalapeno', glowClass: 'hover:bg-heat-jalapeno-glow', level: 'Hot', bars: 3 },
 }
 
-/** heat → canonical anime-library character slug (dir names differ from heat keys). */
+/** heat → canonical anime-library character slug (dir names differ from heat keys).
+ *  Poblano Verde (male-presenting) fronts the poblano event: the series runs men's
+ *  divisions only, so the female-presenting Poblano misrepresents the field on event
+ *  surfaces. She stays in the brand roster; swap back if/when a women's division exists. */
 const mascotCharacter: Record<TournamentDetail['heat'], string> = {
   bell: 'bell-pepper',
   jalapeno: 'jalapeno',
-  poblano: 'poblano',
+  poblano: 'poblano-verde',
 }
 
 /** heat → role pose per the library README (bell = blocker, jalapeño = all-rounder serve,
- *  poblano = libero — her dig pose is landscape, so the shared portrait slot gets menace-walk). */
+ *  poblano = the shared portrait slot gets menace-walk). */
 const mascotRolePose: Record<TournamentDetail['heat'], string> = {
   bell: 'block',
   jalapeno: 'jump-serve',
@@ -213,6 +216,19 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
               </h1>
 
               <p className="text-xl sm:text-2xl leading-relaxed text-zinc-300">{tournament.headline}</p>
+
+              {tournament.payoutHeadline && (
+                <div className="flex items-baseline gap-x-5 gap-y-2 flex-wrap pt-1">
+                  <span
+                    className={cn('font-display leading-none text-7xl sm:text-8xl lg:text-9xl', config.textClass)}
+                  >
+                    {tournament.payoutHeadline.amount}
+                  </span>
+                  <span className="font-accent text-xs sm:text-sm font-bold uppercase tracking-[0.14em] text-zinc-300 max-w-[16rem] leading-relaxed">
+                    {tournament.payoutHeadline.label}
+                  </span>
+                </div>
+              )}
 
               <div className="flex flex-wrap gap-5 font-accent text-sm text-zinc-300 pt-1">
                 <span>{tournament.division.replace(' (One Division)', '')}</span>
