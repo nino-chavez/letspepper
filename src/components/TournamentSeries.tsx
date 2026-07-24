@@ -57,10 +57,10 @@ const tournaments: Tournament[] = [
     mascot: '/images/mascots/anime/web/poblano-verde-menace-walk-256.webp',
     tagline: 'Season Finale',
     description:
-      "The season closes with one final bracket — and $2,000 on the line for first place.",
+      "The season closes with one final bracket — and a payout that scales with the field: $2,000 first place at 28 teams.",
     date: '2026-08-01',
     displayDate: 'August 1, 2026',
-    features: ['$2,000 First Place', 'Season Closer', 'Final Standings'],
+    features: ['$2,000 at 28 Teams', 'Season Closer', 'Final Standings'],
   },
 ]
 

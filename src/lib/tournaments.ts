@@ -102,7 +102,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		heat: 'poblano',
 		tagline: 'Season Finale',
 		headline:
-			'The season closes at the Poblano Open. $2,000 to the winning team — the largest payout in series history.',
+			'The season closes at the Poblano Open. The payout scales with the field — $2,000 first place at a full 28-team bracket, the largest in series history.',
 		description:
 			'The finale rewards defense, touch, and patience under pressure. We are building the biggest field the series has seen — 28 teams — and every one of them gets full media coverage.',
 		date: 'Saturday, August 1, 2026',
@@ -112,9 +112,9 @@ export const tournaments: Record<string, TournamentDetail> = {
 		division: 'Grass Triples (One Division)',
 		entryFee: '',
 		format: 'Pool Play + Single Elimination Bracket',
-		payoutHeadline: { amount: '$2,000', label: 'First place · The largest payout in series history' },
-		payouts: ['$2,000 first place — the largest payout in series history', 'Season recap content', 'Year-end merch'],
-		features: ['$2,000 First Place', 'Season Closer', 'Final Standings'],
+		payoutHeadline: { amount: '$2,000', label: 'First place at a full 28-team field · Payout scales with the field' },
+		payouts: ['$2,000 first place at a full 28-team field — payout scales with field size', 'Season recap content', 'Year-end merch'],
+		features: ['$2,000 at 28 Teams', 'Season Closer', 'Final Standings'],
 		mediaPerks: ['Professional photo coverage by Flickday Media', 'Season recap content', 'Full gallery access']
 	}
 }

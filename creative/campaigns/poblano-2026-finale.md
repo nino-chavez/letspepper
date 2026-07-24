@@ -1,6 +1,6 @@
 # Poblano Open 2026 — Finale Campaign
 
-**Goal:** 28 registered teams by Friday, July 31. **Hook:** $2,000 first place — the largest payout in series history.
+**Goal:** 28 registered teams by Friday, July 31. **Hook:** the payout scales with the field — $2,000 first place at a full 28-team bracket, the largest in series history. (Caveat per Nick, 2026-07-24: the amount is contingent on team count; never state $2,000 without the field condition.)
 
 Run window: Thursday, July 24 → Saturday, August 1 (event day). Channels: letspepper.com + @letspepper.open.
 
@@ -12,7 +12,7 @@ Past fields (from `src/lib/standings-data.ts`): Grass Launch 2025 — 16 teams. 
 
 ## Message hierarchy
 
-1. **$2,000 first place.** Concrete number, largest in series history. Lead with it everywhere.
+1. **$2,000 first place at a full 28-team field.** Concrete number, largest in series history, always paired with the field condition — the caveat doubles as the registration driver (every team raises the stakes). Short form for chips/marquee: "$2,000 at 28 Teams".
 2. **The season closes here.** Final standings, points race, last bracket of the year.
 3. **28-team field.** Frame as the field we're building, not a promise — "X of 28 claimed" once real counts exist.
 4. **Every team gets covered.** Full photo/video by Flickday Media is the differentiator no other local grass event has. Third beat, never the headline.
@@ -43,7 +43,7 @@ Placeholders in `{braces}` are publish-time fills from the registration sheet or
 ### Fri Jul 25 — payout announcement (anchor post)
 
 - **Feed:** `06-payout` (4:5).
-- Caption: `$2,000 to the winning team. The largest payout in Let's Pepper history, and it's on the line at the season finale. Poblano Open · Saturday, August 1 · Nature Meadows Park, Aurora, IL. Grass triples, one division. Register at letspepper.com.`
+- Caption: `$2,000 first place at a full 28-team field — the largest payout in Let's Pepper history. The payout scales with the field, so every team that registers raises the stakes. Poblano Open · Saturday, August 1 · Nature Meadows Park, Aurora, IL. Grass triples, one division. Register at letspepper.com.`
 - Pinned comment: registration link. Story: `13-payout` same day, link sticker to `/signup`.
 
 ### Sat Jul 26 — the field push
@@ -79,7 +79,7 @@ Placeholders in `{braces}` are publish-time fills from the registration sheet or
 
 - Morning story if short of 28: `Last call. {n} spots left for tomorrow. Register at letspepper.com.`
 - **Feed (evening):** `02-field-set` master.
-- Caption: `The field is set. {n} teams, one bracket, $2,000 to the winner. First serve 9 AM. Courts and matchups at letspepper.com/flavors/poblano-open.`
+- Caption: `The field is set. {n} teams, one bracket, {payout} to the winner. First serve 9 AM. Courts and matchups at letspepper.com/flavors/poblano-open.` ({payout} = the actual amount the final field funds — by field-set day the count is known, so state the real number, no caveat needed.)
 - Story: champion-pick push — `Picks lock at first serve. letspepper.com/predictions.`
 
 ### Sat Aug 1 — event day
