@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-07-24T15:15:14.366Z",
+  "generatedAt": "2026-07-24T15:28:50.111Z",
   "ok": true,
   "checks": [
     {
       "name": "copy-gate",
       "ok": true,
-      "detail": "✓ Copy gate passed: 150 source files, 81 pending captions, 93 approved phrases"
+      "detail": "✓ Copy gate passed: 150 source files, 82 pending captions, 93 approved phrases"
     },
     {
       "name": "clip-planner",
@@ -21,7 +21,7 @@
     {
       "name": "static-assets",
       "ok": true,
-      "detail": "90/90 PNGs match dimensions and alpha requirements"
+      "detail": "91/91 PNGs match dimensions and alpha requirements"
     },
     {
       "name": "mascot-anchors",
@@ -56,13 +56,13 @@
   ],
   "errors": [],
   "inventory": {
-    "files": 166,
-    "bytes": 119197535,
+    "files": 167,
+    "bytes": 119849081,
     "byExtension": {
       ".md": 3,
       ".wav": 10,
       ".json": 6,
-      ".png": 91,
+      ".png": 92,
       ".cube": 5,
       ".mov": 10,
       ".mp4": 10,

@@ -252,10 +252,10 @@ for (let i = 0; i < items('eventStages').length; i++) {
 }
 
 // ── Feed cards ─────────────────────────────────────────────────────────────────
-const feedIds = ['registration', 'field-set', 'schedule-live', 'standings', 'gallery', 'payout', 'field-target']
+const feedIds = ['registration', 'field-set', 'schedule-live', 'standings', 'gallery', 'payout', 'field-target', 'next-up']
 for (let i = 0; i < feedIds.length; i++) {
   const row = byId('eventStages', feedIds[i])
-  const pose = ['menace-walk', 'block', 'jump-serve', 'champion', 'celebration', 'champion', 'block'][i]
+  const pose = ['menace-walk', 'block', 'jump-serve', 'champion', 'celebration', 'champion', 'block', 'menace-walk'][i]
   await capture({
     category: 'event/poblano/feed', name: `${String(i + 1).padStart(2, '0')}-${row.id}`, width: 1080, height: 1350,
     note: '4:5 Poblano Open feed master.',

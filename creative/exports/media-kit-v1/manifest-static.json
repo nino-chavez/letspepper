@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "generatedAt": "2026-07-24T15:15:08.715Z",
-  "count": 90,
+  "generatedAt": "2026-07-24T15:28:44.805Z",
+  "count": 91,
   "assets": [
     {
       "path": "creative/exports/media-kit-v1/capcut/guides/reel-safe-zones.png",
@@ -556,6 +556,15 @@
       "path": "creative/exports/media-kit-v1/event/poblano/feed/07-field-target.png",
       "category": "event/poblano/feed",
       "name": "07-field-target",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/08-next-up.png",
+      "category": "event/poblano/feed",
+      "name": "08-next-up",
       "width": 1080,
       "height": 1350,
       "alpha": false,

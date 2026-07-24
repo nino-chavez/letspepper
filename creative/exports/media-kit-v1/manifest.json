@@ -1,15 +1,15 @@
 {
   "version": 1,
-  "generatedAt": "2026-07-24T15:15:14.366Z",
+  "generatedAt": "2026-07-24T15:28:50.111Z",
   "status": "production-ready",
   "inventory": {
-    "files": 166,
-    "bytes": 119197535,
+    "files": 167,
+    "bytes": 119849081,
     "byExtension": {
       ".md": 3,
       ".wav": 10,
       ".json": 6,
-      ".png": 91,
+      ".png": 92,
       ".cube": 5,
       ".mov": 10,
       ".mp4": 10,
@@ -120,6 +120,7 @@
     "event/poblano/feed/05-gallery.png",
     "event/poblano/feed/06-payout.png",
     "event/poblano/feed/07-field-target.png",
+    "event/poblano/feed/08-next-up.png",
     "event/poblano/stories/01-next-up.png",
     "event/poblano/stories/02-registration.png",
     "event/poblano/stories/03-field-set.png",
