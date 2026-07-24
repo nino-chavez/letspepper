@@ -2,35 +2,33 @@
   "name": "letspepper-reels-worker",
   "main": "src/index.js",
   "compatibility_date": "2026-01-01",
-  // DRIP KILLED 2026-07-18: cron pulled so scheduled() never fires. The
-  // flickday-drip-3x branch's posting cadence is being retired in favor of a
-  // dedicated JPO content drip — re-add "0 * * * *" (hourly check; posts at
-  // most ONE reel per allowed slot / ALLOWED_HOURS_UTC) when that's built.
-  "triggers": { "crons": [] },
+  // RE-ARMED 2026-07-24 for the Poblano Open finale. Hourly cron: each run
+  // finishes any in-flight container, then posts at most ONE due item. The
+  // poblano-2026-finale queue uses per-item scheduledAt, so items fire at their
+  // planned times (scheduledAt gates them, NOT ALLOWED_HOURS_UTC) — this worker
+  // now replaces the local launchd drip (com.letspepper.reels, disabled at
+  // cutover) as the sole poster. Pull the cron / clear ACTIVE_EVENTS after Aug 1.
+  "triggers": { "crons": ["0 * * * *"] },
   "kv_namespaces": [
     { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
   ],
   "vars": {
     // event slugs in PRIORITY order — newest/highest-priority FIRST. Each slot
-    // posts from the first event with pending; older events backfill only when
-    // newer ones are exhausted. jpo-teams (Jalapeño Open roster reveal, Stories,
-    // time-boxed to the 2026-07-18 event) is priority. flickday-grass-drip
-    // dropped 2026-07-16 (its 26/26 were already posted — fully drained, not
-    // mid-drip); bell-pepper-2026 stays dropped too (its 7 pending sit inert in
-    // KV). Re-add either to ACTIVE_EVENTS to resume/backfill.
-    "ACTIVE_EVENTS": "jpo-teams",
-    // UTC hours that are posting slots = the daily cap.
-    // TEMPORARY 4/day for the jpo-teams reveal → 15 = 10a, 18 = 1p, 21 = 4p,
-    // 23 = 6p CDT. Seeded Wed 2026-07-15 ~17:16 CDT, the 7 teams complete Fri
-    // 2026-07-17 ~1p CDT (Wed 6p; Thu 10a/1p/4p/6p; Fri 10a/1p), ahead of Sat.
-    // REVERT to 3/day "16,20,23" (11a/3p/6p CDT) once jpo-teams drains and a
-    // new active event is queued.
-    "ALLOWED_HOURS_UTC": "15,18,21,23",
+    // posts from the first event with a DUE item; older events backfill only when
+    // newer ones are exhausted. poblano-2026-finale (Aug 1 finale, scheduledAt-
+    // driven) is the sole active event. jpo-teams / flickday-grass-drip /
+    // bell-pepper-2026 sit inert in KV — re-add to ACTIVE_EVENTS to resume.
+    "ACTIVE_EVENTS": "poblano-2026-finale",
+    // UTC posting slots — the daily cap for LEGACY (no-scheduledAt) items only.
+    // poblano-2026-finale items carry scheduledAt and bypass this gate, so these
+    // hours don't affect the finale calendar; kept at the finale's own hours
+    // (17 = noon, 22 = 5p CDT) as a sane fallback if a slug is ever added w/o times.
+    "ALLOWED_HOURS_UTC": "17,22",
     // --- engagement sweep (see SWEEP.md) ---
-    "SWEEP_ENABLED": "1",          // run the comment sweep after each post step
+    "SWEEP_ENABLED": "0",          // OFF for the finale migration — posting only; flip to "1" to re-enable the comment sweep
     "SWEEP_LOOKBACK_DAYS": "14",   // only sweep media newer than this
     "SWEEP_AUTOREPLY": "off",      // off | intent — DEFAULTS OFF (shadow-logs only)
-    "REGISTRATION_URL": "https://letspepper.com/flavors/bell-pepper-open"
+    "REGISTRATION_URL": "https://letspepper.com/flavors/poblano-open"
   },
   "observability": { "enabled": true }
   // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, TRIGGER_KEY

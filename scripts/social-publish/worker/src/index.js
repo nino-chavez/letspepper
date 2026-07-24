@@ -7,6 +7,11 @@
  *   - Recency priority: each slot posts a random pending reel from the
  *     highest-priority event first (ACTIVE_EVENTS order, newest listed FIRST);
  *     older events only backfill when the newer one has nothing pending.
+ *   - Per-item scheduledAt (optional): an item carrying scheduledAt posts only
+ *     when DUE (scheduledAt <= now), earliest-first, at ANY hour — its timestamp
+ *     is the gate, NOT ALLOWED_HOURS_UTC. Items WITHOUT scheduledAt keep the slot
+ *     cadence above. This lets a dated campaign (one planned post/day) run on the
+ *     same worker as a faithful cloud twin of the local launchd drip.
  *   - In-flight containers (slow transcode) resume ANY hour, so a started post
  *     always completes; that counts as the run's single post.
  *
@@ -174,13 +179,27 @@ async function resumeIfBuilding(env, ev) {
   return publishItem(env, ev, q, item, true)
 }
 
-// Post one random pending reel from this event. Returns result, or null if none pending.
-async function postRandomPending(env, ev) {
+// Eligible to post THIS run:
+//   scheduledAt present → only when due (scheduledAt <= now). The allowed-hour
+//     slot does NOT gate scheduled items — scheduledAt IS their gate (mirrors
+//     post-reels.mjs), so a dated campaign fires at its planned times, any hour.
+//   no scheduledAt (legacy drip) → only inside an allowed-hour slot.
+function eligibleNow(it, nowMs, hourAllowed) {
+  if (it.scheduledAt) return Date.parse(it.scheduledAt) <= nowMs
+  return hourAllowed
+}
+
+// Post one due pending item from this event. Scheduled items go earliest-first
+// (deterministic calendar order); legacy (no-scheduledAt) items keep the random
+// pick. Returns result, or null if nothing is due.
+async function postDuePending(env, ev, hourAllowed) {
   const raw = await env.QUEUE.get(ev); if (!raw) return null
   const q = JSON.parse(raw)
-  const pending = q.items.filter((it) => it.status === 'pending' && hasMedia(it))
-  if (!pending.length) return null
-  const item = pending[Math.floor(Math.random() * pending.length)]
+  const now = Date.now()
+  const due = q.items.filter((it) => it.status === 'pending' && hasMedia(it) && eligibleNow(it, now, hourAllowed))
+  if (!due.length) return null
+  const scheduled = due.filter((it) => it.scheduledAt).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
+  const item = scheduled.length ? scheduled[0] : due[Math.floor(Math.random() * due.length)]
   return publishItem(env, ev, q, item, false)
 }
 
@@ -300,10 +319,12 @@ async function run(env, force = false) {
   const evs = events(env) // priority order: newest first
   // 1) Always finish any in-flight container first (counts as this run's post).
   for (const ev of evs) { const r = await resumeIfBuilding(env, ev); if (r) return [r] }
-  // 2) Fresh post — gated to allowed slots; highest-priority event with pending wins.
-  if (!force && !allowedHours(env).includes(new Date().getUTCHours())) return [{ note: 'not a posting slot' }]
-  for (const ev of evs) { const r = await postRandomPending(env, ev); if (r) return [r] }
-  return [{ note: 'nothing pending in any active event' }]
+  // 2) Fresh post. Scheduled items gate on their own scheduledAt (any hour);
+  //    legacy items gate on the allowed-hour slot. force=1 opens the slot for
+  //    legacy items but never overrides a scheduled item's future scheduledAt.
+  const hourAllowed = force || allowedHours(env).includes(new Date().getUTCHours())
+  for (const ev of evs) { const r = await postDuePending(env, ev, hourAllowed); if (r) return [r] }
+  return [{ note: 'nothing due in any active event' }]
 }
 
 export default {
