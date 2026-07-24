@@ -1,15 +1,14 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-07-21T19:25:47.448Z",
-  "reviewedBy": "Codex browser audit",
-  "method": "local browser walkthrough",
-  "sourceDigest": "sha256:17e8202c9414c02338ad57a56c8828bc57d68dc56d8c7e3bb2d9d1db5589dc6a",
-  "sourceFiles": 91,
+  "reviewedAt": "2026-07-24T15:14:55.636Z",
+  "reviewedBy": "Claude Fable (agent) with operator in-session preview",
+  "method": "browser walkthrough (browse-tool, localhost:3001)",
+  "sourceDigest": "sha256:7b1ff91a5bca540711d1a13fa4af86d98502d6d1f6715f6366e899144faddbfd",
+  "sourceFiles": 93,
   "scope": [
-    "home",
-    "flavor detail",
-    "signup",
-    "standings"
+    "home + marquee",
+    "flavors/poblano-open (payout stat, prizes, countdown)",
+    "signup"
   ]
 }

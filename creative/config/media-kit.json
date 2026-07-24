@@ -28,6 +28,7 @@
   },
   "mascots": {
     "jalapeno": "public/images/mascots/anime/jalapeno/menace-walk.png",
+    "poblano-verde": "public/images/mascots/anime/poblano-verde/block.png",
     "bell-pepper": "public/images/mascots/anime/bell-pepper/block.png",
     "poblano": "public/images/mascots/anime/poblano/diving-dig.png",
     "ghost-pepper": "public/images/mascots/anime/ghost-pepper/jump-serve.png",

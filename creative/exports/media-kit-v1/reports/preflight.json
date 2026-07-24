@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-07-24T15:05:52.989Z",
+  "generatedAt": "2026-07-24T15:15:14.366Z",
   "ok": true,
   "checks": [
     {
@@ -56,10 +56,9 @@
   ],
   "errors": [],
   "inventory": {
-    "files": 228,
-    "bytes": 119434465,
+    "files": 166,
+    "bytes": 119197535,
     "byExtension": {
-      ".html": 62,
       ".md": 3,
       ".wav": 10,
       ".json": 6,
