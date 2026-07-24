@@ -1,14 +1,13 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-07-24T15:54:30.465Z",
-  "reviewedBy": "Claude Fable (agent), payout-caveat revision per Nick's feedback",
+  "reviewedAt": "2026-07-24T16:51:15.768Z",
+  "reviewedBy": "Claude Code (Opus 4.8) + browse-tool DOM inspection",
   "method": "browser walkthrough (browse-tool, localhost:3001)",
-  "sourceDigest": "sha256:682609f6043c7710cb029acb5cff672e8a4cf766870345a3a0fd7199e3745e89",
+  "sourceDigest": "sha256:7f10e0cac7c90429cf25a1b9300a2c8961b3bd7a45dc6b5c334369288a8609d0",
   "sourceFiles": 93,
   "scope": [
-    "home + marquee",
-    "flavors/poblano-open (payout caveat in headline, stat, prizes)",
-    "signup"
+    "home",
+    "flavors/poblano-open"
   ]
 }

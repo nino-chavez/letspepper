@@ -114,7 +114,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		format: 'Pool Play + Single Elimination Bracket',
 		payoutHeadline: { amount: '$2,000', label: 'First place at a full 28-team field · Payout scales with the field' },
 		payouts: ['$2,000 first place at a full 28-team field — payout scales with field size', 'Season recap content', 'Year-end merch'],
-		features: ['$2,000 at 28 Teams', 'Season Closer', 'Final Standings'],
+		features: ['$2,000 at a Full 28', 'Season Closer', 'Final Standings'],
 		mediaPerks: ['Professional photo coverage by Flickday Media', 'Season recap content', 'Full gallery access']
 	}
 }
