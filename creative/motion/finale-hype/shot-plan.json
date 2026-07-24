@@ -1,0 +1,118 @@
+{
+  "category": "kinetic-type",
+  "duration_s": 11,
+  "fps": 30,
+  "canvas": { "w": 1080, "h": 1920, "aspect": "9:16" },
+  "style": "Dark sports-editorial poster energy: near-black #070707 ground, film grain over everything, compressed huge all-caps Anton type in paper #f4f1e8, thin accent rules, Space Mono eyebrow labels. Restrained accent color — lime #a3e635 owns scenes 1-4, the $2,000 slam flips dominance to orange #f97316 (+ yellow #facc15 heat on the number only): that single accent flip IS the pattern-interrupt at the emotional peak. Hard cuts between scenes, no crossfades. Mascot art (gritty anime pepper athlete) sits BEHIND type — dimmed ~60-75%, grain-matched, never competing with the headline. Brand-authored, zero emoji, no exclamation stacks.",
+  "palette": ["#070707", "#f4f1e8", "#a3e635", "#f97316", "#facc15", "#4ade80"],
+  "font": "Anton",
+  "beats": [0.12, 1.3, 2.9, 4.5, 6.0, 6.6, 8.3, 9.95],
+  "export": "mp4",
+
+  "asset_needs": [],
+
+  "block": "caption-kinetic-slam",
+  "customize": {
+    "blocks": {
+      "caption-kinetic-slam": "primary block for scenes 1, 2, 4 — swap words per scene, emphasis_words -> word--emphasis, palette ink/paper/lime, font Anton, retime to the scene windows below",
+      "apple-money-count": "scene 5 only — strip the finance styling to brand: target 2000, prefix '$', no suffix; keep the counter+burst mechanics but recolor burst to orange/yellow on ink, Anton tabular-nums; count-up is a fast 0.45s odometer ripple AFTER the slam lands (slam first, digits settle second)",
+      "grain-overlay": "full-duration film grain on top of everything, subtle",
+      "logo-reveal equivalent": "scene 6 is hand-composed type lockup (no logo asset exists) — do NOT pull logo-outro; simple stacked type + thin rule + glow on the sonic-logo hit"
+    },
+    "fonts": {
+      "display": "Anton",
+      "secondary": "Bebas Neue",
+      "mono": "Space Mono",
+      "note": "Anton is the headline voice everywhere; Bebas Neue for sub-lines/date; Space Mono for eyebrow labels and the @handle. All display type uppercase."
+    },
+    "palette_discipline": "lime + orange dominant, never at equal weight in the same scene. Scenes 1-4: lime accents only. Scene 5: orange/yellow only. Scene 6: paper type, one lime rule, orange only in the glow of the brand lockup.",
+    "mascot_treatment": "1024x1536 transparent PNGs, place at 80-95% canvas height, anchored low, z-index below type, opacity 0.25-0.75 per scene spec, slight slow drift (hold_breath scale 1.0->1.03) so they never sit dead static; grain overlay unifies them with the ground.",
+    "safety_rule": "$2,000 must NEVER be on screen without 'FIRST PLACE AT A FULL 28-TEAM FIELD' visible or arriving within the same scene — the support line enters at 6.6 and holds to the scene cut at 8.2 (1.6s legible, >= 0.5s requirement met). Do not shorten it below 0.5s under any retime."
+  },
+
+  "content": {
+    "scenes": [
+      {
+        "id": "s1-hook",
+        "start": 0.0,
+        "end": 1.2,
+        "text": "ONE EVENT LEFT",
+        "emphasis_words": ["ONE", "LEFT"],
+        "emotion": "urgency",
+        "motion": "slam — the full line drops from y:-300 power4.out and LANDS at 0.12 (serve-snap fires at 0.0, visual anticipated for perceived sync) + shake on land + one-frame paper #f4f1e8 flash at impact; emphasis words carry lime color_shift; micro hold_breath 0.5-1.2; type fills ~85% width, stacked 3 lines, compressed leading",
+        "beats": [0.12],
+        "layers": { "type_color": "#f4f1e8", "accent": "#a3e635", "mascot": null }
+      },
+      {
+        "id": "s2-build",
+        "start": 1.2,
+        "end": 2.8,
+        "text": "THE SEASON CLOSES HERE",
+        "emphasis_words": ["CLOSES"],
+        "emotion": "gravity",
+        "motion": "word_reveal — per-word slide_bottom stagger 0.09 from 1.3; underline_sweep (lime, thin rule) draws left-to-right under CLOSES at 2.0; menace-walk mascot looms behind at 25% opacity, slow drift up-left (the season closing in); no exit — hard cut",
+        "beats": [1.3, 2.0],
+        "layers": { "type_color": "#f4f1e8", "accent": "#a3e635", "mascot": "assets/mascot/menace-walk.png", "mascot_opacity": 0.25 }
+      },
+      {
+        "id": "s3-event-id",
+        "start": 2.8,
+        "end": 4.4,
+        "text": "POBLANO OPEN",
+        "emphasis_words": ["OPEN"],
+        "emotion": "arrival",
+        "motion": "scale_punch on POBLANO OPEN at 2.9 (back.out(2.2)), Anton, biggest type of the piece so far; Space Mono eyebrow '08·01·26 · AURORA, IL' typewriters in above the title from 3.1; Bebas Neue sub-line 'AUG 1' slide_bottom at 3.3 below a thin lime rule (bar_wipe); jump-serve mascot sweeps in from right at 3.0 (slide_right entrance, 70% opacity, 90% height) with slight parallax drift behind the type",
+        "beats": [2.9],
+        "support_text": { "eyebrow_mono": "08·01·26 · AURORA, IL", "sub_bebas": "AUG 1" },
+        "layers": { "type_color": "#f4f1e8", "accent": "#a3e635", "mascot": "assets/mascot/jump-serve.png", "mascot_opacity": 0.7 }
+      },
+      {
+        "id": "s4-field",
+        "start": 4.4,
+        "end": 6.0,
+        "text": "28 TEAMS",
+        "emphasis_words": ["28"],
+        "emotion": "scale",
+        "motion": "bracket-lock moment — two thin lime rules bar_wipe in from left and right edges and SNAP framing the number as bracket-lock.wav fires at 4.4; '28 TEAMS' scale_punch at 4.5, '28' oversized (2x TEAMS) in lime; Bebas sub-line 'THE BIGGEST FIELD THE SERIES HAS SEEN' slide_bottom at 4.8, holds to cut; block mascot (the wall) rises slide_bottom behind at 4.5, 60% opacity; energy-rise starts 5.08 and the whole scene hold_breath-compresses (scale 1.0->1.04, subtle shake ramp) through 6.0 — tension INTO the money slam",
+        "beats": [4.5, 4.8],
+        "support_text": { "sub_bebas": "THE BIGGEST FIELD THE SERIES HAS SEEN" },
+        "layers": { "type_color": "#f4f1e8", "accent": "#a3e635", "mascot": "assets/mascot/block.png", "mascot_opacity": 0.6 }
+      },
+      {
+        "id": "s5-stat-slam",
+        "start": 6.0,
+        "end": 8.2,
+        "text": "$2,000",
+        "emphasis_words": ["$2,000"],
+        "emotion": "triumph",
+        "emotional_peak": true,
+        "mode": "stat",
+        "stat": { "value": 2000, "prefix": "$", "suffix": "", "label": "FIRST PLACE AT A FULL 28-TEAM FIELD", "ring": false },
+        "motion": "THE PEAK + the pattern-interrupt: accent flips lime->orange. impact-slam audio fires 5.95, '$2,000' slams at 6.0 (y:-300 power4.out) with hard shake + orange #f97316 flash frame; digits do a 0.45s odometer settle (apple-money-count mechanics, tabular-nums, yellow #facc15 heat on the number, seek-safe proxy tween) landing by 6.5; scale_pulse + glow on the beat at 6.6; champion mascot (finger-#1 raised — pairs with first place) scale_punch in at 6.15 behind-right at 75% opacity; support line 'FIRST PLACE AT A FULL 28-TEAM FIELD' slide_bottom in Bebas at 6.6 under a thin orange rule and HOLDS to 8.2 — 1.6s legible, this is the payout condition and is non-negotiable; scale_out exit on the whole group at 8.1",
+        "beats": [6.0, 6.6],
+        "layers": { "type_color": "#facc15", "accent": "#f97316", "mascot": "assets/mascot/champion.png", "mascot_opacity": 0.75 }
+      },
+      {
+        "id": "s6-cta-brand",
+        "start": 8.2,
+        "end": 11.0,
+        "text": "LET'S PEPPER",
+        "emphasis_words": ["LETSPEPPER.COM"],
+        "emotion": "resolve",
+        "motion": "hard cut to clean type-only lockup on ink (no mascot — the brand closes alone): sizzle-tail rides the cut at 8.15; 'REGISTER AT LETSPEPPER.COM' slide_bottom in Bebas at 8.3; thin lime rule bar_wipe at 8.5; '@letspepper.open' fade_in in Space Mono at 8.7; 'LET'S PEPPER' scale_grow in Anton (largest element) at 8.9; sonic-logo fires 9.9 -> glow pulse (soft orange textShadow, yoyo) on the LET'S PEPPER lockup at 9.95, then hold_breath to 11.0 — everything readable a full 2s, no exit, end on the held lockup as the sonic tail rings out at 10.98",
+        "beats": [8.3, 9.95],
+        "support_text": { "cta_bebas": "REGISTER AT LETSPEPPER.COM", "handle_mono": "@letspepper.open" },
+        "layers": { "type_color": "#f4f1e8", "accent": "#a3e635", "glow_accent": "#f97316", "mascot": null }
+      }
+    ],
+
+    "audio": [
+      { "cue": "serve-snap", "file": "assets/audio/serve-snap.wav", "at": 0.0, "duration_s": 0.34, "syncs": "hook slam of ONE EVENT LEFT lands 0.12" },
+      { "cue": "bracket-lock", "file": "assets/audio/bracket-lock.wav", "at": 4.4, "duration_s": 0.52, "syncs": "lime bracket rules snap around 28 TEAMS at 4.5" },
+      { "cue": "energy-rise", "file": "assets/audio/energy-rise.wav", "at": 5.08, "duration_s": 0.92, "syncs": "riser crests exactly at 6.0 — runs under the s4 tension compress, hands off to the slam" },
+      { "cue": "impact-slam", "file": "assets/audio/impact-slam.wav", "at": 5.95, "duration_s": 0.58, "syncs": "$2,000 lands at 6.0 (cue anticipated 0.05s for perceived sync)" },
+      { "cue": "sizzle-tail", "file": "assets/audio/sizzle-tail.wav", "at": 8.15, "duration_s": 0.78, "syncs": "hard cut into the CTA scene" },
+      { "cue": "sonic-logo", "file": "assets/audio/sonic-logo.wav", "at": 9.9, "duration_s": 1.08, "syncs": "LET'S PEPPER lockup glow at 9.95; tail ends 10.98, piece ends 11.0 — sonic-logo closes the piece" }
+    ]
+  }
+}
