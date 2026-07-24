@@ -228,36 +228,46 @@ for (let i = 0; i < items('coverHeadlines').length; i++) {
 
 // ── Poblano event lifecycle Stories ───────────────────────────────────────────
 const poblanoPoses = ['menace-walk', 'block', 'jump-serve', 'diving-dig', 'celebration', 'champion', 'exhausted']
+// The poblano event masters front Poblano Verde (male-presenting): the series runs
+// men's divisions only, so the female-presenting Poblano misrepresents the field on
+// event marketing. She stays on brand-level assets (covers, share templates).
+const EVENT_CHARACTER = 'poblano-verde'
+// Campaign stages carry a fixed pose (payout reads as a champion moment, the field
+// push as a block wall); lifecycle stages keep their positional rotation.
+const storyPoseOverride = { payout: 'champion', 'field-target': 'block' }
 for (let i = 0; i < items('eventStages').length; i++) {
   const row = items('eventStages')[i]
-  const pose = poblanoPoses[i % poblanoPoses.length]
-  const cta = row.id === 'registration' ? byId('callsToAction', 'register').label
+  const pose = storyPoseOverride[row.id] ?? poblanoPoses[i % poblanoPoses.length]
+  const cta = row.id === 'registration' || row.id === 'payout' || row.id === 'field-target'
+    ? byId('callsToAction', 'register').label
     : row.id === 'gallery' ? byId('callsToAction', 'gallery').label
       : E.url.toUpperCase()
   await capture({
     category: 'event/poblano/stories', name: `${String(i + 1).padStart(2, '0')}-${row.id}`, width: 1080, height: 1920,
     note: 'Poblano Open lifecycle Story master.',
     css: `.bg{position:absolute;inset:0;background:radial-gradient(60% 48% at 68% 43%,rgba(163,230,53,.2),transparent 70%),linear-gradient(150deg,#0b1407,#070707 62%,#241003)}.stripe{position:absolute;left:0;top:0;width:24px;height:100%;background:linear-gradient(${P.poblano},${P.yellow},${P.orange})}.mascot{position:absolute;right:${pose === 'diving-dig' ? '-330px' : '-120px'};top:${pose === 'diving-dig' ? '490px' : '380px'};width:${pose === 'diving-dig' ? '1300px' : '820px'};height:1050px;object-fit:contain;filter:drop-shadow(0 30px 70px rgba(0,0,0,.65))}.wash{position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,7,7,.2),transparent 30%,rgba(7,7,7,.15) 58%,#070707 78%)}
-      .top{position:absolute;left:80px;right:80px;top:235px;display:flex;justify-content:space-between;align-items:center}.date{font-size:20px;color:${P.yellow};letter-spacing:.16em;font-weight:700}.copy{position:absolute;left:80px;right:75px;bottom:285px}.eyebrow{font-size:24px;letter-spacing:.24em;color:${P.poblano};text-transform:uppercase;font-weight:700}.label{font-family:'Anton',sans-serif;font-size:${row.label.length > 17 ? 118 : 154}px;line-height:.84;text-transform:uppercase;margin-top:20px;max-width:930px}.detail{font-size:29px;line-height:1.4;max-width:780px;margin-top:28px;color:#d4d1c8}.cta{display:inline-block;margin-top:32px;border:3px solid ${P.orange};padding:18px 24px;color:${P.orange};font-family:'Bebas Neue';font-size:34px;letter-spacing:.07em;text-transform:uppercase}.foot{position:absolute;left:80px;right:80px;bottom:205px;display:flex;justify-content:space-between;font-size:18px;letter-spacing:.12em;text-transform:uppercase;color:#9b998f}`,
-    body: `<div class="bg"></div><div class="stripe"></div><img class="mascot" src="${mascot('poblano', pose)}"><div class="wash"></div><div class="grain"></div><div class="top">${identity(P.paper)}<span class="date">${e(E.dateShort)}</span></div><div class="copy"><div class="eyebrow">${e(E.name)} · Season finale</div><div class="label">${e(row.label)}</div><div class="detail">${e(row.detail)}</div><div class="cta">${e(cta)}</div></div><div class="foot"><span>${e(E.location)}</span><span>${e(B.handle)}</span></div>`,
+      .top{position:absolute;left:80px;right:80px;top:235px;display:flex;justify-content:space-between;align-items:center}.date{font-size:20px;color:${P.yellow};letter-spacing:.16em;font-weight:700}.copy{position:absolute;left:80px;right:75px;bottom:285px}.eyebrow{font-size:24px;letter-spacing:.24em;color:${P.poblano};text-transform:uppercase;font-weight:700}.label{font-family:'Anton',sans-serif;font-size:${row.id === 'payout' ? 250 : row.label.length > 17 ? 118 : 154}px;line-height:.84;text-transform:uppercase;margin-top:20px;max-width:930px}.detail{font-size:29px;line-height:1.4;max-width:780px;margin-top:28px;color:#d4d1c8}.cta{display:inline-block;margin-top:32px;border:3px solid ${P.orange};padding:18px 24px;color:${P.orange};font-family:'Bebas Neue';font-size:34px;letter-spacing:.07em;text-transform:uppercase}.foot{position:absolute;left:80px;right:80px;bottom:205px;display:flex;justify-content:space-between;font-size:18px;letter-spacing:.12em;text-transform:uppercase;color:#9b998f}`,
+    body: `<div class="bg"></div><div class="stripe"></div><img class="mascot" src="${mascot(EVENT_CHARACTER, pose)}"><div class="wash"></div><div class="grain"></div><div class="top">${identity(P.paper)}<span class="date">${e(E.dateShort)}</span></div><div class="copy"><div class="eyebrow">${e(E.name)} · Season finale</div><div class="label">${e(row.label)}</div><div class="detail">${e(row.detail)}</div><div class="cta">${e(cta)}</div></div><div class="foot"><span>${e(E.location)}</span><span>${e(B.handle)}</span></div>`,
   })
 }
 
 // ── Feed cards ─────────────────────────────────────────────────────────────────
-const feedIds = ['registration', 'field-set', 'schedule-live', 'standings', 'gallery']
+const feedIds = ['registration', 'field-set', 'schedule-live', 'standings', 'gallery', 'payout', 'field-target']
 for (let i = 0; i < feedIds.length; i++) {
   const row = byId('eventStages', feedIds[i])
-  const pose = ['menace-walk', 'block', 'jump-serve', 'champion', 'celebration'][i]
+  const pose = ['menace-walk', 'block', 'jump-serve', 'champion', 'celebration', 'champion', 'block'][i]
   await capture({
     category: 'event/poblano/feed', name: `${String(i + 1).padStart(2, '0')}-${row.id}`, width: 1080, height: 1350,
     note: '4:5 Poblano Open feed master.',
-    css: `.bg{position:absolute;inset:0;background:radial-gradient(circle at 76% 35%,rgba(163,230,53,.24),transparent 31%),linear-gradient(145deg,#111,#070707 60%,#251104)}.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(244,241,232,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(244,241,232,.04) 1px,transparent 1px);background-size:54px 54px}.mascot{position:absolute;right:-130px;top:210px;width:660px;height:780px;object-fit:contain;filter:drop-shadow(0 25px 55px rgba(0,0,0,.65))}.fade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,7,7,.95) 0 43%,rgba(7,7,7,.14) 72%),linear-gradient(0deg,#070707 0 12%,transparent 43%)}.top{position:absolute;left:66px;right:66px;top:64px;display:flex;justify-content:space-between}.copy{position:absolute;left:66px;top:330px;width:640px}.rule{width:130px;height:12px;background:${P.poblano};margin-bottom:28px}.label{font-family:'Anton';font-size:${row.label.length > 16 ? 102 : 126}px;line-height:.85;text-transform:uppercase}.detail{font-size:25px;line-height:1.45;color:#d4d1c8;margin-top:26px;max-width:570px}.event{color:${P.yellow};font-size:20px;letter-spacing:.16em;text-transform:uppercase;margin-top:30px;font-weight:700}.foot{position:absolute;left:66px;right:66px;bottom:64px;border-top:2px solid rgba(244,241,232,.18);padding-top:25px;display:flex;justify-content:space-between;font-size:18px;letter-spacing:.12em;text-transform:uppercase}`,
-    body: `<div class="bg"></div><div class="grid"></div><img class="mascot" src="${mascot('poblano', pose)}"><div class="fade"></div><div class="grain"></div><div class="top">${identity(P.paper)}<span class="mono">${e(E.dateShort)}</span></div><div class="copy"><div class="rule"></div><div class="label">${e(row.label)}</div><div class="detail">${e(row.detail)}</div><div class="event">${e(E.name)} · ${e(E.format)}</div></div><div class="foot"><span>${e(E.location)}</span><span>${e(B.handle)}</span></div>`,
+    css: `.bg{position:absolute;inset:0;background:radial-gradient(circle at 76% 35%,rgba(163,230,53,.24),transparent 31%),linear-gradient(145deg,#111,#070707 60%,#251104)}.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(244,241,232,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(244,241,232,.04) 1px,transparent 1px);background-size:54px 54px}.mascot{position:absolute;right:-130px;top:210px;width:660px;height:780px;object-fit:contain;filter:drop-shadow(0 25px 55px rgba(0,0,0,.65))}.fade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,7,7,.95) 0 43%,rgba(7,7,7,.14) 72%),linear-gradient(0deg,#070707 0 12%,transparent 43%)}.top{position:absolute;left:66px;right:66px;top:64px;display:flex;justify-content:space-between}.copy{position:absolute;left:66px;top:330px;width:640px}.rule{width:130px;height:12px;background:${P.poblano};margin-bottom:28px}.label{font-family:'Anton';font-size:${row.id === 'payout' ? 200 : row.label.length > 16 ? 102 : 126}px;line-height:.85;text-transform:uppercase}.detail{font-size:25px;line-height:1.45;color:#d4d1c8;margin-top:26px;max-width:570px}.event{color:${P.yellow};font-size:20px;letter-spacing:.16em;text-transform:uppercase;margin-top:30px;font-weight:700}.foot{position:absolute;left:66px;right:66px;bottom:64px;border-top:2px solid rgba(244,241,232,.18);padding-top:25px;display:flex;justify-content:space-between;font-size:18px;letter-spacing:.12em;text-transform:uppercase}`,
+    body: `<div class="bg"></div><div class="grid"></div><img class="mascot" src="${mascot(EVENT_CHARACTER, pose)}"><div class="fade"></div><div class="grain"></div><div class="top">${identity(P.paper)}<span class="mono">${e(E.dateShort)}</span></div><div class="copy"><div class="rule"></div><div class="label">${e(row.label)}</div><div class="detail">${e(row.detail)}</div><div class="event">${e(E.name)} · ${e(E.format)}</div></div><div class="foot"><span>${e(E.location)}</span><span>${e(B.handle)}</span></div>`,
   })
 }
 
 // ── Fan-share templates ────────────────────────────────────────────────────────
-const sharePeppers = ['poblano', 'jalapeno', 'ghost-pepper', 'bell-pepper', 'poblano', 'jalapeno', 'poblano']
+// im-in (index 0) is event-specific, so it fronts EVENT_CHARACTER like the lifecycle
+// masters; the rest are brand-level and keep the mixed roster.
+const sharePeppers = [EVENT_CHARACTER, 'jalapeno', 'ghost-pepper', 'bell-pepper', 'poblano', 'jalapeno', 'poblano']
 function shareMiddle(id) {
   if (id === 'my-pick') return '<div class="receipt"><span>FINALIST</span><b>TEAM NAME</b><span>CHAMPION</span><b>TEAM NAME</b></div>'
   if (id === 'vote-cast') return '<div class="seal">VOTE<br>RECORDED</div>'

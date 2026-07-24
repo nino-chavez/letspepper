@@ -36,6 +36,14 @@
       "directory": "/images/mascots/anime/poblano",
       "contactSheet": "/images/mascots/anime/poblano/contact-sheet.png"
     },
+    "poblano-verde": {
+      "displayName": "Poblano Verde",
+      "role": "Middle blocker / net anchor — fronts the Poblano Pepper Open (men's divisions)",
+      "accent": "deep-emerald",
+      "ball": "green-and-cream",
+      "directory": "/images/mascots/anime/poblano-verde",
+      "contactSheet": "/images/mascots/anime/poblano-verde/contact-sheet.png"
+    },
     "ghost-pepper": {
       "displayName": "Ghost Pepper",
       "role": "Jump-server / speed ace",

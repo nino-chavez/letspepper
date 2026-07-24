@@ -53,13 +53,14 @@ const tournaments: Tournament[] = [
     name: 'Poblano Open',
     heat: 'poblano',
     slug: 'poblano-open-2026',
-    mascot: '/images/mascots/anime/web/poblano-menace-walk-256.webp',
+    // Poblano Verde fronts this event — men's divisions only; see flavors/[slug] mascotCharacter note.
+    mascot: '/images/mascots/anime/web/poblano-verde-menace-walk-256.webp',
     tagline: 'Season Finale',
     description:
-      "The season closes with long rallies, tight decisions, and one final bracket.",
+      "The season closes with one final bracket — and $2,000 on the line for first place.",
     date: '2026-08-01',
     displayDate: 'August 1, 2026',
-    features: ['Season Closer', 'Final Standings', 'Year-End Celebration'],
+    features: ['$2,000 First Place', 'Season Closer', 'Final Standings'],
   },
 ]
 

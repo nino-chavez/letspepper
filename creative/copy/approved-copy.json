@@ -30,7 +30,9 @@
     { "id": "standings", "label": "FINAL STANDINGS", "detail": "The season finale is complete.", "status": "approved" },
     { "id": "gallery", "label": "FULL GALLERY", "detail": "Find your team at letspepper.com/gallery.", "status": "approved" },
     { "id": "recap", "label": "THE RECAP", "detail": "One more day on the grass.", "status": "approved" },
-    { "id": "season-close", "label": "THE SEASON CLOSES HERE", "detail": "Poblano Open · August 1, 2026", "status": "approved" }
+    { "id": "season-close", "label": "THE SEASON CLOSES HERE", "detail": "Poblano Open · August 1, 2026", "status": "approved" },
+    { "id": "payout", "label": "$2,000", "detail": "First place — the largest payout in series history.", "status": "approved" },
+    { "id": "field-target", "label": "28 TEAMS", "detail": "The biggest field the series has seen.", "status": "approved" }
   ],
   "share": [
     { "id": "im-in", "label": "I'M IN", "detail": "Poblano Open · August 1", "status": "approved" },

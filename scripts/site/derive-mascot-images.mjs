@@ -42,6 +42,8 @@ const JOBS = [
   ['bell-pepper/block.png', 'og-bell-pepper-block-360.png', 360],
   ['jalapeno/jump-serve.png', 'og-jalapeno-jump-serve-360.png', 360],
   ['poblano/menace-walk.png', 'og-poblano-menace-walk-360.png', 360],
+  // poblano-event OG fronts Poblano Verde (men's divisions only; see flavors/[slug] note)
+  ['poblano-verde/menace-walk.png', 'og-poblano-verde-menace-walk-360.png', 360],
   // homepage tournament cards — rendered ≤64 CSS px wide; 1.1 hover × 3 DPR ≈ 211 device px
   ['bell-pepper/menace-walk.png', 'bell-pepper-menace-walk-256.webp', 256],
   ['jalapeno/menace-walk.png', 'jalapeno-menace-walk-256.webp', 256],
@@ -50,6 +52,10 @@ const JOBS = [
   ['bell-pepper/block.png', 'bell-pepper-block-1024.webp', 1024],
   ['jalapeno/jump-serve.png', 'jalapeno-jump-serve-1024.webp', 1024],
   ['poblano/menace-walk.png', 'poblano-menace-walk-1024.webp', 1024],
+  // poblano-event surfaces front Poblano Verde (hero, homepage card, post-phase champion)
+  ['poblano-verde/menace-walk.png', 'poblano-verde-menace-walk-1024.webp', 1024],
+  ['poblano-verde/menace-walk.png', 'poblano-verde-menace-walk-256.webp', 256],
+  ['poblano-verde/champion.png', 'poblano-verde-champion-1024.webp', 1024],
   // post-phase champion swaps (jalapeno also serves the /standings hero)
   ['bell-pepper/champion.png', 'bell-pepper-champion-1024.webp', 1024],
   ['jalapeno/champion.png', 'jalapeno-champion-1024.webp', 1024],

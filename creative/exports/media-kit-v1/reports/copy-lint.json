@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-07-21T20:13:45.953Z",
+  "generatedAt": "2026-07-24T15:05:48.969Z",
   "copyVersion": 2,
-  "filesScanned": 148,
-  "queueCaptionsScanned": 78,
-  "approvedPhrases": 91,
+  "filesScanned": 150,
+  "queueCaptionsScanned": 81,
+  "approvedPhrases": 93,
   "errors": [],
   "warnings": [
     "scripts/social-publish/queue/bell-pepper-2026.json has 74 pending feed posts; select and schedule a smaller reviewed set before publishing",

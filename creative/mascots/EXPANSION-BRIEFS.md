@@ -65,6 +65,18 @@ Long curved yellow pepper; lean agile athlete in a black kit; setter-ready stanc
 hands raised and focused eyes. Useful for assists, explainers, schedules, polls, and
 lighter editorial beats. Confident, not a slapstick banana character.
 
+### Poblano Verde — middle blocker / net anchor (full pose family)
+
+Deep emerald-green poblano pod head — broad-shouldered, gently heart-shaped, glossy,
+thick dark stem; powerful male-presenting athlete with flat muscular chest, broad
+shoulders, thick neck and forearms; black tank and shorts kit; green/cream ball.
+Fronts the Poblano Pepper Open on every event surface (the series runs men's
+divisions only; the female-presenting Poblano stays on brand-level assets). Unlike
+the other expansion anchors, this is a full seven-pose family: each pose was
+generated as a gpt-image-2 edit of the female Poblano's matching pose (preserves
+choreography, kit, and family style), on the standard magenta chroma. Sources:
+`sources/poblano-verde-<pose>-chroma.png`. Confident, competitive; not a bully.
+
 ### Shishito — utility wildcard
 
 Slim wrinkled dark-green pepper; compact agile athlete in a low ready stance with a

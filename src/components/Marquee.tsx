@@ -214,7 +214,7 @@ export function Marquee({
 const upcomingEvents = [
   { name: 'Bell Pepper Open', slug: 'bell-pepper-open-2026', date: '2026-06-07', displayDate: 'June 7', variant: 'bell' as const },
   { name: 'Jalapeño Open', slug: 'jalapeno-open-2026', date: '2026-07-18', displayDate: 'July 18', variant: 'jalapeno' as const },
-  { name: 'Poblano Open', slug: 'poblano-open-2026', date: '2026-08-01', displayDate: 'Aug 1', variant: 'poblano' as const },
+  { name: 'Poblano Open', slug: 'poblano-open-2026', date: '2026-08-01', displayDate: 'Aug 1', variant: 'poblano' as const, payout: '$2,000 First Place' },
 ]
 
 /**
@@ -285,6 +285,7 @@ export function NextEventMarquee({ className }: { className?: string }) {
         { text: '〰️' },
         { text: next.name, highlight: true },
         { text: '〰️' },
+        ...('payout' in next && next.payout ? [{ text: next.payout, highlight: true }, { text: '〰️' }] : []),
         { text: next.displayDate },
         { text: '〰️' },
         { text: 'Aurora, IL' },
