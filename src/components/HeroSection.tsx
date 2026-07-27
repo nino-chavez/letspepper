@@ -11,6 +11,7 @@ export function HeroSection() {
   const prefersReducedMotion = useReducedMotion()
 
   return (
+    <>
     <section
       aria-labelledby="hero-heading"
       className="relative min-h-screen flex items-center pt-20 overflow-hidden"
@@ -36,16 +37,6 @@ export function HeroSection() {
         }}
         aria-hidden="true"
       />
-
-      {/* Next Event Announcement Marquee */}
-      <motion.div
-        className="absolute top-[35%] left-0 right-0 z-30 pointer-events-none"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.8, duration: 0.8 }}
-      >
-        <NextEventMarquee />
-      </motion.div>
 
       <div className="section-container relative z-10">
         <div className="relative">
@@ -191,5 +182,26 @@ export function HeroSection() {
         </motion.div>
       </motion.div>
     </section>
+
+    {/*
+      Next Event Announcement Marquee.
+
+      Sits between the hero and the next section rather than inside the hero.
+      The hero's copy runs edge to edge vertically — the h1 alone is ~72% of its
+      height — so a full-bleed rotated banner placed anywhere inside it lands on
+      the headline. It previously used `absolute top-[35%]` and painted over
+      "PLAYER-OWNED", hiding the tape's own event details in the process. The
+      hero is also `overflow-hidden`, so the banner cannot be pushed to the seam
+      from within it. Rendering it as a sibling is what puts it in clear space.
+    */}
+    <motion.div
+      className="relative z-30 pointer-events-none my-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 1.8, duration: 0.8 }}
+    >
+      <NextEventMarquee />
+    </motion.div>
+    </>
   )
 }
