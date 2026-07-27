@@ -14,7 +14,20 @@ export function HeroSection() {
     <>
     <section
       aria-labelledby="hero-heading"
-      className="relative min-h-screen flex items-center pt-20 overflow-hidden"
+      /* min-height leaves room for the event tape that follows. The tape is a
+         sibling (the hero is overflow-hidden, so it cannot live inside), which
+         means a full 100vh hero pushes it below the fold no matter how small
+         its own content gets.
+
+         Two terms, because the tape has two different heights. 5.5rem is its
+         box: 56px of band plus its 1rem margins. 2.9vw is the overhang from
+         rotating that band -3deg across 110% width — the corners swing below
+         the box by (110vw x sin 3deg) / 2, which is ~39px at 1366 and ~55px at
+         1920. That scales with viewport WIDTH, so a rem-only reservation clips
+         the lower corner on wide screens no matter how large you make it.
+
+         svh, not vh, so mobile browser chrome does not eat the tape. */
+      className="relative min-h-[calc(100svh-5.5rem-2.9vw)] flex items-center pt-20 overflow-hidden"
     >
       {/* Background Gradient */}
       <div

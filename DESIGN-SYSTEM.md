@@ -74,7 +74,7 @@ The series is on hold and its homepage section is archived (recoverable from git
 
 | Element | Size | Line Height | Weight | Case |
 |---------|------|-------------|--------|------|
-| Hero | `clamp(3.5rem, 15vw, 10rem)` | 0.85 | 400 | UPPERCASE |
+| Hero | `clamp(2.5rem, 6vw, 7rem)` | 0.95 | 400 | UPPERCASE |
 | Display | `clamp(2rem, 8vw, 5rem)` | 0.95 | 400 | UPPERCASE |
 | Heading | `clamp(1.5rem, 4vw, 2.5rem)` | 1.1 | 400 | UPPERCASE |
 | Body | `1rem` | 1.5 | 400 | Sentence |

@@ -87,22 +87,16 @@
      TYPOGRAPHY COMPONENTS
      ═══════════════════════════════════════════ */
 
+  /* NO font-size here. `text-hero` is also a Tailwind utility generated from
+     `fontSize.hero` in tailwind.config.ts, and utilities sort after components —
+     so any font-size declared here loses at every width. This block previously
+     carried a three-step responsive ramp (8vw → 3.2vw → 3.5vw across two media
+     queries) and **none of it ever applied**; the page shipped the config's
+     clamp with this rule's line-height, a hybrid neither definition described.
+     Size is owned by tailwind.config.ts. Everything else is owned here. */
   .text-hero {
     @apply font-display uppercase tracking-tight;
-    font-size: clamp(2rem, 8vw, 3.5rem);
     line-height: 0.95;
-  }
-
-  @media (min-width: 1024px) {
-    .text-hero {
-      font-size: clamp(2.25rem, 3.2vw, 4rem);
-    }
-  }
-
-  @media (min-width: 1440px) {
-    .text-hero {
-      font-size: clamp(3rem, 3.5vw, 5rem);
-    }
   }
 
   .text-display {

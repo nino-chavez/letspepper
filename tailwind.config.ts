@@ -33,7 +33,11 @@ const config: Config = {
         accent: ['Space Mono', 'JetBrains Mono', 'monospace'],
       },
       fontSize: {
-        'hero': 'clamp(3.5rem, 15vw, 10rem)',
+        // Ceiling lowered from 10rem 2026-07-27. At 10rem/15vw the h1 rendered
+        // 760px of a 1054px hero — 72% of it — which pushed the hero past the
+        // viewport and the event tape below the fold entirely. 6vw also lets
+        // "PLAYER-OWNED." set on one line instead of breaking after the hyphen.
+        'hero': 'clamp(2.5rem, 6vw, 7rem)',
         'display': 'clamp(2rem, 8vw, 5rem)',
         'heading': 'clamp(1.5rem, 4vw, 2.5rem)',
       },
