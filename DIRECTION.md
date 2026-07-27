@@ -27,7 +27,7 @@ can be said for it.
 | `heat-cards` | authorized | Each tournament card carries a glow in its own event's heat color — resting `.glow-*` plus a stronger `.heat-card-*:hover`, mapped per variant in `TournamentSeries.tsx:68-82` | The ladder applied to the card itself, so pointing at a rung says which rung without a label | `dark-glow` |
 | `heat-type` | authorized | h1 lines 3–4 set in `--heat-poblano` and `--heat-jalapeno` (`HeroSection.tsx:62-69`) | Shows the ladder in the first viewport instead of explaining it | — |
 | `brackets` | undecided | Corner rules on the hero photo in `border-heat-jalapeno/50` (`HeroSection.tsx:154-161`) | Carries a heat color, but the color encodes nothing here — the photo is not a Jalapeño-event artifact. Either bind the bracket color to the pictured event, or drop it | `side-tab`, `border-accent-on-rounded` |
-| `ethos-tiles` | condemned — removed | Neutral `bg-zinc-800/50` icon tile above each of four h3s (was `EthosSection.tsx:88-110`) | **Cannot cite it.** Carried no heat, encoded nothing, and was the exact four-across arrangement the thesis refuses | `icon-tile-stack` |
+| `ethos-tiles` | removed | Neutral `bg-zinc-800/50` icon tile above each of four h3s (was `EthosSection.tsx:88-110`) | **Cannot cite it.** Carried no heat, encoded nothing, and was the exact four-across arrangement the thesis refuses | `icon-tile-stack` |
 
 ## Notes
 
