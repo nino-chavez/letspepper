@@ -36,6 +36,28 @@ colors:
     muted: "#262626"
     mutedForeground: "#a3a3a3"
     border: "#404040"
+  neutral-50: "#fafafa"
+  neutral-100: "#f5f5f5"
+  neutral-200: "#e5e5e5"
+  neutral-300: "#d4d4d4"
+  neutral-400: "#a3a3a3"
+  neutral-500: "#737373"
+  neutral-600: "#525252"
+  neutral-700: "#404040"
+  neutral-800: "#262626"
+  neutral-900: "#171717"
+  neutral-950: "#0a0a0a"
+  semantic-success: "#4a7c3f"
+  semantic-warning: "#f97316"
+  semantic-error: "#ef4444"
+  semantic-info: "#3b82f6"
+  surface-background: "#0a0a0a"
+  surface-foreground: "#fafafa"
+  surface-card: "#171717"
+  surface-cardForeground: "#fafafa"
+  surface-muted: "#262626"
+  surface-mutedForeground: "#a3a3a3"
+  surface-border: "#404040"
 
 typography:
   fonts:
@@ -92,6 +114,24 @@ typography:
       lineHeight: 1.4
       weight: 700
       font: mono
+  display:
+    fontFamily: "Bebas Neue, Impact, sans-serif"
+  body:
+    fontFamily: "Inter, system-ui, sans-serif"
+  mono:
+    fontFamily: "Space Mono, Menlo, monospace"
+  step-hero:
+    fontSize: 6rem
+  step-h2:
+    fontSize: 3.5rem
+  step-h3:
+    fontSize: 1.5rem
+  step-body-lg:
+    fontSize: 1.125rem
+  step-body:
+    fontSize: 1rem
+  step-label:
+    fontSize: 0.75rem
 
 spacing:
   "1": 0.25rem
