@@ -2,32 +2,22 @@
 
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
-import {
-  GrassrootsIcon,
-  PlayerOwnedIcon,
-  MediaIcon,
-  CompetitionIcon,
-  CameraIcon,
-} from './icons'
+import { CameraIcon } from './icons'
 
 const values = [
   {
-    Icon: GrassrootsIcon,
     title: 'Grassroots First',
     description: 'Built on local grass courts with the players at the center.',
   },
   {
-    Icon: PlayerOwnedIcon,
     title: 'Player-Owned',
     description: 'Designed and run by people who play the format.',
   },
   {
-    Icon: MediaIcon,
     title: 'Media-Backed',
     description: 'Professional Flickday Media coverage organized for teams to find and share.',
   },
   {
-    Icon: CompetitionIcon,
     title: 'Real Competition',
     description: 'Strong fields, clear formats, and a day players want to enter again.',
   },
@@ -94,15 +84,13 @@ export function EthosSection() {
           {values.map((value) => (
             <motion.div
               key={value.title}
-              className="group text-center sm:text-left"
+              className="text-center sm:text-left"
               variants={MOTION.variants.slideUp}
             >
-              {/* Icon */}
-              <div className="inline-block mb-4 p-3 rounded-xl bg-zinc-800/50 border border-zinc-700/50 group-hover:border-zinc-600/50 transition-colors">
-                <value.Icon size={32} />
-              </div>
-
-              {/* Content */}
+              {/* No icon tile here on purpose. Color and ornament are reserved for
+                  heat meaning (see DIRECTION.md#ethos-tiles); a neutral rounded
+                  icon box above each of four headings encodes nothing and is the
+                  "why us" card grid this page's argument refuses. */}
               <h3 className="font-display text-xl uppercase text-white mb-2">
                 {value.title}
               </h3>
