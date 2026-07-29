@@ -1,9 +1,11 @@
 /**
- * letspepper-reels-worker — cloud cron drip for Instagram reels.
+ * letspepper-reels-worker — cloud cron drip for owned Instagram and Facebook Pages.
  *
  * Hourly cron. GLOBAL cadence with EVENT PRIORITY:
- *   - At most ONE fresh reel per allowed slot → ALLOWED_HOURS_UTC sets the daily
- *     cap (default 2 slots = 2/day total, ACROSS all events — not per event).
+ *   - At most ONE fresh campaign item per allowed slot → ALLOWED_HOURS_UTC sets
+ *     the daily cap (default 2 slots = 2/day total, ACROSS all events — not per
+ *     event). A single item may publish to both Instagram and its paired
+ *     Facebook Page; each destination keeps independent state.
  *   - Recency priority: each slot posts a random pending reel from the
  *     highest-priority event first (ACTIVE_EVENTS order, newest listed FIRST);
  *     older events only backfill when the newer one has nothing pending.
@@ -17,7 +19,11 @@
  *
  * Bindings/secrets (wrangler.jsonc):
  *   QUEUE (KV)         one key per event slug → queue JSON ({meta,items[]})
- *   IG_ACCESS_TOKEN    System User token (secret)
+ *   IG_ACCESS_TOKEN    Instagram-publishing System User token (secret)
+ *   FB_ACCESS_TOKEN    Page-publishing System User token with
+ *                      pages_manage_posts (secret). An asset-specific override
+ *                      can be supplied via each account's optional
+ *                      FB_*_ACCESS_TOKEN binding.
  *   TRIGGER_KEY        guards /run, /run?force=1, /status (secret)
  *   ACTIVE_EVENTS      comma-separated slugs, HIGHEST PRIORITY (newest) FIRST (var)
  *   ALLOWED_HOURS_UTC  comma-separated UTC hours = daily slots/cap (var)
@@ -41,9 +47,24 @@ const DEFAULT_INTENT = {
 const DIGEST_CAP = 200
 
 const ACCOUNTS = {
-  letspepper: { handle: 'letspepper.open', ig_user_id: '17841475435692331' },
-  flickday:   { handle: 'flickday.media',  ig_user_id: '17841474039989310' },
-  ninophoto:  { handle: 'nino.chavez.photo', ig_user_id: '17841401886738878' },
+  letspepper: {
+    handle: 'letspepper.open',
+    ig_user_id: '17841475435692331',
+    page_id: '1121553257697663',
+    fb_token_binding: 'FB_LETSPEPPER_ACCESS_TOKEN',
+  },
+  flickday: {
+    handle: 'flickday.media',
+    ig_user_id: '17841474039989310',
+    page_id: '1083438888196332',
+    fb_token_binding: 'FB_FLICKDAY_ACCESS_TOKEN',
+  },
+  ninophoto: {
+    handle: 'nino.chavez.photo',
+    ig_user_id: '17841401886738878',
+    page_id: '739564079232058',
+    fb_token_binding: 'FB_NINOPHOTO_ACCESS_TOKEN',
+  },
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -140,43 +161,228 @@ async function buildContainer(token, ig, it) {
 const hasMedia = (it) => it.media_type === 'CAROUSEL'
   ? Array.isArray(it.children) && it.children.length : (it.video_url || it.image_url)
 
-// Publish one item (resume an existing container or build fresh), persist.
-async function publishItem(env, ev, q, item, resuming) {
+const wantsInstagram = (it) => !Array.isArray(it.channels) || it.channels.includes('instagram')
+const wantsFacebook = (it) => Array.isArray(it.channels) && it.channels.includes('facebook')
+const instagramPending = (it) => wantsInstagram(it) && (it.status === 'pending' || it.status === 'building')
+const facebookPending = (it) => wantsFacebook(it) &&
+  ((it.facebook_status || 'pending') === 'pending' || it.facebook_status === 'building')
+
+async function persistQueue(env, ev, q) {
+  await env.QUEUE.put(ev, JSON.stringify(q))
+}
+
+// Publish the Instagram destination only. Its legacy fields stay intact so all
+// pre-Facebook queues continue to work without migration.
+async function publishInstagramItem(env, ev, q, item) {
   const acct = ACCOUNTS[item.account]
   if (!acct?.ig_user_id) {
     item.status = 'error'; item.error = `unknown account ${item.account}`
-    await env.QUEUE.put(ev, JSON.stringify(q)); return { ev, error: item.error, item: item.id }
+    await persistQueue(env, ev, q); return { error: item.error }
   }
   const token = env.IG_ACCESS_TOKEN
   try {
     let containerId = item.ig_container_id
-    if (!resuming) {
+    if (!containerId) {
       containerId = await buildContainer(token, acct.ig_user_id, item)
       item.ig_container_id = containerId; item.status = 'building'
-      await env.QUEUE.put(ev, JSON.stringify(q)) // persist before the slow poll/publish
+      await persistQueue(env, ev, q) // persist before the slow poll/publish
     }
     if (item.media_type !== 'IMAGE') {
       const st = await pollStatus(token, containerId)
-      if (st !== 'FINISHED') { await env.QUEUE.put(ev, JSON.stringify(q)); return { ev, item: item.id, note: 'transcoding — resumes next run' } }
+      if (st !== 'FINISHED') {
+        await persistQueue(env, ev, q)
+        return { note: 'transcoding — resumes next run' }
+      }
     }
     const mediaId = await publishWithRetry(token, acct.ig_user_id, containerId)
     item.status = 'posted'; item.ig_media_id = mediaId; item.posted_at = new Date().toISOString(); item.error = null
-    await env.QUEUE.put(ev, JSON.stringify(q))
-    return { ev, posted: item.id, mediaId, account: acct.handle }
+    await persistQueue(env, ev, q)
+    return { posted: item.id, mediaId, account: acct.handle }
   } catch (e) {
     item.status = 'error'; item.error = String(e?.message || e) // TERMINAL
-    await env.QUEUE.put(ev, JSON.stringify(q))
-    return { ev, error: item.error, item: item.id }
+    await persistQueue(env, ev, q)
+    return { error: item.error }
   }
 }
 
-// Finish an in-flight container for this event, if any. Returns result or null.
+const pageTokenCache = new Map()
+
+async function pageAccessToken(env, acct) {
+  const cached = pageTokenCache.get(acct.page_id)
+  if (cached) return cached
+
+  const dedicated = acct.fb_token_binding ? env[acct.fb_token_binding] : null
+  if (dedicated) {
+    pageTokenCache.set(acct.page_id, dedicated)
+    return dedicated
+  }
+
+  const systemToken = env.FB_ACCESS_TOKEN || env.IG_ACCESS_TOKEN
+
+  // Depending on how the business System User was provisioned, Meta may expose
+  // the Page token directly on the assigned Page or via /me/accounts. Try both,
+  // then make the Page call with the System User token itself; any missing
+  // pages_manage_posts permission remains visible on the actual publish call.
+  try {
+    const page = await api(systemToken, acct.page_id, { fields: 'access_token' }, 'GET')
+    if (page.access_token) {
+      pageTokenCache.set(acct.page_id, page.access_token)
+      return page.access_token
+    }
+  } catch { /* try /me/accounts */ }
+
+  try {
+    const pages = await api(systemToken, 'me/accounts', { fields: 'id,access_token', limit: '100' }, 'GET')
+    const page = (pages.data || []).find((candidate) => candidate.id === acct.page_id)
+    if (page?.access_token) {
+      pageTokenCache.set(acct.page_id, page.access_token)
+      return page.access_token
+    }
+  } catch { /* fall back to the assigned System User token */ }
+
+  pageTokenCache.set(acct.page_id, systemToken)
+  return systemToken
+}
+
+async function uploadHostedFacebookReel(token, acct, item, persist) {
+  let videoId = item.facebook_video_id
+
+  if (!videoId) {
+    const start = await api(token, `${acct.page_id}/video_reels`, { upload_phase: 'start' })
+    videoId = start.video_id
+    item.facebook_video_id = videoId
+    item.facebook_upload_url = start.upload_url
+    item.facebook_status = 'building'
+    await persist()
+  }
+
+  if (!item.facebook_uploaded) {
+    const uploadUrl = item.facebook_upload_url ||
+      `https://rupload.facebook.com/video-upload/v25.0/${videoId}`
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `OAuth ${token}`,
+        file_url: item.video_url,
+      },
+    })
+    const uploadJson = await uploadRes.json().catch(() => ({}))
+    if (!uploadRes.ok || uploadJson.success !== true) {
+      throw new Error(uploadJson.error?.message || `Facebook Reel upload failed (${uploadRes.status})`)
+    }
+    item.facebook_uploaded = true
+    await persist()
+  }
+
+  await api(token, `${acct.page_id}/video_reels`, {
+    upload_phase: 'finish',
+    video_id: videoId,
+    video_state: 'PUBLISHED',
+    description: item.facebook_caption || item.caption || '',
+    ...(item.facebook_title ? { title: item.facebook_title } : {}),
+  })
+
+  return videoId
+}
+
+function collaboratorPageIds(item, publishingAccount) {
+  if (Array.isArray(item.facebook_collaborators)) return item.facebook_collaborators
+  if (!Array.isArray(item.collaborators)) return []
+
+  return item.collaborators
+    .map((handle) => Object.entries(ACCOUNTS)
+      .find(([slug, acct]) => slug !== publishingAccount && acct.handle === handle)?.[1]?.page_id)
+    .filter(Boolean)
+}
+
+async function inviteFacebookCollaborators(token, item, publishingAccount, videoId) {
+  const results = []
+  for (const targetId of collaboratorPageIds(item, publishingAccount)) {
+    try {
+      const invitation = await api(token, `${videoId}/collaborators`, { target_id: targetId })
+      results.push({ target_id: targetId, status: 'invited', invitation_link: invitation.invitation_link || null })
+    } catch (e) {
+      // The Reel is already live. An invitation failure is recorded but must not
+      // rewrite the successful Page-publish state.
+      results.push({ target_id: targetId, status: 'error', error: String(e?.message || e) })
+    }
+  }
+  return results
+}
+
+async function publishFacebookItem(env, ev, q, item) {
+  const acct = ACCOUNTS[item.account]
+  if (!acct?.page_id) {
+    item.facebook_status = 'error'
+    item.facebook_error = `unknown Facebook Page for account ${item.account}`
+    await persistQueue(env, ev, q)
+    return { error: item.facebook_error }
+  }
+
+  try {
+    const token = await pageAccessToken(env, acct)
+    let postId
+
+    if (item.media_type === 'IMAGE') {
+      const result = await api(token, `${acct.page_id}/photos`, {
+        url: item.image_url,
+        message: item.facebook_caption || item.caption || '',
+        published: 'true',
+      })
+      postId = result.post_id || result.id
+    } else if (item.media_type === 'REELS') {
+      postId = await uploadHostedFacebookReel(
+        token,
+        acct,
+        item,
+        () => persistQueue(env, ev, q),
+      )
+      item.facebook_collaborator_invites = await inviteFacebookCollaborators(
+        token,
+        item,
+        item.account,
+        postId,
+      )
+    } else {
+      throw new Error(`Facebook Page publishing supports IMAGE and REELS here; received ${item.media_type}`)
+    }
+
+    item.facebook_status = 'posted'
+    item.facebook_post_id = postId
+    item.facebook_posted_at = new Date().toISOString()
+    item.facebook_error = null
+    await persistQueue(env, ev, q)
+    return { posted: item.id, postId, pageId: acct.page_id }
+  } catch (e) {
+    item.facebook_status = 'error'
+    item.facebook_error = String(e?.message || e)
+    await persistQueue(env, ev, q)
+    return { error: item.facebook_error }
+  }
+}
+
+// Publish every still-pending destination for one campaign item. One channel's
+// failure never changes the other channel's state.
+async function publishItem(env, ev, q, item) {
+  const result = { ev, item: item.id, destinations: {} }
+  if (instagramPending(item)) {
+    result.destinations.instagram = await publishInstagramItem(env, ev, q, item)
+  }
+  if (facebookPending(item)) {
+    result.destinations.facebook = await publishFacebookItem(env, ev, q, item)
+  }
+  return result
+}
+
+// Finish an in-flight container/upload for this event, if any. Returns result or null.
 async function resumeIfBuilding(env, ev) {
   const raw = await env.QUEUE.get(ev); if (!raw) return null
   const q = JSON.parse(raw)
-  const item = q.items.find((it) => it.status === 'building' && it.ig_container_id)
+  const item = q.items.find((it) =>
+    (it.status === 'building' && it.ig_container_id) ||
+    (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id))
   if (!item) return null
-  return publishItem(env, ev, q, item, true)
+  return publishItem(env, ev, q, item)
 }
 
 // Eligible to post THIS run:
@@ -196,11 +402,14 @@ async function postDuePending(env, ev, hourAllowed) {
   const raw = await env.QUEUE.get(ev); if (!raw) return null
   const q = JSON.parse(raw)
   const now = Date.now()
-  const due = q.items.filter((it) => it.status === 'pending' && hasMedia(it) && eligibleNow(it, now, hourAllowed))
+  const due = q.items.filter((it) =>
+    (instagramPending(it) || facebookPending(it)) &&
+    hasMedia(it) &&
+    eligibleNow(it, now, hourAllowed))
   if (!due.length) return null
   const scheduled = due.filter((it) => it.scheduledAt).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
   const item = scheduled.length ? scheduled[0] : due[Math.floor(Math.random() * due.length)]
-  return publishItem(env, ev, q, item, false)
+  return publishItem(env, ev, q, item)
 }
 
 // ============================ ENGAGEMENT SWEEP ============================
@@ -361,9 +570,21 @@ export default {
         if (!raw) { out.events[ev] = 'no queue'; continue }
         const q = JSON.parse(raw)
         const by = (s) => q.items.filter((i) => i.status === s).length
+        const facebookItems = q.items.filter(wantsFacebook)
+        const facebookBy = (s) => facebookItems.filter((i) => (i.facebook_status || 'pending') === s).length
         out.events[ev] = { total: q.items.length, posted: by('posted'), pending: by('pending'),
           building: by('building'), error: by('error'),
-          errors: q.items.filter((i) => i.status === 'error').map((i) => ({ id: i.id, err: i.error })) }
+          errors: q.items.filter((i) => i.status === 'error').map((i) => ({ id: i.id, err: i.error })),
+          facebook: {
+            enabled: facebookItems.length,
+            posted: facebookBy('posted'),
+            pending: facebookBy('pending'),
+            building: facebookBy('building'),
+            error: facebookBy('error'),
+            errors: facebookItems
+              .filter((i) => i.facebook_status === 'error')
+              .map((i) => ({ id: i.id, err: i.facebook_error })),
+          } }
       }
       return Response.json(out)
     }
