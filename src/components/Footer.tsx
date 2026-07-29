@@ -6,6 +6,21 @@ import { cn } from '@/lib/utils'
 
 const socialLinks = [
   {
+    name: 'Facebook',
+    href: 'https://www.facebook.com/people/Lets-Pepper-Open/61572115795472/',
+    ariaLabel: 'Follow Let\'s Pepper on Facebook (opens in new tab)',
+    icon: (
+      <svg
+        className="w-5 h-5"
+        fill="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path d="M13.5 22v-8h2.75l.41-3.2H13.5V8.76c0-.93.26-1.56 1.59-1.56h1.7V4.34c-.29-.04-1.3-.13-2.47-.13-2.45 0-4.12 1.49-4.12 4.24v2.35H7.43V14h2.77v8h3.3Z" />
+      </svg>
+    ),
+  },
+  {
     name: 'Instagram',
     href: 'https://instagram.com/letspepper.open',
     ariaLabel: 'Follow Let\'s Pepper on Instagram (opens in new tab)',

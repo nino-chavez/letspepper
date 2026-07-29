@@ -26,7 +26,10 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   // Absolute base for the opengraph-image convention's generated og:image URLs.
   metadataBase: new URL('https://letspepper.com'),
-  title: "Let's Pepper | Grass Volleyball Tournament Series",
+  title: {
+    default: "Let's Pepper | Grass Volleyball Tournament Series",
+    template: "%s | Let's Pepper",
+  },
   description:
     'A community-powered circuit for high-level grass volleyball in Chicagoland.',
   keywords: [
@@ -71,12 +74,45 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const organizationStructuredData = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'SportsOrganization',
+        '@id': 'https://letspepper.com/#organization',
+        name: "Let's Pepper",
+        url: 'https://letspepper.com',
+        logo: 'https://letspepper.com/icon.png',
+        sameAs: [
+          'https://www.instagram.com/letspepper.open/',
+          'https://www.facebook.com/people/Lets-Pepper-Open/61572115795472/',
+        ],
+        areaServed: 'Chicagoland',
+        sport: 'Volleyball',
+      },
+      {
+        '@type': 'WebSite',
+        '@id': 'https://letspepper.com/#website',
+        name: "Let's Pepper",
+        url: 'https://letspepper.com',
+        publisher: { '@id': 'https://letspepper.com/#organization' },
+      },
+    ],
+  }
+
   return (
     <html
       lang="en"
       className={`${bebasNeue.variable} ${inter.variable} ${spaceMono.variable}`}
     >
       <body className="bg-pepper-black text-white antialiased">
+        <script
+          id="organization-jsonld"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(organizationStructuredData).replace(/</g, '\\u003c'),
+          }}
+        />
         {/* Grain Overlay */}
         <div className="grain-overlay" aria-hidden="true" />
 
