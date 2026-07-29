@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "generatedAt": "2026-07-24T15:54:50.921Z",
-  "count": 91,
+  "generatedAt": "2026-07-29T00:22:12.966Z",
+  "count": 93,
   "assets": [
     {
       "path": "creative/exports/media-kit-v1/capcut/guides/reel-safe-zones.png",
@@ -569,6 +569,24 @@
       "height": 1350,
       "alpha": false,
       "note": "4:5 Poblano Open feed master."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/stories/15-cancelled.png",
+      "category": "event/poblano/stories",
+      "name": "15-cancelled",
+      "width": 1080,
+      "height": 1920,
+      "alpha": false,
+      "note": "Poblano Open cancellation Story. No mascot, no CTA — by design."
+    },
+    {
+      "path": "creative/exports/media-kit-v1/event/poblano/feed/09-cancelled.png",
+      "category": "event/poblano/feed",
+      "name": "09-cancelled",
+      "width": 1080,
+      "height": 1350,
+      "alpha": false,
+      "note": "4:5 Poblano Open cancellation notice. No mascot by design."
     },
     {
       "path": "creative/exports/media-kit-v1/share/templates/im-in.png",

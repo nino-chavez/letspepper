@@ -7,62 +7,62 @@ import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { heatText, heatBg, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
+import { tournaments as canonicalTournaments, isCancelled } from '@/lib/tournaments'
+
+/**
+ * Card-only presentation, keyed by the canonical tournament slug. Everything
+ * factual — name, date, tagline, features, whether it is still happening — comes
+ * from `@/lib/tournaments`. This holds only what the card adds on top.
+ *
+ * These cards used to carry their own copy of every event's facts. That is how a
+ * cancelled finale kept advertising a payout on the homepage while its own event
+ * page said otherwise: two records, one update.
+ */
+const cardArt: Record<string, { mascot: string; blurb: string }> = {
+  'bell-pepper-open': {
+    mascot: '/images/mascots/anime/web/bell-pepper-menace-walk-256.webp',
+    blurb: 'First tournament of the season. Shake off the rust — Bell Pepper already owns the net.',
+  },
+  'jalapeno-open': {
+    mascot: '/images/mascots/anime/web/jalapeno-menace-walk-256.webp',
+    blurb: "Mid-season. You're dialed in. Jalapeño demands the complete game.",
+  },
+  'poblano-open': {
+    // Poblano Verde fronts this event — men's divisions only; see flavors/[slug] mascotCharacter note.
+    mascot: '/images/mascots/anime/web/poblano-verde-menace-walk-256.webp',
+    blurb: 'The season closes with one final bracket.',
+  },
+}
 
 interface Tournament {
-  id: string
+  slug: string // site slug, e.g. 'poblano-open' — also the /flavors/ route
   name: string
   heat: Heat
-  slug: string // RHQ event slug for live-state fetch
+  rhqSlug: string // RHQ event slug for live-state fetch
   mascot: string
   tagline: string
   description: string
   date: string // ISO date for comparison (YYYY-MM-DD)
   displayDate: string // Human-readable date
   features: string[]
+  cancelled: boolean
 }
 
-const tournaments: Tournament[] = [
-  {
-    id: 'bell-pepper',
-    name: 'Bell Pepper Open',
-    heat: 'bell',
-    slug: 'bell-pepper-open-2026',
-    mascot: '/images/mascots/anime/web/bell-pepper-menace-walk-256.webp',
-    tagline: 'Season Opener',
-    description:
-      'First tournament of the season. Shake off the rust — Bell Pepper already owns the net.',
-    date: '2026-06-07',
-    displayDate: 'June 7, 2026',
-    features: ['Season Kickoff', 'Full Media', 'Finalist Prizes'],
-  },
-  {
-    id: 'jalapeno',
-    name: 'Jalapeño Open',
-    heat: 'jalapeno',
-    slug: 'jalapeno-open-2026',
-    mascot: '/images/mascots/anime/web/jalapeno-menace-walk-256.webp',
-    tagline: 'Bring The Heat',
-    description:
-      "Mid-season. You're dialed in. Jalapeño demands the complete game.",
-    date: '2026-07-18',
-    displayDate: 'July 18, 2026',
-    features: ['Peak Competition', 'High Intensity', 'Fast Pace'],
-  },
-  {
-    id: 'poblano',
-    name: 'Poblano Open',
-    heat: 'poblano',
-    slug: 'poblano-open-2026',
-    // Poblano Verde fronts this event — men's divisions only; see flavors/[slug] mascotCharacter note.
-    mascot: '/images/mascots/anime/web/poblano-verde-menace-walk-256.webp',
-    tagline: 'Season Finale',
-    description:
-      "The season closes with one final bracket — and a payout that scales with the field: $2,000 first place at a full 28-team field.",
-    date: '2026-08-01',
-    displayDate: 'August 1, 2026',
-    features: ['$2,000 at a Full 28', 'Season Closer', 'Final Standings'],
-  },
-]
+const tournaments: Tournament[] = Object.values(canonicalTournaments)
+  .map((t) => ({
+    slug: t.slug,
+    name: t.name,
+    heat: t.heat,
+    rhqSlug: t.rhqSlug,
+    mascot: cardArt[t.slug]?.mascot ?? '',
+    tagline: t.tagline,
+    description: cardArt[t.slug]?.blurb ?? t.description,
+    date: t.startsAt.slice(0, 10),
+    displayDate: t.date.split(',').slice(1).join(',').trim(),
+    features: t.features,
+    cancelled: isCancelled(t),
+  }))
+  .sort((a, b) => a.date.localeCompare(b.date))
 
 const heatCardClass: Record<Heat, string> = {
   bell: 'heat-card-bell',
@@ -86,6 +86,7 @@ const heatGlowClass: Record<Heat, string> = {
 function useLiveState(slug: string): boolean {
   const [isLive, setIsLive] = useState(false)
   useEffect(() => {
+    if (!slug) return
     fetch(`/api/rhq/summary?slug=${encodeURIComponent(slug)}`)
       .then((r) => r.json())
       .then((data) => {
@@ -96,27 +97,37 @@ function useLiveState(slug: string): boolean {
   return isLive
 }
 
-function getNextEventId(tournaments: Tournament[]): string | null {
+function getNextEventSlug(tournaments: Tournament[]): string | null {
   const today = new Date().toISOString().split('T')[0]
-  const upcoming = tournaments.filter((t) => t.date >= today)
-  return upcoming.length > 0 ? upcoming[0].id : null
+  const upcoming = tournaments.filter((t) => t.date >= today && !t.cancelled)
+  return upcoming.length > 0 ? upcoming[0].slug : null
 }
 
 function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext: boolean }) {
-  const { heat } = tournament
-  const isLive = useLiveState(tournament.slug)
+  const { heat, cancelled } = tournament
+  // Skip the live-state fetch entirely for a cancelled event — Rally HQ still
+  // holds the tournament record, and a stale is_live would light up a LIVE NOW
+  // badge for a bracket nobody is playing.
+  const isLive = useLiveState(cancelled ? '' : tournament.rhqSlug)
 
   return (
     <motion.article
       className={cn(
         'heat-card group p-6 sm:p-8 h-full border-zinc-800',
         heatCardClass[heat],
+        // Cancelled recedes: the card stays (people still look for the event) but
+        // it stops competing for attention with the events that are happening.
+        cancelled && 'opacity-70 saturate-50',
       )}
       variants={MOTION.variants.slideUp}
-      whileHover={{ y: -8, transition: { duration: 0.2 } }}
+      whileHover={cancelled ? undefined : { y: -8, transition: { duration: 0.2 } }}
     >
-      {/* Live / Next Up Badge — LIVE uses --live coral; Next Up is neutral */}
-      {isLive ? (
+      {/* Cancelled / Live / Next Up Badge — LIVE uses --live coral; Next Up is neutral */}
+      {cancelled ? (
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-accent uppercase tracking-widest mb-4 bg-zinc-800 border border-zinc-600 text-zinc-200">
+          Cancelled
+        </div>
+      ) : isLive ? (
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-accent uppercase tracking-widest mb-4 bg-zinc-800 border border-zinc-700">
           <span
             className="relative flex h-2 w-2"
@@ -171,7 +182,9 @@ function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext
 
         <p className="text-zinc-400 leading-relaxed">{tournament.description}</p>
 
-        {/* Features */}
+        {/* Features — a cancelled event carries none, so the list drops out entirely
+            rather than rendering an empty row that reads as a layout bug. */}
+        {tournament.features.length > 0 && (
         <ul className="flex flex-wrap gap-2" aria-label="Tournament features">
           {tournament.features.map((feature) => (
             <li
@@ -186,15 +199,20 @@ function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext
             </li>
           ))}
         </ul>
+        )}
       </div>
 
-      {/* CTA */}
+      {/* CTA — a cancelled event still gets a link (that page carries the notice),
+          but not the heat-coloured promo button that reads as an invitation. */}
       <div className="mt-8">
         <a
-          href={`/flavors/${tournament.id}-open`}
-          className={cn('btn-heat', heatBg[heat], heatGlowClass[heat])}
+          href={`/flavors/${tournament.slug}`}
+          className={cn(
+            'btn-heat',
+            cancelled ? 'bg-zinc-700 hover:bg-zinc-600' : cn(heatBg[heat], heatGlowClass[heat]),
+          )}
         >
-          <span>Learn More</span>
+          <span>{cancelled ? 'Read the notice' : 'Learn More'}</span>
           <span aria-hidden="true">→</span>
         </a>
       </div>
@@ -213,7 +231,7 @@ function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext
 }
 
 export function TournamentSeries() {
-  const nextEventId = getNextEventId(tournaments)
+  const nextEventSlug = getNextEventSlug(tournaments)
 
   return (
     <section
@@ -253,7 +271,7 @@ export function TournamentSeries() {
           transition={{ staggerChildren: 0.15 }}
         >
           {tournaments.map((tournament) => (
-            <TournamentCard key={tournament.id} tournament={tournament} isNext={tournament.id === nextEventId} />
+            <TournamentCard key={tournament.slug} tournament={tournament} isNext={tournament.slug === nextEventSlug} />
           ))}
         </motion.div>
 

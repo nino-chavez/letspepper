@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "generatedAt": "2026-07-24T15:54:56.719Z",
+  "generatedAt": "2026-07-26T16:08:50.012Z",
   "ok": true,
   "checks": [
     {
       "name": "copy-gate",
       "ok": true,
-      "detail": "✓ Copy gate passed: 150 source files, 82 pending captions, 93 approved phrases"
+      "detail": "✓ Copy gate passed: 156 source files, 80 pending captions, 93 approved phrases"
     },
     {
       "name": "clip-planner",
@@ -57,7 +57,7 @@
   "errors": [],
   "inventory": {
     "files": 167,
-    "bytes": 119865151,
+    "bytes": 119869428,
     "byExtension": {
       ".md": 3,
       ".wav": 10,

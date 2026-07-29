@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from '@/lib/motion'
+import { tournaments, isCancelled, monthDay } from '@/lib/tournaments'
 
 interface MarqueeItem {
   text: string
@@ -211,11 +212,21 @@ export function Marquee({
   )
 }
 
-const upcomingEvents = [
-  { name: 'Bell Pepper Open', slug: 'bell-pepper-open-2026', date: '2026-06-07', displayDate: 'June 7', variant: 'bell' as const },
-  { name: 'Jalapeño Open', slug: 'jalapeno-open-2026', date: '2026-07-18', displayDate: 'July 18', variant: 'jalapeno' as const },
-  { name: 'Poblano Open', slug: 'poblano-open-2026', date: '2026-08-01', displayDate: 'Aug 1', variant: 'poblano' as const, payout: '$2,000 at a Full 28' },
-]
+/**
+ * The season, derived from the one tournament record. This tape used to keep its
+ * own copy of every event's date and headline payout — which is exactly how it
+ * kept advertising "$2,000 at a Full 28" for an event that had been called off.
+ */
+const seasonEvents = Object.values(tournaments)
+  .map((t) => ({
+    name: t.name,
+    slug: t.rhqSlug,
+    date: t.startsAt.slice(0, 10),
+    displayDate: monthDay(t.date),
+    variant: t.heat,
+    cancelled: isCancelled(t),
+  }))
+  .sort((a, b) => a.date.localeCompare(b.date))
 
 /**
  * Dynamic "Next Up" announcement marquee
@@ -227,7 +238,9 @@ const upcomingEvents = [
  */
 export function NextEventMarquee({ className }: { className?: string }) {
   const today = new Date().toISOString().split('T')[0]
-  const next = upcomingEvents.find((e) => e.date >= today)
+  // A cancelled event is never "next up" — it is not happening, so the tape must
+  // skip past it to whatever genuinely is (or to the off-season fallback).
+  const next = seasonEvents.find((e) => e.date >= today && !e.cancelled)
   const [isLive, setIsLive] = useState(false)
 
   useEffect(() => {
@@ -285,7 +298,6 @@ export function NextEventMarquee({ className }: { className?: string }) {
         { text: '〰️' },
         { text: next.name, highlight: true },
         { text: '〰️' },
-        ...('payout' in next && next.payout ? [{ text: next.payout, highlight: true }, { text: '〰️' }] : []),
         { text: next.displayDate },
         { text: '〰️' },
         { text: 'Aurora, IL' },

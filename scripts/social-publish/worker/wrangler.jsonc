@@ -2,12 +2,20 @@
   "name": "letspepper-reels-worker",
   "main": "src/index.js",
   "compatibility_date": "2026-01-01",
-  // RE-ARMED 2026-07-24 for the Poblano Open finale. Hourly cron: each run
-  // finishes any in-flight container, then posts at most ONE due item. The
-  // poblano-2026-finale queue uses per-item scheduledAt, so items fire at their
-  // planned times (scheduledAt gates them, NOT ALLOWED_HOURS_UTC) — this worker
-  // now replaces the local launchd drip (com.letspepper.reels, disabled at
-  // cutover) as the sole poster. Pull the cron / clear ACTIVE_EVENTS after Aug 1.
+  // DISARMED 2026-07-28 — the Poblano Open was cancelled (not enough teams), so
+  // the finale campaign is over. Every poblano-2026-finale item had already
+  // published by then (details-day, the last one, went out 2026-07-28T17:00Z to
+  // Instagram and the Facebook Page), so nothing was cut off mid-drip.
+  //
+  // The cron stays armed but ACTIVE_EVENTS now names only the cancellation
+  // queue, whose single item is status "draft" — the worker skips anything that
+  // is not pending/building, so this posts NOTHING until an operator reviews the
+  // copy and flips it. See scripts/social-publish/queue/poblano-2026-cancellation.json.
+  //
+  // Hourly cron: each run finishes any in-flight container, then posts at most
+  // ONE due item. Items carrying scheduledAt fire at their planned time
+  // (scheduledAt gates them, NOT ALLOWED_HOURS_UTC). This worker replaced the
+  // local launchd drip (com.letspepper.reels, disabled at cutover) as the sole poster.
   "triggers": { "crons": ["0 * * * *"] },
   "kv_namespaces": [
     { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
@@ -15,21 +23,28 @@
   "vars": {
     // event slugs in PRIORITY order — newest/highest-priority FIRST. Each slot
     // posts from the first event with a DUE item; older events backfill only when
-    // newer ones are exhausted. poblano-2026-finale (Aug 1 finale, scheduledAt-
-    // driven) is the sole active event. jpo-teams / flickday-grass-drip /
-    // bell-pepper-2026 sit inert in KV — re-add to ACTIVE_EVENTS to resume.
-    "ACTIVE_EVENTS": "poblano-2026-finale",
+    // newer ones are exhausted. poblano-2026-finale is deliberately NOT listed
+    // any more: it is fully published, and re-arming it could only re-post promo
+    // for a cancelled event. jpo-teams / flickday-grass-drip / bell-pepper-2026
+    // sit inert in KV — re-add to ACTIVE_EVENTS to resume.
+    "ACTIVE_EVENTS": "poblano-2026-cancellation",
     // UTC posting slots — the daily cap for LEGACY (no-scheduledAt) items only.
-    // poblano-2026-finale items carry scheduledAt and bypass this gate, so these
-    // hours don't affect the finale calendar; kept at the finale's own hours
-    // (17 = noon, 22 = 5p CDT) as a sane fallback if a slug is ever added w/o times.
+    // The cancellation item carries no scheduledAt, so it IS gated by these hours
+    // once an operator flips it to pending: 17 = noon CDT, 22 = 5p CDT.
     "ALLOWED_HOURS_UTC": "17,22",
     // --- engagement sweep (see SWEEP.md) ---
     "SWEEP_ENABLED": "0",          // OFF for the finale migration — posting only; flip to "1" to re-enable the comment sweep
     "SWEEP_LOOKBACK_DAYS": "14",   // only sweep media newer than this
     "SWEEP_AUTOREPLY": "off",      // off | intent — DEFAULTS OFF (shadow-logs only)
-    "REGISTRATION_URL": "https://letspepper.com/flavors/poblano-open"
+    // No event is open for registration — the sweep's signup auto-reply must not
+    // point at the cancelled finale's page. Homepage until the next season opens.
+    "REGISTRATION_URL": "https://letspepper.com"
   },
   "observability": { "enabled": true }
-  // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, TRIGGER_KEY
+  // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, FB_ACCESS_TOKEN,
+  // TRIGGER_KEY. Meta exposes Instagram content and Facebook Page management
+  // as separate app use cases, so keep their System User tokens isolated.
+  // Optional dedicated Page-token overrides:
+  // FB_LETSPEPPER_ACCESS_TOKEN, FB_FLICKDAY_ACCESS_TOKEN,
+  // FB_NINOPHOTO_ACCESS_TOKEN.
 }

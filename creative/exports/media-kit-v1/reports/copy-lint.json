@@ -1,15 +1,17 @@
 {
-  "generatedAt": "2026-07-24T16:26:15.197Z",
+  "generatedAt": "2026-07-29T00:16:37.619Z",
   "copyVersion": 2,
-  "filesScanned": 150,
-  "queueCaptionsScanned": 83,
-  "approvedPhrases": 93,
+  "filesScanned": 156,
+  "queueCaptionsScanned": 82,
+  "approvedPhrases": 94,
   "errors": [],
   "warnings": [
     "scripts/social-publish/queue/bell-pepper-2026.json has 74 pending feed posts; select and schedule a smaller reviewed set before publishing",
     "scripts/social-publish/queue/bell-pepper-2026.json has 74 pending item(s) with a past schedule time",
     "scripts/social-publish/queue/bell-pepper-2026.json repeats 10 opening line(s) more than four times; clip-specific copy is still needed",
+    "scripts/social-publish/queue/facebook-bell-pepper-open-2026.json has 1 pending item(s) with a past schedule time",
+    "scripts/social-publish/queue/facebook-jalapeno-open-2026.json has 1 pending item(s) with a past schedule time",
     "scripts/social-publish/queue/flickday-grass-drip.json has 4 pending item(s) with a past schedule time",
-    "scripts/social-publish/queue/poblano-2026-finale.json has 1 pending Reel caption(s) without an explicit footage credit"
+    "scripts/social-publish/queue/poblano-2026-finale.json has 1 pending item(s) with a past schedule time"
   ]
 }
