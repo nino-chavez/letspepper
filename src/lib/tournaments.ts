@@ -65,6 +65,20 @@ export const isCancelled = (t: TournamentDetail): boolean => t.cancellation !== 
  * `todayISO` is passed in rather than read here so callers that render on the
  * client can pass the same value they already computed, and so this stays pure.
  */
+/**
+ * The next event a team can actually enter, or null when nothing is open.
+ *
+ * `/signup` embeds a Google Form we cannot close from here, so this is what tells
+ * the page to stop presenting that form: with no open event, an embedded roster
+ * form is an invitation to register for something that is not happening.
+ */
+export function nextOpenEvent(todayISO: string): TournamentDetail | null {
+	const open = Object.values(tournaments)
+		.filter((t) => !isCancelled(t) && t.startsAt.slice(0, 10) >= todayISO)
+		.sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+	return open[0] ?? null
+}
+
 export function activeCancellation(todayISO: string): TournamentDetail | null {
 	const pending = Object.values(tournaments)
 		.filter((t) => isCancelled(t) && t.startsAt.slice(0, 10) >= todayISO)
@@ -181,8 +195,11 @@ export const tournaments: Record<string, TournamentDetail> = {
 			announcedOn: '2026-07-28',
 			reason:
 				'Not enough teams registered to run the finale as planned. Rather than shrink the bracket into a different event than the one teams signed up for, we are calling it.',
+			// Deliberately NOT "per our terms": the /terms cancellation clause covers
+			// "weather or other circumstances beyond our control", and a low-registration
+			// call is an organizer decision, not that. The offer stands on its own.
 			registeredTeams:
-				'Every registered team receives a full refund or a credit toward a future event, per our terms. We will reach out to each captain directly — you do not need to do anything.'
+				'Every registered team receives a full refund or a credit toward a future event. We will reach out to each captain directly — you do not need to do anything.'
 		}
 	}
 }
