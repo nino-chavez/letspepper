@@ -47,7 +47,14 @@
 >    first, against the recommended order — registered captains may see the
 >    announcement before hearing from us. Send it now, and lead by acknowledging
 >    that.
-> 1. Cancel — do not delete — the Facebook event
+> 1. **BLOCKED ON A LOGIN, NOT ON A DECISION.** Attempted 2026-07-28 ~8:10 PM CDT
+>    and could not proceed: the browse-tool `wip` profile is login-gated again
+>    (same failure as the Jul 27 sweeps), and the Page token carries only
+>    `pages_show_list, pages_read_engagement, pages_manage_posts, public_profile`
+>    — no event scope, and Meta has no supported Graph write to cancel a Page
+>    event, so there is no API path either. Graph read confirms the event is
+>    still live: `is_canceled: false`, 2 people responded. This needs a human
+>    logged in as a host. Cancel — do not delete — the Facebook event
 >    `https://www.facebook.com/events/1681972996412530/`. Cancelling notifies
 >    everyone who RSVP'd; deleting removes the record silently and tells nobody.
 >    Co-hosted by Flickday Media and Nino Chavez Photography.
