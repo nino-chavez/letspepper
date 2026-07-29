@@ -32,7 +32,8 @@
     { "id": "recap", "label": "THE RECAP", "detail": "One more day on the grass.", "status": "approved" },
     { "id": "season-close", "label": "THE SEASON CLOSES HERE", "detail": "Poblano Open · August 1, 2026", "status": "approved" },
     { "id": "payout", "label": "$2,000", "detail": "First place at a full 28-team field — the payout scales with the field.", "status": "approved" },
-    { "id": "field-target", "label": "28 TEAMS", "detail": "The biggest field the series has seen — and it sets the payout.", "status": "approved" }
+    { "id": "field-target", "label": "TARGET: 28 TEAMS", "detail": "We're building toward a new series record — and the payout scales with the field.", "status": "approved" },
+    { "id": "cancelled", "label": "EVENT CANCELLED", "detail": "The Poblano Open will not be played on August 1. Registered teams are being refunded.", "status": "approved" }
   ],
   "share": [
     { "id": "im-in", "label": "I'M IN", "detail": "Poblano Open · August 1", "status": "approved" },

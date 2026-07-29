@@ -237,6 +237,10 @@ const EVENT_CHARACTER = 'poblano-verde'
 const storyPoseOverride = { payout: 'champion', 'field-target': 'block' }
 for (let i = 0; i < items('eventStages').length; i++) {
   const row = items('eventStages')[i]
+  // The cancellation gets its own capture below. This loop hardcodes a mascot, the
+  // heat stripe, a "Season finale" eyebrow, and an orange CTA box — every one of
+  // those reads as an invitation, which is the opposite of what the card says.
+  if (row.id === 'cancelled') continue
   const pose = storyPoseOverride[row.id] ?? poblanoPoses[i % poblanoPoses.length]
   const cta = row.id === 'registration' || row.id === 'payout' || row.id === 'field-target'
     ? byId('callsToAction', 'register').label
@@ -261,6 +265,36 @@ for (let i = 0; i < feedIds.length; i++) {
     note: '4:5 Poblano Open feed master.',
     css: `.bg{position:absolute;inset:0;background:radial-gradient(circle at 76% 35%,rgba(163,230,53,.24),transparent 31%),linear-gradient(145deg,#111,#070707 60%,#251104)}.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(244,241,232,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(244,241,232,.04) 1px,transparent 1px);background-size:54px 54px}.mascot{position:absolute;right:-130px;top:210px;width:660px;height:780px;object-fit:contain;filter:drop-shadow(0 25px 55px rgba(0,0,0,.65))}.fade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,7,7,.95) 0 43%,rgba(7,7,7,.14) 72%),linear-gradient(0deg,#070707 0 12%,transparent 43%)}.top{position:absolute;left:66px;right:66px;top:64px;display:flex;justify-content:space-between}.copy{position:absolute;left:66px;top:330px;width:640px}.rule{width:130px;height:12px;background:${P.poblano};margin-bottom:28px}.label{font-family:'Anton';font-size:${row.id === 'payout' ? 200 : row.label.length > 16 ? 102 : 126}px;line-height:.85;text-transform:uppercase}.detail{font-size:25px;line-height:1.45;color:#d4d1c8;margin-top:26px;max-width:570px}.event{color:${P.yellow};font-size:20px;letter-spacing:.16em;text-transform:uppercase;margin-top:30px;font-weight:700}.foot{position:absolute;left:66px;right:66px;bottom:64px;border-top:2px solid rgba(244,241,232,.18);padding-top:25px;display:flex;justify-content:space-between;font-size:18px;letter-spacing:.12em;text-transform:uppercase}`,
     body: `<div class="bg"></div><div class="grid"></div><img class="mascot" src="${mascot(EVENT_CHARACTER, pose)}"><div class="fade"></div><div class="grain"></div><div class="top">${identity(P.paper)}<span class="mono">${e(E.dateShort)}</span></div><div class="copy"><div class="rule"></div><div class="label">${e(row.label)}</div><div class="detail">${e(row.detail)}</div><div class="event">${e(E.name)} · ${e(E.format)}</div></div><div class="foot"><span>${e(E.location)}</span><span>${e(B.handle)}</span></div>`,
+  })
+}
+
+// ── Cancellation notice, Story ─────────────────────────────────────────────────
+// Same reasoning as the feed card below: brand frame kept, character and CTA
+// dropped. Numbered 15 because it follows the 14 lifecycle stages the loop above
+// renders; `cancelled` is last in eventStages, so skipping it renumbers nothing.
+{
+  const row = byId('eventStages', 'cancelled')
+  await capture({
+    category: 'event/poblano/stories', name: '15-cancelled', width: 1080, height: 1920,
+    note: 'Poblano Open cancellation Story. No mascot, no CTA — by design.',
+    css: `.bg{position:absolute;inset:0;background:linear-gradient(160deg,#131313,#070707 62%,#141414)}.stripe{position:absolute;left:0;top:0;width:24px;height:100%;background:#3a3a38}.top{position:absolute;left:80px;right:80px;top:235px;display:flex;justify-content:space-between;align-items:center}.date{font-size:20px;color:#9b998f;letter-spacing:.16em;font-weight:700}.copy{position:absolute;left:80px;right:75px;top:50%;transform:translateY(-50%)}.eyebrow{font-size:24px;letter-spacing:.24em;color:#9b998f;text-transform:uppercase;font-weight:700}.label{font-family:'Anton',sans-serif;font-size:154px;line-height:.84;text-transform:uppercase;margin-top:20px;max-width:930px;color:${P.paper}}.detail{font-size:29px;line-height:1.4;max-width:780px;margin-top:28px;color:#d4d1c8}.link{margin-top:34px;font-family:'Space Mono',monospace;font-size:24px;letter-spacing:.08em;color:#9b998f;text-transform:uppercase}.foot{position:absolute;left:80px;right:80px;bottom:205px;display:flex;justify-content:space-between;font-size:18px;letter-spacing:.12em;text-transform:uppercase;color:#9b998f}`,
+    body: `<div class="bg"></div><div class="stripe"></div><div class="grain"></div><div class="top">${identity(P.paper)}<span class="date">${e(E.dateShort)}</span></div><div class="copy"><div class="eyebrow">${e(E.name)}</div><div class="label">${e(row.label)}</div><div class="detail">${e(row.detail)}</div><div class="link">letspepper.com/flavors/poblano-open</div></div><div class="foot"><span>${e(E.location)}</span><span>${e(B.handle)}</span></div>`,
+  })
+}
+
+// ── Cancellation notice, feed ──────────────────────────────────────────────────
+// Deliberately its own capture rather than another entry in `feedIds`: every card
+// in that loop pairs the copy with a mascot pose, and there is no pose that reads
+// right beside "EVENT CANCELLED" — a pepper mid-jump-serve next to a call-off is
+// the wrong tone regardless of which one you pick. So this keeps the brand frame
+// (grid, rule, type scale, footer) and drops the character and the format line.
+{
+  const row = byId('eventStages', 'cancelled')
+  await capture({
+    category: 'event/poblano/feed', name: '09-cancelled', width: 1080, height: 1350,
+    note: '4:5 Poblano Open cancellation notice. No mascot by design.',
+    css: `.bg{position:absolute;inset:0;background:linear-gradient(145deg,#131313,#070707 62%,#141414)}.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(244,241,232,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(244,241,232,.04) 1px,transparent 1px);background-size:54px 54px}.top{position:absolute;left:66px;right:66px;top:64px;display:flex;justify-content:space-between}.copy{position:absolute;left:66px;right:66px;top:50%;transform:translateY(-50%)}.rule{width:130px;height:12px;background:#7c7a72;margin-bottom:28px}.label{font-family:'Anton';font-size:126px;line-height:.85;text-transform:uppercase;color:${P.paper}}.detail{font-size:29px;line-height:1.45;color:#d4d1c8;margin-top:32px;max-width:760px}.event{color:#9b998f;font-size:20px;letter-spacing:.16em;text-transform:uppercase;margin-top:38px;font-weight:700}.foot{position:absolute;left:66px;right:66px;bottom:64px;border-top:2px solid rgba(244,241,232,.18);padding-top:25px;display:flex;justify-content:space-between;font-size:18px;letter-spacing:.12em;text-transform:uppercase;color:#9b998f}`,
+    body: `<div class="bg"></div><div class="grid"></div><div class="grain"></div><div class="top">${identity(P.paper)}<span class="mono">${e(E.dateShort)}</span></div><div class="copy"><div class="rule"></div><div class="label">${e(row.label)}</div><div class="detail">${e(row.detail)}</div><div class="event">letspepper.com/flavors/poblano-open</div></div><div class="foot"><span>${e(E.location)}</span><span>${e(B.handle)}</span></div>`,
   })
 }
 

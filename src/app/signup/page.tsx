@@ -1,75 +1,42 @@
-'use client'
+import SignupClient, { type SignupFormSource } from './SignupClient'
 
-import { motion } from 'framer-motion'
-import { MOTION } from '@/lib/motion'
-import { Header, Footer } from '@/components'
+export const runtime = 'edge'
 
-export default function SignupPage() {
-  return (
-    <>
-      <Header />
+const SOURCE_MAP: Record<string, SignupFormSource> = {
+  facebook: 'Facebook',
+  fb: 'Facebook',
+  meta: 'Facebook',
+  instagram: 'Instagram',
+  ig: 'Instagram',
+  volleyballlife: 'VolleyballLife',
+  'volleyball-life': 'VolleyballLife',
+  volleyball_life: 'VolleyballLife',
+  vbl: 'VolleyballLife',
+  teammate: 'Teammate or friend',
+  friend: 'Teammate or friend',
+  referral: 'Teammate or friend',
+  google: 'Google or search',
+  bing: 'Google or search',
+  search: 'Google or search',
+  'letspepper.com': 'Let’s Pepper website',
+  letspepper: 'Let’s Pepper website',
+  website: 'Let’s Pepper website',
+}
 
-      <main id="main-content" className="pt-24">
-        {/* Hero */}
-        <section className="section-padding">
-          <div className="section-container">
-            <motion.div
-              className="max-w-3xl"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
-            >
-              <p className="text-section-heading mb-4">Team Registration</p>
-              <h1 className="text-display mb-6">
-                Sign Up Your <span className="text-heat-jalapeno">Team</span>
-              </h1>
-              <p className="text-xl text-zinc-400">
-                Pick your tournament, drop your roster, and we&apos;ll DM your captain on
-                Instagram to confirm.
-              </p>
-            </motion.div>
-          </div>
-        </section>
+function resolveFormSource(rawSource: string | string[] | undefined): SignupFormSource | null {
+  const source = Array.isArray(rawSource) ? rawSource[0] : rawSource
 
-        {/* Form */}
-        <section className="section-padding pt-0">
-          <div className="section-container">
-            <motion.div
-              className="mx-auto max-w-2xl"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <div className="overflow-hidden rounded-xl border border-zinc-800/50 bg-zinc-900/30">
-                <iframe
-                  src="https://docs.google.com/forms/d/e/1FAIpQLSekSFGfAlPtyzjeVhgPPpZhSOwNsYNAVBib0YeIWQMNT1pRYQ/viewform?embedded=true"
-                  title="Let's Pepper team signup form"
-                  className="w-full"
-                  height={1259}
-                  loading="lazy"
-                >
-                  Loading…
-                </iframe>
-              </div>
+  if (!source) {
+    return null
+  }
 
-              <p className="mt-6 text-center text-sm text-zinc-500">
-                Trouble loading the form?{' '}
-                <a
-                  href="https://docs.google.com/forms/d/e/1FAIpQLSekSFGfAlPtyzjeVhgPPpZhSOwNsYNAVBib0YeIWQMNT1pRYQ/viewform"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-heat-jalapeno underline-offset-4 hover:underline"
-                >
-                  Open it in a new tab
-                </a>
-                .
-              </p>
-            </motion.div>
-          </div>
-        </section>
-      </main>
+  return SOURCE_MAP[source.trim().toLowerCase()] ?? 'Other'
+}
 
-      <Footer />
-    </>
-  )
+export default function SignupPage({
+  searchParams,
+}: {
+  searchParams?: { utm_source?: string | string[] }
+}) {
+  return <SignupClient formSource={resolveFormSource(searchParams?.utm_source)} />
 }

@@ -8,6 +8,7 @@ import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
 import { tournamentResults, type TournamentResult } from '@/lib/standings-data'
+import { tournaments, isCancelled } from '@/lib/tournaments'
 import { heatText, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { PlaceBadge } from '@/components/standings/PlaceBadge'
@@ -253,9 +254,12 @@ export default function StandingsPage() {
     return years.at(-1) ?? String(new Date().getFullYear())
   }, [allResults])
   const seasonTournaments = allResults.filter(t => t.date.includes(selectedSeason))
-  // Let's Pepper runs a fixed 3-event summer season (Bell Pepper / Jalapeño / Poblano).
-  const SEASON_EVENT_TOTAL = 3
-  const eventsRemaining = Math.max(0, SEASON_EVENT_TOTAL - seasonTournaments.length)
+  // "Remaining" counts only events that will actually be played, so a cancelled
+  // stop drops out of the total instead of showing as one still to come. Derived
+  // from the tournament record rather than a hardcoded 3 — that constant is what
+  // would have kept promising a finale after it was called off.
+  const scheduledEventTotal = Object.values(tournaments).filter((t) => !isCancelled(t)).length
+  const eventsRemaining = Math.max(0, scheduledEventTotal - seasonTournaments.length)
 
   return (
     <>

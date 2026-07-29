@@ -1,14 +1,48 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { MOTION, useReducedMotion } from '@/lib/motion'
+import { cn } from '@/lib/utils'
 import { NextEventMarquee } from './Marquee'
+import { activeCancellation } from '@/lib/tournaments'
 
 const taglineWords = ['GRASSROOTS.', 'PLAYER-OWNED.', 'BUILT TO', 'COMPETE.']
 
+/**
+ * Cancellation notice for the slot directly under the hero — the same slot the
+ * next-up tape uses, because that is where people already look for "what's on".
+ *
+ * It replaces the tape rather than sitting beside it: the tape is decorative,
+ * `pointer-events-none`, and scrolls, none of which suits a message someone has
+ * to read carefully and act on. A called-off event needs plain text and a link.
+ */
+function CancellationNotice({ name, href, date }: { name: string; href: string; date: string }) {
+  return (
+    <div className="section-container">
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-xl border border-zinc-700 bg-zinc-900/80 px-5 py-4 text-center">
+        <span className="font-accent text-[0.62rem] font-bold uppercase tracking-[0.16em] text-zinc-400">
+          Cancelled
+        </span>
+        <p className="text-zinc-200">
+          The <span className="font-semibold text-white">{name}</span> scheduled for {date} will not
+          be played.
+        </p>
+        <Link
+          href={href}
+          className="font-accent text-sm uppercase tracking-wider text-white underline underline-offset-4 hover:text-heat-jalapeno transition-colors"
+        >
+          Read the notice →
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export function HeroSection() {
   const prefersReducedMotion = useReducedMotion()
+  const cancelled = activeCancellation(new Date().toISOString().split('T')[0])
 
   return (
     <>
@@ -208,12 +242,20 @@ export function HeroSection() {
       from within it. Rendering it as a sibling is what puts it in clear space.
     */}
     <motion.div
-      className="relative z-30 pointer-events-none my-4"
+      className={cn('relative z-30 my-4', !cancelled && 'pointer-events-none')}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 1.8, duration: 0.8 }}
     >
-      <NextEventMarquee />
+      {cancelled ? (
+        <CancellationNotice
+          name={cancelled.name}
+          href={`/flavors/${cancelled.slug}`}
+          date={cancelled.date}
+        />
+      ) : (
+        <NextEventMarquee />
+      )}
     </motion.div>
     </>
   )

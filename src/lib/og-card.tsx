@@ -72,7 +72,13 @@ function MascotFigure({ data }: { data: ArrayBuffer }) {
 }
 
 export function TournamentCard(t: TournamentDetail, mascot?: ArrayBuffer) {
-	const accent = HEAT_HEX[t.heat]
+	// A cancelled event's share card is the largest thing anyone sees when the link
+	// is pasted into a group chat, so it carries the cancellation itself — the title
+	// and description text beside it are far smaller and easy to skip. Heat accent,
+	// heat meter, and mascot all read as "this is on", so all three drop out and the
+	// accent goes neutral (same treatment as the feed and Story masters).
+	const cancelled = t.cancellation !== undefined
+	const accent = cancelled ? '#8a8880' : HEAT_HEX[t.heat]
 	return (
 		<div
 			style={{
@@ -100,7 +106,7 @@ export function TournamentCard(t: TournamentDetail, mascot?: ArrayBuffer) {
 					background: `radial-gradient(circle, ${accent}3a 0%, transparent 66%)`
 				}}
 			/>
-			{mascot ? <MascotFigure data={mascot} /> : null}
+			{mascot && !cancelled ? <MascotFigure data={mascot} /> : null}
 			{/* eyebrow */}
 			<div
 				style={{
@@ -119,7 +125,7 @@ export function TournamentCard(t: TournamentDetail, mascot?: ArrayBuffer) {
 			>
 				<div style={{ display: 'flex' }}>Let&apos;s Pepper Series</div>
 				<div style={{ display: 'flex', color: 'rgba(255,255,255,0.3)' }}>·</div>
-				<div style={{ display: 'flex' }}>{HEAT_LEVEL[t.heat]}</div>
+				<div style={{ display: 'flex' }}>{cancelled ? 'Cancelled' : HEAT_LEVEL[t.heat]}</div>
 			</div>
 			{/* title */}
 			<div
@@ -141,7 +147,9 @@ export function TournamentCard(t: TournamentDetail, mascot?: ArrayBuffer) {
 			<div style={{ display: 'flex', flex: 1 }} />
 			{/* meta */}
 			<div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '28px', zIndex: 1 }}>
-				<div style={{ display: 'flex', fontSize: '30px', fontWeight: 700, color: '#ffffff' }}>{t.date}</div>
+				<div style={{ display: 'flex', fontSize: '30px', fontWeight: 700, color: '#ffffff' }}>
+					{cancelled ? `Cancelled — will not be played ${t.date}` : t.date}
+				</div>
 				<div style={{ display: 'flex', fontSize: '22px', color: 'rgba(255,255,255,0.55)' }}>{shortVenue(t.location)}</div>
 			</div>
 			{/* footer — capped short of the mascot zone so the domain never sits under its feet */}
@@ -156,7 +164,7 @@ export function TournamentCard(t: TournamentDetail, mascot?: ArrayBuffer) {
 					zIndex: 1
 				}}
 			>
-				<HeatMeter heat={t.heat} />
+				{cancelled ? <div style={{ display: 'flex' }} /> : <HeatMeter heat={t.heat} />}
 				<div style={{ display: 'flex', fontSize: '20px', fontWeight: 700, letterSpacing: '0.04em', color: 'rgba(255,255,255,0.5)' }}>
 					letspepper.com
 				</div>

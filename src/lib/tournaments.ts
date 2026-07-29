@@ -21,6 +21,14 @@ export interface TournamentDetail {
 	startsAt: string
 	time: string
 	location: string
+	venue: {
+		name: string
+		streetAddress: string
+		addressLocality: string
+		addressRegion: string
+		postalCode: string
+		addressCountry: string
+	}
 	division: string
 	entryFee: string
 	format: string
@@ -29,6 +37,59 @@ export interface TournamentDetail {
 	payouts: string[]
 	features: string[]
 	mediaPerks: string[]
+	/**
+	 * Set when the event is called off. Every surface reads this one field: the
+	 * event page swaps its promo and sign-up CTAs for the notice, the series card
+	 * and the next-up tape stop advertising it, the standings stop counting it as
+	 * remaining, and the page's JSON-LD publishes EventCancelled so the
+	 * cancellation reaches search results instead of the stale listing.
+	 */
+	cancellation?: {
+		/** ISO date the call was made — the notice is dated so players can trust it. */
+		announcedOn: string
+		/** Why, in the player's terms. One or two sentences. */
+		reason: string
+		/** What a registered team should expect next. Mirrors the /terms policy. */
+		registeredTeams: string
+	}
+}
+
+/** Cancelled events stay published (a 404 would leave the old promo as the only signal) but never promote. */
+export const isCancelled = (t: TournamentDetail): boolean => t.cancellation !== undefined
+
+/**
+ * The cancelled event a visitor still needs to be told about — one whose date has
+ * not yet passed. After the date, the notice stops being news and the event page
+ * carries it alone; the homepage goes back to the off-season message.
+ *
+ * `todayISO` is passed in rather than read here so callers that render on the
+ * client can pass the same value they already computed, and so this stays pure.
+ */
+/**
+ * The next event a team can actually enter, or null when nothing is open.
+ *
+ * `/signup` embeds a Google Form we cannot close from here, so this is what tells
+ * the page to stop presenting that form: with no open event, an embedded roster
+ * form is an invitation to register for something that is not happening.
+ */
+export function nextOpenEvent(todayISO: string): TournamentDetail | null {
+	const open = Object.values(tournaments)
+		.filter((t) => !isCancelled(t) && t.startsAt.slice(0, 10) >= todayISO)
+		.sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+	return open[0] ?? null
+}
+
+export function activeCancellation(todayISO: string): TournamentDetail | null {
+	const pending = Object.values(tournaments)
+		.filter((t) => isCancelled(t) && t.startsAt.slice(0, 10) >= todayISO)
+		.sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+	return pending[0] ?? null
+}
+
+/** "Sunday, June 7, 2026" -> "June 7". Deterministic string work — no Date parsing, so no SSR/timezone drift. */
+export function monthDay(date: string): string {
+	const afterWeekday = date.split(',')[1]
+	return afterWeekday ? afterWeekday.trim() : date
 }
 
 /** Heat → hex (the CSS vars in globals.css, resolved — Satori can't read CSS custom properties). */
@@ -43,6 +104,15 @@ export const HEAT_LEVEL: Record<TournamentDetail['heat'], string> = {
 	bell: 'Mild',
 	poblano: 'Medium',
 	jalapeno: 'Hot'
+}
+
+const NATURE_MEADOWS_PARK: TournamentDetail['venue'] = {
+	name: 'Nature Meadows Park',
+	streetAddress: '1861 Westridge Pl',
+	addressLocality: 'Aurora',
+	addressRegion: 'IL',
+	postalCode: '60504',
+	addressCountry: 'US'
 }
 
 export const tournaments: Record<string, TournamentDetail> = {
@@ -60,6 +130,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		startsAt: '2026-06-07T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',
 		location: 'Nature Meadows Park · 1861 Westridge Pl, Aurora, IL 60504',
+		venue: NATURE_MEADOWS_PARK,
 		division: 'Grass Triples (One Division)',
 		entryFee: '',
 		format: 'Pool Play + Single Elimination Bracket',
@@ -84,6 +155,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		startsAt: '2026-07-18T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',
 		location: 'Nature Meadows Park · 1861 Westridge Pl, Aurora, IL 60504',
+		venue: NATURE_MEADOWS_PARK,
 		division: 'Grass Triples (One Division)',
 		entryFee: '',
 		format: 'Pool Play + Double Elimination Bracket',
@@ -101,20 +173,33 @@ export const tournaments: Record<string, TournamentDetail> = {
 		name: 'Poblano Pepper Open',
 		heat: 'poblano',
 		tagline: 'Season Finale',
-		headline:
-			'The season closes at the Poblano Open. The payout scales with the field — $2,000 first place at a full 28-team bracket, the largest in series history.',
+		// Promo copy is gone on purpose. The finale was sold on a 28-team field and the
+		// payout that scaled with it; neither is happening, so neither stays on the page.
+		headline: 'This event has been cancelled. It will not be played on August 1.',
 		description:
-			'The finale rewards defense, touch, and patience under pressure. We are building the biggest field the series has seen — 28 teams — and every one of them gets full media coverage.',
+			'The finale was built around a full field. We did not get there, and a short bracket is not the event we told you we were running.',
 		date: 'Saturday, August 1, 2026',
 		startsAt: '2026-08-01T09:00:00-05:00',
 		time: 'Check-in 8:30 AM · Serve by 9:00 AM',
 		location: 'Nature Meadows Park · 1861 Westridge Pl, Aurora, IL 60504',
+		venue: NATURE_MEADOWS_PARK,
 		division: 'Grass Triples (One Division)',
 		entryFee: '',
 		format: 'Pool Play + Single Elimination Bracket',
-		payoutHeadline: { amount: '$2,000', label: 'First place at a full 28-team field · Payout scales with the field' },
-		payouts: ['$2,000 first place at a full 28-team field — payout scales with field size', 'Season recap content', 'Year-end merch'],
-		features: ['$2,000 at a Full 28', 'Season Closer', 'Final Standings'],
-		mediaPerks: ['Professional photo coverage by Flickday Media', 'Season recap content', 'Full gallery access']
+		// Empty on purpose: prizes and feature chips are both sales copy, and the
+		// "Cancelled" badge already says the only thing left to say.
+		payouts: [],
+		features: [],
+		mediaPerks: ['Professional photo coverage by Flickday Media', 'Season recap content', 'Full gallery access'],
+		cancellation: {
+			announcedOn: '2026-07-28',
+			reason:
+				'Not enough teams registered to run the finale as planned. Rather than shrink the bracket into a different event than the one teams signed up for, we are calling it.',
+			// Deliberately NOT "per our terms": the /terms cancellation clause covers
+			// "weather or other circumstances beyond our control", and a low-registration
+			// call is an organizer decision, not that. The offer stands on its own.
+			registeredTeams:
+				'Every registered team receives a full refund or a credit toward a future event. We will reach out to each captain directly — you do not need to do anything.'
+		}
 	}
 }

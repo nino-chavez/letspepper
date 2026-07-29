@@ -53,6 +53,14 @@ function usePhaseOverride(): EventPhase | null {
   return override
 }
 
+/** One cell of the event-details grid: a single value, or a bulleted list. */
+interface DetailCell {
+  label: string
+  primary?: string
+  muted?: string
+  list?: string[]
+}
+
 /** Pre-event countdown to first serve. Renders nothing until mounted (avoids a
  *  hydration mismatch on the live clock). */
 function Countdown({ target }: { target: string }) {
@@ -85,6 +93,19 @@ function Countdown({ target }: { target: string }) {
   )
 }
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+/** "2026-07-28" -> "July 28, 2026" (deterministic, no Date parsing — avoids SSR/tz drift). */
+function longDate(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  const month = MONTHS[Number(m) - 1]
+  if (!month || !y || !d) return iso
+  return `${month} ${Number(d)}, ${y}`
+}
+
 /** "Sunday, June 7, 2026" -> "Sun · Jun 7" (deterministic, no Date parsing — avoids SSR/tz drift). */
 function shortDate(date: string): string {
   const parts = date.split(',')
@@ -105,12 +126,33 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
   }
 
   const config = heatConfig[tournament.heat]
-  const isPre = phase === 'pre'
-  const isLive = phase === 'live'
-  const isPost = phase === 'post'
+  const cancellation = tournament.cancellation
+  // A cancelled event has no phase. Rally HQ may still report one (the tournament
+  // record lives on over there), so cancellation overrides all three faces —
+  // otherwise the page would keep showing a roster, a countdown, and a champion
+  // pick for a bracket that is never played.
+  const isPre = !cancellation && phase === 'pre'
+  const isLive = !cancellation && phase === 'live'
+  const isPost = !cancellation && phase === 'post'
+  const signupHref = `/signup?utm_source=letspepper.com&utm_medium=event_page&utm_campaign=${tournament.rhqSlug}`
 
   const mascotPose = isPost ? 'champion' : mascotRolePose[tournament.heat]
   const mascotSrc = `/images/mascots/anime/web/${mascotCharacter[tournament.heat]}-${mascotPose}-1024.webp`
+
+  // Cancelled keeps only what identifies the event someone heard about. Division,
+  // format, and prizes all describe a bracket that will not be played.
+  const detailCells: DetailCell[] = cancellation
+    ? [
+        { label: 'Was scheduled for', primary: tournament.date, muted: tournament.time },
+        { label: 'Location', primary: tournament.location },
+      ]
+    : [
+        { label: 'Date & Time', primary: tournament.date, muted: tournament.time },
+        { label: 'Location', primary: tournament.location },
+        { label: 'Division', primary: tournament.division },
+        { label: 'Format', primary: tournament.format },
+        { label: 'Prizes', list: tournament.payouts },
+      ]
 
   return (
     <>
@@ -194,7 +236,12 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                   </span>
                 </span>
                 <span
-                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-700 text-zinc-300 font-accent text-[0.62rem] uppercase tracking-[0.12em]"
+                  className={cn(
+                    'inline-flex items-center gap-2 px-3 py-1 rounded-full border font-accent text-[0.62rem] uppercase tracking-[0.12em]',
+                    cancellation
+                      ? 'border-zinc-600 bg-zinc-800/70 text-zinc-200'
+                      : 'border-zinc-700 text-zinc-300',
+                  )}
                   style={
                     isLive
                       ? { color: 'var(--live)', borderColor: 'color-mix(in srgb, var(--live) 50%, transparent)' }
@@ -207,7 +254,13 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                     className={cn('h-2 w-2 rounded-full bg-zinc-500', isLive && 'animate-pulse')}
                     style={isLive ? { background: 'var(--live)' } : isPost ? { background: 'var(--gold)' } : undefined}
                   />
-                  {isLive ? `Live · ${currentPhase ?? 'Pool Play'}` : isPost ? 'Final' : shortDate(tournament.date)}
+                  {cancellation
+                    ? 'Cancelled'
+                    : isLive
+                      ? `Live · ${currentPhase ?? 'Pool Play'}`
+                      : isPost
+                        ? 'Final'
+                        : shortDate(tournament.date)}
                 </span>
               </div>
 
@@ -215,7 +268,30 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 {tournament.name}
               </h1>
 
-              <p className="text-xl sm:text-2xl leading-relaxed text-zinc-300">{tournament.headline}</p>
+              <p
+                className={cn(
+                  'text-xl sm:text-2xl leading-relaxed',
+                  cancellation ? 'text-white font-semibold' : 'text-zinc-300',
+                )}
+              >
+                {tournament.headline}
+              </p>
+
+              {/* The notice IS the page for a cancelled event — reason first, then the
+                  one thing a registered captain actually needs to know. */}
+              {cancellation && (
+                <div className="max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900/70 p-5 sm:p-6 space-y-3">
+                  <p className="font-accent text-[0.62rem] uppercase tracking-[0.14em] text-zinc-500">
+                    Notice · Posted{' '}
+                    <time dateTime={cancellation.announcedOn}>{longDate(cancellation.announcedOn)}</time>
+                  </p>
+                  <p className="text-zinc-300 leading-relaxed">{cancellation.reason}</p>
+                  <p className="text-zinc-300 leading-relaxed">
+                    <strong className="text-white">If your team registered:</strong>{' '}
+                    {cancellation.registeredTeams}
+                  </p>
+                </div>
+              )}
 
               {tournament.payoutHeadline && (
                 <div className="flex items-baseline gap-x-5 gap-y-2 flex-wrap pt-1">
@@ -230,20 +306,37 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-5 font-accent text-sm text-zinc-300 pt-1">
-                <span>{tournament.division.replace(' (One Division)', '')}</span>
-                <span className="text-zinc-600">·</span>
-                <span>{tournament.format}</span>
-                <span className="text-zinc-600">·</span>
-                <span>Aurora, IL</span>
-              </div>
+              {/* Format/venue line reads as "still on" — suppressed once cancelled. */}
+              {!cancellation && (
+                <div className="flex flex-wrap gap-5 font-accent text-sm text-zinc-300 pt-1">
+                  <span>{tournament.division.replace(' (One Division)', '')}</span>
+                  <span className="text-zinc-600">·</span>
+                  <span>{tournament.format}</span>
+                  <span className="text-zinc-600">·</span>
+                  <span>Aurora, IL</span>
+                </div>
+              )}
 
               {/* phase-conditional CTAs */}
               <div className="flex flex-wrap items-center gap-4 pt-4">
+                {cancellation && (
+                  <>
+                    <Link href="/standings" className={cn('btn-heat', config.bgClass, config.glowClass)}>
+                      <span>Season Standings</span>
+                      <span aria-hidden="true">→</span>
+                    </Link>
+                    <Link
+                      href="/#series"
+                      className="font-accent text-sm uppercase tracking-wider text-zinc-300 hover:text-white transition-colors self-center"
+                    >
+                      All events →
+                    </Link>
+                  </>
+                )}
                 {isPre && (
                   <>
                     <Countdown target={tournament.startsAt} />
-                    <Link href="/signup" className={cn('btn-heat', config.bgClass, config.glowClass)}><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
+                    <Link href={signupHref} className={cn('btn-heat', config.bgClass, config.glowClass)}><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
                     <a href="#predict" className="font-accent text-sm uppercase tracking-wider text-zinc-300 hover:text-white transition-colors self-center">Predict the champ →</a>
                   </>
                 )}
@@ -282,13 +375,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
               viewport={MOTION.viewport.once}
               transition={{ staggerChildren: 0.1 }}
             >
-              {([
-                { label: 'Date & Time', primary: tournament.date, muted: tournament.time },
-                { label: 'Location', primary: tournament.location },
-                { label: 'Division', primary: tournament.division },
-                { label: 'Format', primary: tournament.format },
-                { label: 'Prizes', list: tournament.payouts },
-              ] as { label: string; primary?: string; muted?: string; list?: string[] }[]).map((d) => (
+              {detailCells.map((d) => (
                 <motion.div key={d.label} className="space-y-3" variants={MOTION.variants.slideUp}>
                   <h2 className="font-accent text-sm uppercase tracking-wider text-zinc-500">{d.label}</h2>
                   {d.primary && <p className="text-xl text-white">{d.primary}</p>}
@@ -311,8 +398,10 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
             standings + bracket. This is what kills the grid-of-zeros and the
             Field/Standings duplication: never both at once. */}
 
-        {/* Court board — "Up Next" per court (pre) → "Happening Now" scorebugs (live). */}
-        <CourtBoard slug={tournament.rhqSlug} heat={tournament.heat} phase={phase} />
+        {/* Court board — "Up Next" per court (pre) → "Happening Now" scorebugs (live).
+            Both this and the schedule render on every phase, so cancellation has to
+            gate them explicitly or a called-off event still shows courts and a slate. */}
+        {!cancellation && <CourtBoard slug={tournament.rhqSlug} heat={tournament.heat} phase={phase} />}
 
         {isPre && <RhqTeamRoster slug={tournament.rhqSlug} heat={tournament.heat} />}
 
@@ -322,7 +411,9 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
           </div>
         )}
 
-        <RhqScheduleSection slug={tournament.rhqSlug} heat={tournament.heat} pollMs={isLive ? 60_000 : undefined} />
+        {!cancellation && (
+          <RhqScheduleSection slug={tournament.rhqSlug} heat={tournament.heat} pollMs={isLive ? 60_000 : undefined} />
+        )}
 
         {(isLive || isPost) && (
           <div id="bracket">
@@ -338,7 +429,10 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
           </section>
         )}
 
-        {/* ===================== AT THE PARK (spectator guide) ===================== */}
+        {/* ===================== AT THE PARK (spectator guide) =====================
+            Directions, check-in timing, and what to expect on site — all of it
+            instructs someone to show up, so it comes down with the event. */}
+        {!cancellation && (
         <section className="section-padding">
           <div className="section-container">
             <motion.div
@@ -370,8 +464,12 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
             </motion.div>
           </div>
         </section>
+        )}
 
-        {/* ===================== MEDIA ===================== */}
+        {/* ===================== MEDIA =====================
+            "Every team gets covered" is a reason to enter. On a cancelled event
+            it is a pitch for something not on offer, so it comes down too. */}
+        {!cancellation && (
         <section className="section-padding">
           <div className="section-container">
             <motion.div
@@ -395,6 +493,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
             </motion.div>
           </div>
         </section>
+        )}
 
         {/* ===================== CTA ===================== */}
         <section className="section-padding bg-gradient-to-t from-pepper-charcoal/50 to-transparent">
@@ -411,7 +510,11 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 Grass roots. High level. Real stakes.
               </p>
               <div className="flex flex-wrap justify-center gap-4 pt-4">
-                <Link href="/signup" className="btn-primary"><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
+                {cancellation ? (
+                  <Link href="/standings" className="btn-primary"><span>Season Standings</span><span aria-hidden="true">→</span></Link>
+                ) : (
+                  <Link href={signupHref} className="btn-primary"><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
+                )}
                 <a
                   href="https://gallery.ninochavez.co/Sports/Volleyball/Grass/LPO"
                   target="_blank"
