@@ -29,8 +29,24 @@
 >   `scripts/social-publish/queue/poblano-2026-cancellation.json` at status
 >   `draft`, which the Worker skips until an operator flips it to `pending`.
 >
-> **Still owed at the time of writing (operator actions, none automated)**
+> **Published — Tue Jul 28, 2026, 7:52 PM CDT**
 >
+> - Site live at letspepper.com; deploy `30412201474` green. This was the first
+>   successful deploy since Jul 27 — `reader:check:website --strict` had been
+>   failing on a stale review receipt and blocked PRs #41 and #42, so the
+>   cancellation would not have reached production without clearing it first.
+> - Instagram `@letspepper.open` — media `18358416091211728`, 00:52:26Z.
+> - Facebook Let's Pepper Open Page — post
+>   `1121553257697663_122122308038737193`, 00:52:34Z.
+> - Both published by the Worker from `poblano-2026-cancellation`, which is now
+>   drained. Master used: `event/poblano/feed/09-cancelled.png`.
+>
+> **Still owed (operator actions, none automated)**
+>
+> 0. **The captain notice below has NOT been sent.** The public post went out
+>    first, against the recommended order — registered captains may see the
+>    announcement before hearing from us. Send it now, and lead by acknowledging
+>    that.
 > 1. Cancel — do not delete — the Facebook event
 >    `https://www.facebook.com/events/1681972996412530/`. Cancelling notifies
 >    everyone who RSVP'd; deleting removes the record silently and tells nobody.
