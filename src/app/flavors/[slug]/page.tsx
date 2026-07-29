@@ -181,22 +181,28 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
               the floor shadow, heat glow backlights the head); hidden below lg where the type
               column owns the full width. key re-runs the entrance when post-phase swaps the
               role pose for champion, so the flip reads as a reveal. */}
-          <motion.div
-            key={mascotPose}
-            className="hidden lg:block absolute bottom-0 right-0 xl:right-8 h-[48vh] max-h-[520px] xl:h-[54vh] xl:max-h-[600px] aspect-[2/3] pointer-events-none select-none"
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, ease: MOTION.ease.outExpo, delay: 0.15 }}
-            aria-hidden="true"
-          >
-            <Image
-              src={mascotSrc}
-              alt=""
-              fill
-              unoptimized
-              className="object-contain object-bottom"
-            />
-          </motion.div>
+          {/* No character on a cancelled event. Every pose in the library is a
+              competitive one — striding in with a ball, blocking, serving — and all
+              of them read as an invitation next to a call-off. Same reason the feed
+              and Story masters render without one. */}
+          {!cancellation && (
+            <motion.div
+              key={mascotPose}
+              className="hidden lg:block absolute bottom-0 right-0 xl:right-8 h-[48vh] max-h-[520px] xl:h-[54vh] xl:max-h-[600px] aspect-[2/3] pointer-events-none select-none"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8, ease: MOTION.ease.outExpo, delay: 0.15 }}
+              aria-hidden="true"
+            >
+              <Image
+                src={mascotSrc}
+                alt=""
+                fill
+                unoptimized
+                className="object-contain object-bottom"
+              />
+            </motion.div>
+          )}
           {/* cinematic scrim — keeps oversized type legible over the grit */}
           <div
             className="absolute inset-0"
@@ -229,12 +235,17 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                   <span className="text-zinc-500"> · </span>
                   <span className={config.textClass}>{tournament.tagline}</span>
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <HeatMeter heat={tournament.heat} />
-                  <span className="font-accent text-[0.62rem] font-bold uppercase tracking-[0.12em] text-zinc-500">
-                    {config.level}
+                {/* Heat level is how hard the field is expected to play — it only
+                    describes an event that happens. Drops out with the rest of the
+                    promo furniture, matching the OG card and the series card. */}
+                {!cancellation && (
+                  <span className="inline-flex items-center gap-2">
+                    <HeatMeter heat={tournament.heat} />
+                    <span className="font-accent text-[0.62rem] font-bold uppercase tracking-[0.12em] text-zinc-500">
+                      {config.level}
+                    </span>
                   </span>
-                </span>
+                )}
                 <span
                   className={cn(
                     'inline-flex items-center gap-2 px-3 py-1 rounded-full border font-accent text-[0.62rem] uppercase tracking-[0.12em]',
@@ -321,7 +332,9 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
               <div className="flex flex-wrap items-center gap-4 pt-4">
                 {cancellation && (
                   <>
-                    <Link href="/standings" className={cn('btn-heat', config.bgClass, config.glowClass)}>
+                    {/* Neutral, not heat-coloured: the heat button is the series'
+                        "enter this" affordance and should not front a notice page. */}
+                    <Link href="/standings" className="btn-heat bg-zinc-700 hover:bg-zinc-600">
                       <span>Season Standings</span>
                       <span aria-hidden="true">→</span>
                     </Link>

@@ -1,13 +1,16 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-07-24T16:51:15.768Z",
-  "reviewedBy": "Claude Code (Opus 4.8) + browse-tool DOM inspection",
-  "method": "browser walkthrough (browse-tool, localhost:3001)",
-  "sourceDigest": "sha256:7f10e0cac7c90429cf25a1b9300a2c8961b3bd7a45dc6b5c334369288a8609d0",
-  "sourceFiles": 93,
+  "reviewedAt": "2026-07-29T00:44:20.693Z",
+  "reviewedBy": "Claude Opus 5 (Claude Code) + browse-tool",
+  "method": "local production-build walkthrough (pnpm start): browser screenshots of home, /flavors/poblano-open, /signup; rendered-DOM text extraction for those plus /standings; opengraph-image fetched and viewed",
+  "sourceDigest": "sha256:39b056be2e1f021de6c808f1c289f1cd6cf0a60b10615a194ed7264311497836",
+  "sourceFiles": 98,
   "scope": [
     "home",
-    "flavors/poblano-open"
+    "flavors/poblano-open",
+    "signup",
+    "standings",
+    "flavors/poblano-open opengraph-image"
   ]
 }
