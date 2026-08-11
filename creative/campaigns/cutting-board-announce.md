@@ -8,6 +8,11 @@
 > The Worker only picks up `pending`/`building` items that also pass `hasMedia`,
 > so nothing here can post by accident.
 >
+> The queue file is untracked, following this repo's convention that
+> `scripts/social-publish/queue/` is gitignored — zero queue files are in git.
+> It lives in the main checkout alongside the others; this doc is its committed
+> record.
+>
 > **What has to be true before the first post goes out** — see "Ship gate" below.
 > The short version: the app itself still says *Film Room*. Announcing *Cutting
 > Board* to 1,900 people before the product agrees with the name is the whole
