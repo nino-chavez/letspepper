@@ -1,0 +1,78 @@
+[
+  {
+    "name": "announce",
+    "data": {
+      "kicker": "New",
+      "headline": "Review the video. Make every call.",
+      "lead": "The prep station between your camera and your editor.",
+      "foot": "Free · AGPL-3.0 · macOS"
+    }
+  },
+  {
+    "name": "the-loop-01-ingest",
+    "data": {
+      "kicker": "01 · Ingest",
+      "headline": "Bring in the event.",
+      "lead": "Choose a camera card or local folder. Review copies are prepared locally; your source footage stays unchanged.",
+      "foot": "1 of 3 · you own all three"
+    }
+  },
+  {
+    "name": "the-loop-02-review",
+    "data": {
+      "kicker": "02 · Review",
+      "headline": "The app points. You decide.",
+      "lead": "A useful starting order. Keep, Highlight, or Reject — every call stays yours.",
+      "foot": "2 of 3 · you own all three"
+    }
+  },
+  {
+    "name": "the-loop-03-deliver",
+    "data": {
+      "kicker": "03 · Deliver",
+      "headline": "Hand off, ready to edit.",
+      "lead": "Organized local outputs and a versioned decision map. Nothing uploads on its own.",
+      "foot": "3 of 3 · you own all three"
+    }
+  },
+  {
+    "name": "boundary",
+    "data": {
+      "kicker": "What it does not do",
+      "headline": "Analysis points. It never decides.",
+      "headlineSmall": true,
+      "items": [
+        "Does not edit automatically",
+        "Does not decide what is good",
+        "Does not identify athletes",
+        "Does not coach players",
+        "Does not replace editorial taste"
+      ],
+      "foot": "The operator is the authority at every stage."
+    }
+  },
+  {
+    "name": "free-and-open",
+    "data": {
+      "kicker": "Free and open",
+      "headline": "AGPL-3.0, because it has to be.",
+      "headlineSmall": true,
+      "lead": "It bundles Ultralytics and YOLO weights, whose terms require publishing the whole work. The licence is an obligation, not a pose.",
+      "foot": "github.com/nino-chavez/film-room-oss"
+    }
+  },
+  {
+    "name": "the-ask",
+    "data": {
+      "kicker": "If you shoot events",
+      "headline": "Three questions.",
+      "ordered": true,
+      "items": [
+        "Before you opened it — did you understand what it does?",
+        "In the first twenty minutes, where did you get stuck?",
+        "What did you expect it to do that it didn't?"
+      ],
+      "foot": "apps.ninochavez.co/cutting-board"
+    }
+  }
+]
