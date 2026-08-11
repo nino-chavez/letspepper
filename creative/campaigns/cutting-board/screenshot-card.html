@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  /* Same product tokens as card.html so this sits in the carousel without a seam. */
+  :root {
+    --bg:      oklch(0.1820 0.0044 264.5);
+    --surface: oklch(0.2346 0.0083 264.4);
+    --line:    oklch(0.3628 0.0132 261.7);
+    --text:    oklch(0.9610 0.0083 91.5);
+    --accent:  oklch(0.7648 0.1385 77.5);
+    --muted:   oklch(0.7200 0.0110 264.0);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1350px; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 400 30px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column;
+    padding: 84px 78px 72px;
+  }
+  header { display: flex; align-items: center; gap: 18px; }
+  .mark {
+    width: 56px; height: 56px; border-radius: 13px;
+    background: var(--accent); color: var(--bg);
+    display: grid; place-items: center;
+    font-size: 25px; font-weight: 800; letter-spacing: -.5px;
+  }
+  .wordmark { font-size: 31px; font-weight: 700; letter-spacing: -.3px; }
+
+  main { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 44px; }
+  .kicker {
+    font-size: 24px; font-weight: 700; letter-spacing: 2.6px;
+    text-transform: uppercase; color: var(--accent);
+  }
+  h1 { font-size: 62px; line-height: 1.1; font-weight: 700; letter-spacing: -1.6px; }
+
+  /* The whole 1440x900 frame, scaled to fit — never cropped. The Keep / Highlight /
+     Reject controls run along the bottom of every card and the review progress sits
+     top-right; a 4:5 crop would take 720px of width and cut both. */
+  figure {
+    /* Full-bleed to the card edges: the frame is the evidence, and 78px of
+       padding either side costs ~17% of its on-phone size for no gain. */
+    margin: 0 -78px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    overflow: hidden; background: var(--surface); line-height: 0;
+  }
+  figure img { width: 100%; height: auto; display: block; }
+  figcaption {
+    line-height: 1.45; font-size: 25px; color: var(--muted);
+    padding: 24px 78px 4px; 
+  }
+
+  footer { display: flex; flex-direction: column; gap: 20px; }
+  .rule { height: 6px; background: var(--accent); border-radius: 3px; width: 96px; }
+  .foot-line { font-size: 26px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <header>
+    <div class="mark">CB</div>
+    <div class="wordmark">Cutting Board</div>
+  </header>
+  <main>
+    <div>
+      <div class="kicker" id="kicker"></div>
+      <h1 id="headline" style="margin-top:26px"></h1>
+    </div>
+    <figure>
+      <img id="shot" src="" alt="">
+      <figcaption id="cap"></figcaption>
+    </figure>
+  </main>
+  <footer>
+    <div class="rule"></div>
+    <div class="foot-line" id="foot"></div>
+  </footer>
+<script>
+  const d = window.RENDER_DATA || {};
+  const set = (id, v) => { const el = document.getElementById(id); if (v) el.textContent = v; else el.remove(); };
+  set('kicker', d.kicker); set('headline', d.headline); set('cap', d.caption); set('foot', d.foot);
+  const img = document.getElementById('shot');
+  img.src = d.image || 'review-source.jpg';
+  img.alt = d.alt || '';
+</script>
+</body>
+</html>
