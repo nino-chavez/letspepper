@@ -13,10 +13,9 @@
 > It lives in the main checkout alongside the others; this doc is its committed
 > record.
 >
-> **What has to be true before the first post goes out** — see "Ship gate" below.
-> The short version: the app itself still says *Film Room*. Announcing *Cutting
-> Board* to 1,900 people before the product agrees with the name is the whole
-> risk this staging exists to hold.
+> **The name gate cleared on 2026-08-11.** The rename landed (film-room PRs #12
+> and #14) and the app now calls itself Cutting Board. **Media is the only
+> remaining blocker** — see "Media" below.
 
 Announce Cutting Board to the creatives who follow `nino.chavez.photo`, and ask
 them for the one kind of evidence the project cannot generate for itself: a
@@ -40,44 +39,48 @@ operator reaches useful output inside 20 minutes with zero engineer help):
 2. In the first twenty minutes, where did you get stuck?
 3. What did you expect it to do that it didn't?
 
-## Ship gate
+## Ship gate — cleared except media
 
-Decision 0067 sets a deliberate sweep order. This campaign sits inside it rather
-than around it.
-
-| Before posting | Why |
+| Was gating | State |
 |---|---|
-| **0067 phases 1–3 land** — `APP_NAME`, `productName`, `main.rs`, sample-event fork | The app a respondent opens must say Cutting Board. Today it says Film Room. |
-| **Post 4 only:** the public repo reads as Cutting Board | `github.com/nino-chavez/film-room-oss` currently renders a README titled **Film Room** that also says "The repository is private" — false for the public mirror. A caption naming that URL sends people to a contradiction. Rewriting the README clears it; the 0067 phase-7 repo rename is not required first, because GitHub preserves redirects. |
-| **Media exists and is approved** | See "Media" — nothing shippable exists today. |
-| **Nino's screenshot verdict** *(only if any post uses an app capture)* | The visual bundle is unbound pending that verdict, and 0067 phase 5 requires a real recapture against the renamed app. A re-hash is not a capture. |
+| Decision 0067 phases 1–3 — the app must say Cutting Board | **Cleared.** Landed in film-room PRs #12 and #14. |
+| Phase 4 — public copy | **Cleared.** Same PRs: README, landing page, product docs. |
+| The download page must be linkable | **Cleared.** Decision 0068 dropped the invite gate. |
+| Media exists and is approved | **Open.** The only remaining blocker. |
 
-**Not required:** 0067 phase 6 (republished DMG) or phase 7 (repo rename).
-Neither post links a download, so neither gates the campaign.
+**Not required:** the operator's visual verdict, unless a post uses a capture
+from the unbound evidence bundle. The one screenshot this campaign would use is
+not from that bundle — see "Media".
 
-## The link problem, and how these posts route around it
+## Where the posts send people
 
-Decision 0064 §4 keeps the download page `noindex`/`nofollow` and describes the
-channel as an internal alpha for people the operator invites. The page says so
-in its own footer: *"Share it only with the people you invite."*
+`https://apps.ninochavez.co/cutting-board`
 
-**No post links that page.** Publishing its URL to 1,900 people converts an
-invite-only alpha into a general launch, which is a decision record and an
-operator call — not a side effect of a marketing task.
+Verified live on 2026-08-11: `200`, serving the film-room `apps/portal` build,
+macOS DMG answering a range request `206`.
 
-So the CTA is **comment or DM**, and Nino hands the link out individually. That
-is precisely the mechanism 0064 already authorizes, and it doubles as the
-feedback channel. The one public URL any post carries is the AGPL source repo,
-gated as above.
+This replaces the comment-or-DM routing the first draft used. Decision 0068 in
+the film-room repository (`decisions/0068-public-alpha-distribution.md`) dropped
+the invite gate — a relative link is not used here because that decision lives in
+a different repository — so the page is public and indexable and the captions can
+simply name it. Instagram captions carry no clickable link, which is why the URL
+is short and on its own line rather than buried in a sentence.
+
+**The captions do not name the source repository.** It is public, but it is still
+called `film-room-oss` and its README is still titled *Film Room* — the phase 7
+rename and the README rewrite have not happened. Sending creatives from a post
+about Cutting Board to a page about Film Room reads as a different product. The
+landing page carries the source link in context, which is the right place for it
+until that repository agrees with the name.
 
 Note: "link in bio" is on the house blocked-phrase list in
 `scripts/media-kit/lint-copy.mjs`. None of these captions use it.
 
 ## Calendar
 
-Relative days, because the start date depends on the ship gate clearing.
-`scheduledAt` is `null` in the queue until then — fill real UTC timestamps when
-the gate clears, and the Worker will post them earliest-first.
+Relative days, because the start date now depends only on media being ready.
+`scheduledAt` is `null` in the queue until then — fill real UTC timestamps once
+the assets exist, and the Worker will post them earliest-first.
 
 | Day | Item | Job |
 |---|---|---|
@@ -89,14 +92,13 @@ the gate clears, and the Worker will post them earliest-first.
 
 Five anchors, matching the pattern in `poblano-2026-finale.md`. Every caption is
 fully resolved — no publish-time fills — so the only thing standing between this
-queue and a post is media, the gate, and an operator flipping `draft` to
-`pending`.
+queue and a post is media and an operator flipping `draft` to `pending`.
 
-## Media — nothing shippable exists today
+## Media
 
 The queue rule in `poblano-2026-finale.json` is that only fully-resolved items
-get queued. Extending it to media: each item names the file it needs and its
-real status. **All five must be produced.**
+get queued. Extending it to media: each item names the file it needs and its real
+status.
 
 | Item | Needs | Status |
 |---|---|---|
@@ -106,23 +108,27 @@ real status. **All five must be produced.**
 | `free-and-open` | 4:5 card, AGPL | Must be produced |
 | `the-ask` | 4:5 card, the three questions | Must be produced |
 
-Three existing assets were considered and each is unusable:
+**One real screenshot is now available and is the strongest asset here.**
+`film-room/apps/portal/public/beta/cutting-board-review-current.jpg` is a genuine
+capture against the renamed build — a throwaway profile seeded with 99 synthetic
+portrait clips from the bundled sample, served locally, captured at 1440×900,
+verified by OCR, profile deleted, no private footage at any point. It is already
+published on the public landing page, so using it in a post distributes nothing
+new.
 
-- `film-room/apps/portal/public/beta/film-room-review-current.jpg` — shows the
-  old name, and it is exactly the capture 0067 phase 5 says must be redone. The
-  visual bundle is unbound pending the operator's verdict; do not assert a
-  capture that has not happened.
+Two caveats before it ships: it is 1440×900 and needs reframing to 4:5, and the
+crop must not cut the operator-owned Keep / Highlight / Reject controls, which
+are the point of the image. It is **not** from the unbound evidence bundle, so it
+does not need the operator's pending visual verdict.
+
+Two earlier candidates remain unusable, for the record:
+
 - `flickdaymedia/motion/filmroom-pick-proof/renders/jpo-C2355-branded-9x16.mp4`
-  — the only social-native asset that shows the tool working on real footage,
-  but it is Flickday-branded, on JPO footage, and carries the old name. Wrong
-  brand for a Cutting Board post on a photography account.
-- `film-room/apps/portal/public/og-current.png` — modified and uncommitted in
-  the film-room working tree; contents unverified.
-
-**The strongest asset this campaign could have** is a short screen recording of
-the Review board on the renamed app. It is also the most gated: 0067 phase 5
-plus the operator's visual verdict. Treat it as an upgrade to `announce` or
-`the-loop`, not a blocker for either.
+  — the only social-native asset showing the tool on real footage, but it is
+  Flickday-branded, on JPO footage, and carries the old name. Wrong brand for a
+  photography feed.
+- `film-room/apps/portal/public/beta/film-room-review-current.jpg` — deleted
+  upstream; the recapture above replaced it.
 
 ## Preflight
 
@@ -148,11 +154,11 @@ plus the operator's visual verdict. Treat it as an upgrade to `announce` or
 - **No engagement-sweep automation.** `SWEEP.md`'s auto-reply is off (shadow
   mode) and stays off. Every reply to these posts should be Nino's, because the
   replies *are* the deliverable.
-- **No download link, no unlisted page URL.** See "The link problem" above.
+- **No repository URL in captions.** See "Where the posts send people" above.
 
 ## Where the responses go
 
-Feedback that arrives by comment or DM is a new evidence class for the project:
+Feedback that arrives by comment, DM, or the page is a new evidence class for the project:
 first human encounter from outside the operator. Route it into the existing
 contract rather than a new one — a dated entry under `film-room/feedback/` with
 its evidence class named, and a row in `feedback/TRIAGE.md`. The standing triage
