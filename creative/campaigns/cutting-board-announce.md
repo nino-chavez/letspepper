@@ -78,15 +78,16 @@ until that repository agrees with the name. Verified 2026-08-11: the page says
 "The complete source for this build is at github.com/nino-chavez/film-room-oss"
 in a full sentence, so a reader arrives with the mismatch framed rather than bare.
 
-**The `free-and-open` card contradicts this, and it is an open decision, not an
-oversight to fix silently.** The rendered card puts
-`github.com/nino-chavez/film-room-oss` in its footer where the other four cards
-put `apps.ninochavez.co/cutting-board`. The rule above was written about
-captions; the card is media, and the same reasoning applies to it more strongly,
-because a URL burned into an image is read without the sentence that frames it
-and cannot be clicked. Three ways out, all fine: re-render the card with the
-landing-page URL, land the phase 7 repo rename before D+9, or accept it
-deliberately. Decide before that item flips.
+**The `free-and-open` card used to contradict this; it was re-rendered on
+2026-08-11 by operator direction.** Its footer put
+`github.com/nino-chavez/film-room-oss` where the other four cards put
+`apps.ninochavez.co/cutting-board`. The rule above was written about captions,
+but it applies to a card more strongly, because a URL burned into an image is
+read without the sentence that frames it and cannot be clicked. The footer now
+carries the landing page, matching the other four and the item's own caption
+("Download and source, both from here"). The change is one `foot` string in
+`variants.json`; re-rendering all seven variants reproduced the other six
+byte-for-byte, which is the evidence that nothing else moved.
 
 Note: "link in bio" is on the house blocked-phrase list in
 `scripts/media-kit/lint-copy.mjs`. None of these captions use it.
@@ -96,12 +97,24 @@ Note: "link in bio" is on the house blocked-phrase list in
 Relative days. Media is ready, so the start date is now purely the operator's
 choice.
 
-**`scheduledAt` is still `null` on every item, and that is a footgun, not a
-neutral default.** The Worker gates a scheduled item on its own timestamp, but
-treats a null-`scheduledAt` item as legacy drip and picks *randomly* within
-allowed hours (`dueNow` / `pickOne`, `worker/src/index.js`). Flip more than one
-item with nulls in place and `the-ask` can post before `announce` — which
-directly defeats the preflight rule below. Fill real UTC timestamps first.
+**Set 2026-08-11 by operator direction: start today.** A scheduled item is gated
+by its own timestamp, not by `ALLOWED_HOURS_UTC`. `announce` fires at the next
+hourly cron tick; the other four sit on the house noon-CDT slot.
+
+| Item | `scheduledAt` | Local |
+|---|---|---|
+| `announce` | `2026-08-12T01:00:00Z` | 8:00pm CDT, Aug 11 |
+| `the-loop` | `2026-08-14T17:00:00Z` | noon CDT, Aug 14 |
+| `boundary` | `2026-08-17T17:00:00Z` | noon CDT, Aug 17 |
+| `free-and-open` | `2026-08-20T17:00:00Z` | noon CDT, Aug 20 |
+| `the-ask` | `2026-08-23T17:00:00Z` | noon CDT, Aug 23 |
+
+Leaving these null would not have been a neutral default: the Worker reads a
+null-`scheduledAt` item as legacy drip and picks *randomly* within allowed hours
+(`dueNow` / `pickOne`, `worker/src/index.js`), so flipping several at once could
+have posted `the-ask` before `announce` and defeated the preflight rule below.
+
+The IG token expires `2026-09-24T21:27:37Z`, comfortably after `the-ask`.
 
 | Day | Item | Job |
 |---|---|---|
@@ -212,9 +225,7 @@ flips.
 - **No engagement-sweep automation.** `SWEEP.md`'s auto-reply is off (shadow
   mode) and stays off. Every reply to these posts should be Nino's, because the
   replies *are* the deliverable.
-- **No repository URL in captions** — but the `free-and-open` card carries one
-  in its artwork, which is an open contradiction. See "Where the posts send
-  people" above.
+- **No repository URL in captions or cards.** See "Where the posts send people" above.
 
 ## Where the responses go
 
