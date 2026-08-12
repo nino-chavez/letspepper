@@ -5,11 +5,10 @@
 > **`announce` posted `2026-08-12T01:01:05Z`**, media `18100101745976323`. This is
 > the first publish ever made through this system to `nino.chavez.photo`.
 >
-> `the-loop` (08-14) and `boundary` (08-17) are `pending` on that confirmation.
-> `free-and-open` (08-20) and `the-ask` (08-23) are still `draft` — see "The DMG
-> advisory". The Worker publishes only `pending`/`building` items
-> (`instagramPending`, `worker/src/index.js`), so those two cannot post until an
-> operator flips them.
+> **The remaining four were collapsed into one carousel on 2026-08-12**, by
+> operator direction, after the twelve-day drip was judged the wrong shape for a
+> request for help. `the-ask-carousel` carries five already-hosted cards and the
+> three questions in its caption. See "Calendar" for why.
 >
 > The queue file is untracked, following this repo's convention that
 > `scripts/social-publish/queue/` is gitignored — zero queue files are in git.
@@ -116,18 +115,60 @@ have posted `the-ask` before `announce` and defeated the preflight rule below.
 
 The IG token expires `2026-09-24T21:27:37Z`, comfortably after `the-ask`.
 
-| Day | Item | Job |
-|---|---|---|
-| D+0 | `announce` | What it is and why it exists |
-| D+3 | `the-loop` | The three stages, and that you own all three |
-| D+6 | `boundary` | What it deliberately does not do |
-| D+9 | `free-and-open` | Free, AGPL, and why the licence is not a pose |
-| D+12 | `the-ask` | Who should try it, and the three questions |
+**Superseded 2026-08-12. The five-anchor drip was the wrong shape and was
+collapsed to two posts.**
 
-Five anchors, matching the pattern in `poblano-2026-finale.md`. Every caption is
-fully resolved and every asset is hosted, so what stands between this queue and a
-post is three operator actions: fill `scheduledAt`, flip `announce` to `pending`,
-and add `cutting-board-announce` to the Worker's `ACTIVE_EVENTS`.
+| Post | When | Job |
+|---|---|---|
+| `announce` | posted `2026-08-12T01:01:05Z` | What it is and why it exists |
+| `the-ask-carousel` | `2026-08-12T05:00:00Z` | The loop, the boundary, and the three questions — one swipe |
+
+### Why the drip was wrong
+
+The original calendar is below, kept because the reasoning matters more than the
+table. It borrowed its shape from `poblano-2026-finale.md` and the borrow broke
+it. That campaign ran **five posts in five days** — 07-24 through 07-28, two of
+them the same day — counting down to a tournament with a date on it. This one
+copied the *count* of five anchors, stretched it to twelve days, and removed the
+dated event that a countdown exists for. A countdown to nothing.
+
+The cost was concrete: `the-ask`, the post that states the three questions this
+campaign exists to get answered, sat at D+12. Anyone who downloaded on day zero
+would have formed their impression, hit friction or not, and moved on eleven days
+before being told what to report. `announce` carries a soft version of the ask,
+but the specific questions are what make the feedback usable.
+
+A release drip sustains attention on something people have already decided they
+want. This is not a release. It is a request for help, and a request has to carry
+its whole case in one place, because the person who will actually act on it
+decides in one sitting.
+
+| Day | Item | Job | Fate |
+|---|---|---|---|
+| D+0 | `announce` | What it is and why it exists | posted |
+| D+3 | `the-loop` | The three stages, and that you own all three | cards 1–3 of the carousel |
+| D+6 | `boundary` | What it deliberately does not do | card 4 |
+| D+9 | `free-and-open` | Free, AGPL, and why the licence is not a pose | **dropped** — see below |
+| D+12 | `the-ask` | Who should try it, and the three questions | card 5, and the caption |
+
+The four singles are retained in the queue at `status: draft` with `_superseded`
+set, rather than deleted. They record what was staged and why it changed.
+
+### What dropping `free-and-open` bought
+
+Its card and caption are the ones that make the licence claim and send people to
+read the source — which is exactly what the published DMG's notice defect gates.
+Leaving it out of the carousel frees the whole campaign from waiting on the
+rebuild. The landing page carries the licence in a full sentence regardless, so
+nothing true goes unsaid. If the post still earns a slot after the rebuild ships,
+it can run standalone.
+
+The carousel's caption merges the approved copy rather than writing fresh: the
+three questions verbatim, the boundary lines, the Windows disclosure, and the
+"nobody is on call" caveat. 1,187 characters, five hashtags, no phrase from
+`lint-copy.mjs`'s blocked list. One error was caught while assembling it — a
+draft read "I posted Cutting Board yesterday", which was false, since `announce`
+had gone out three hours earlier the same evening.
 
 ## Media
 
