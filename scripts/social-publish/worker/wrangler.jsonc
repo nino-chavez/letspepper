@@ -2,15 +2,22 @@
   "name": "letspepper-reels-worker",
   "main": "src/index.js",
   "compatibility_date": "2026-01-01",
-  // DISARMED 2026-07-28 — the Poblano Open was cancelled (not enough teams), so
-  // the finale campaign is over. Every poblano-2026-finale item had already
-  // published by then (details-day, the last one, went out 2026-07-28T17:00Z to
-  // Instagram and the Facebook Page), so nothing was cut off mid-drip.
+  // ARMED 2026-08-11 for cutting-board-announce. Only its `announce` item is
+  // status "pending"; the other four are "draft" and post nothing until an
+  // operator flips them, because nino.chavez.photo's publish path has never been
+  // exercised and the campaign's rule is to confirm `announce` lands first.
+  // announce carries scheduledAt 2026-08-12T01:00Z, so it fires at that tick and
+  // is NOT gated by ALLOWED_HOURS_UTC. See
+  // creative/campaigns/cutting-board-announce.md.
   //
-  // The cron stays armed but ACTIVE_EVENTS now names only the cancellation
-  // queue, whose single item is status "draft" — the worker skips anything that
-  // is not pending/building, so this posts NOTHING until an operator reviews the
-  // copy and flips it. See scripts/social-publish/queue/poblano-2026-cancellation.json.
+  // poblano-2026-cancellation stays listed and stays inert. DISARMED 2026-07-28 —
+  // the Poblano Open was cancelled (not enough teams), so the finale campaign is
+  // over. Every poblano-2026-finale item had already published by then
+  // (details-day, the last one, went out 2026-07-28T17:00Z to Instagram and the
+  // Facebook Page), so nothing was cut off mid-drip. Its single item is status
+  // "draft" — the worker skips anything that is not pending/building, so it posts
+  // NOTHING until an operator reviews the copy and flips it. See
+  // scripts/social-publish/queue/poblano-2026-cancellation.json.
   //
   // Hourly cron: each run finishes any in-flight container, then posts at most
   // ONE due item. Items carrying scheduledAt fire at their planned time
@@ -27,7 +34,7 @@
     // any more: it is fully published, and re-arming it could only re-post promo
     // for a cancelled event. jpo-teams / flickday-grass-drip / bell-pepper-2026
     // sit inert in KV — re-add to ACTIVE_EVENTS to resume.
-    "ACTIVE_EVENTS": "poblano-2026-cancellation",
+    "ACTIVE_EVENTS": "cutting-board-announce,poblano-2026-cancellation",
     // UTC posting slots — the daily cap for LEGACY (no-scheduledAt) items only.
     // The cancellation item carries no scheduledAt, so it IS gated by these hours
     // once an operator flips it to pending: 17 = noon CDT, 22 = 5p CDT.
