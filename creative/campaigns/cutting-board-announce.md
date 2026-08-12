@@ -1,15 +1,15 @@
 # Cutting Board announce — nino.chavez.photo
 
-> ## STAGED — do not run
+> ## LIVE — running
 >
-> **Media cleared 2026-08-11.** All seven assets are hosted at
-> `r2://flickday-social/cutting-board-announce/` and every item passes the
-> Worker's `hasMedia()`. That removes one of the three stops.
+> **`announce` posted `2026-08-12T01:01:05Z`**, media `18100101745976323`. This is
+> the first publish ever made through this system to `nino.chavez.photo`.
 >
-> **Two stops remain, on purpose.** Every item is `status: "draft"`, and
-> `cutting-board-announce` is **not** in the Worker's `ACTIVE_EVENTS`. The
-> Worker publishes only `pending`/`building` items (`instagramPending`,
-> `worker/src/index.js`), so nothing here can post by accident.
+> `the-loop` (08-14) and `boundary` (08-17) are `pending` on that confirmation.
+> `free-and-open` (08-20) and `the-ask` (08-23) are still `draft` — see "The DMG
+> advisory". The Worker publishes only `pending`/`building` items
+> (`instagramPending`, `worker/src/index.js`), so those two cannot post until an
+> operator flips them.
 >
 > The queue file is untracked, following this repo's convention that
 > `scripts/social-publish/queue/` is gitignored — zero queue files are in git.
@@ -203,7 +203,13 @@ flips.
 
 ## Preflight
 
-1. **`nino.chavez.photo` has never been published to by this system.** It is
+1. **CLEARED 2026-08-12.** `announce` published successfully, which settles the
+   two preflights below empirically as well as the one they were about — a
+   Creator account would have been rejected and the Worker marks that failure
+   terminal, so the account is Business and the `instagram_content_publish` path
+   for this `ig_user_id` now works. Original wording kept below for the record.
+
+   **`nino.chavez.photo` had never been published to by this system.** It is
    registered in `accounts.json` and resolves through the active token —
    verified 2026-08-11, `id 17841401886738878`, 1,900 followers, 147 media — but
    every prior queue item used it only as a *collaborator*. The
