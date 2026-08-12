@@ -5,10 +5,14 @@
 > **`announce` posted `2026-08-12T01:01:05Z`**, media `18100101745976323`. This is
 > the first publish ever made through this system to `nino.chavez.photo`.
 >
-> **The remaining four were collapsed into one carousel on 2026-08-12**, by
-> operator direction, after the twelve-day drip was judged the wrong shape for a
-> request for help. `the-ask-carousel` carries five already-hosted cards and the
-> three questions in its caption. See "Calendar" for why.
+> **Both posts are out and the campaign is done.** The remaining four singles
+> were collapsed into one carousel on 2026-08-12, by operator direction, after
+> the twelve-day drip was judged the wrong shape for a request for help.
+> `the-ask-carousel` carries five already-hosted cards and the three questions in
+> its caption, and published at `04:52:39Z`. See "Calendar" for why.
+>
+> What happens next is not another post. It is whatever comes back — routed per
+> "Where the responses go".
 >
 > The queue file is untracked, following this repo's convention that
 > `scripts/social-publish/queue/` is gitignored — zero queue files are in git.
@@ -118,10 +122,19 @@ The IG token expires `2026-09-24T21:27:37Z`, comfortably after `the-ask`.
 **Superseded 2026-08-12. The five-anchor drip was the wrong shape and was
 collapsed to two posts.**
 
-| Post | When | Job |
-|---|---|---|
-| `announce` | posted `2026-08-12T01:01:05Z` | What it is and why it exists |
-| `the-ask-carousel` | `2026-08-12T05:00:00Z` | The loop, the boundary, and the three questions — one swipe |
+| Post | Posted | Media | Job |
+|---|---|---|---|
+| `announce` | `2026-08-12T01:01:05Z` | `18100101745976323` | What it is and why it exists |
+| `the-ask-carousel` | `2026-08-12T04:52:39Z` | `18073588403390681` | The loop, the boundary, and the three questions — one swipe |
+
+**The campaign is complete.** Both posts are live; every remaining queue item is
+`draft` and superseded. Nothing further is scheduled.
+
+The carousel was published by calling the Worker's `/run` endpoint rather than
+waiting for the 05:00Z cron, on operator direction. `TRIGGER_KEY` had to be
+rotated to do it — it is a Worker secret with no readable copy, and nothing else
+depends on it (checked: no CI job, no script, no other queue). The new value is
+not recorded here; rotate it again the same way when `/run` is next needed.
 
 ### Why the drip was wrong
 
