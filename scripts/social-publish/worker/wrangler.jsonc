@@ -14,10 +14,11 @@
   // the Poblano Open was cancelled (not enough teams), so the finale campaign is
   // over. Every poblano-2026-finale item had already published by then
   // (details-day, the last one, went out 2026-07-28T17:00Z to Instagram and the
-  // Facebook Page), so nothing was cut off mid-drip. Its single item is status
-  // "draft" — the worker skips anything that is not pending/building, so it posts
-  // NOTHING until an operator reviews the copy and flips it. See
-  // scripts/social-publish/queue/poblano-2026-cancellation.json.
+  // Facebook Page), so nothing was cut off mid-drip. Its single item was flipped
+  // and published on 2026-07-29T00:52:26Z (media 18358416091211728), so the queue
+  // is spent, not pending — verified in KV 2026-08-12. This comment previously
+  // said "draft", which was true when written and stopped being true that day.
+  // See scripts/social-publish/queue/poblano-2026-cancellation.json.
   //
   // Hourly cron: each run finishes any in-flight container, then posts at most
   // ONE due item. Items carrying scheduledAt fire at their planned time
