@@ -309,3 +309,17 @@ Run the existing lifecycle masters in order: `03-schedule-live` → `05-pool-pla
 - The Discussion remains host-only (Let’s Pepper Open and Flickday Media posts). Both albums show their single public album post with no guest comment. Each cross-Page share contains only the prior Let’s Pepper finale comment, so no duplicate reply was made.
 - Notifications show private-message, new-follower, and scheduled-publication items only; no public Poblano share, genuine public question, or verified exact-match invite candidate surfaced. The available actor remains Nino Chavez/Flickday Media rather than Let’s Pepper, so no external action was taken: no reply, teammate-tag prompt, invitation, tag, DM, group action, boost, ad, or spend.
 - **Unresolved:** Keep entry-fee and below-first-payout questions unanswered pending operator confirmation. Reassess only when a genuine public item appears and the verified Let’s Pepper Page actor is available.
+
+### Wed Jul 29, 2026 — 4:18 AM CDT (cancellation-monitoring attempt)
+
+- This sweep read the current campaign record first: Poblano Open is cancelled, so all remaining promotional engagement, invitations, teammate-tag prompts, and event-day activity are out of scope. Any future response must be limited to verified cancellation/help information and only from the Let’s Pepper Page actor.
+- Recovered the managed browser with `browse-stop` followed by `browse-start --profile-name wip` without reseeding or attempting login. Chrome reported ready, but immediately exited or became unreachable; `browse-nav` and `browse-tabs` returned no inspectable Facebook state.
+- No specified Facebook surface could be safely reviewed in this run (albums, cross-Page shares, event Discussion, or notifications). No external state changed: no reply, invitation, tag, DM, group action, boost, ad, or spend.
+- **Unresolved:** A human host still needs to cancel—not delete—the live Facebook event and notify registered captains as listed at the top of this campaign record. Restore a stable authenticated `wip` browser session before the next cancellation-monitoring check.
+
+### Wed Jul 29, 2026 — 12:17 PM CDT (cancellation-monitoring attempt)
+
+- This run confirmed the current campaign record: Poblano Open is cancelled. Promotional replies, invitations, teammate-tag prompts, and all event-day activity remain out of scope.
+- Per the required safe recovery, ran `browse-stop` followed by `browse-start --profile-name wip` without reseeding or attempting login. Chrome did not become ready on port 9222, and `browse-tabs` could not connect, so no authenticated Facebook state was available to inspect.
+- No Facebook surface was reviewed and no external state changed: no reply, invitation, tag, DM, group action, boost, ad, or spend.
+- **Unresolved:** A human host still needs to cancel—not delete—the live Facebook event and notify registered captains. Restore a stable authenticated `wip` browser session before the next cancellation-monitoring check.

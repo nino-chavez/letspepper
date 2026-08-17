@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-07-26T23:07:14.975Z",
+  "purpose": "Facebook Page and Event media",
+  "assets": [
+    {
+      "file": "poblano-event-cover.png",
+      "width": 1920,
+      "height": 1005
+    },
+    {
+      "file": "letspepper-page-cover.png",
+      "width": 3280,
+      "height": 1250
+    },
+    {
+      "file": "flickday-page-cover.png",
+      "width": 3280,
+      "height": 1250
+    },
+    {
+      "file": "nino-page-cover.png",
+      "width": 3280,
+      "height": 1250
+    },
+    {
+      "file": "flickday-profile.png",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "nino-profile.png",
+      "width": 1024,
+      "height": 1024
+    }
+  ]
+}
