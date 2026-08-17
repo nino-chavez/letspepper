@@ -6,7 +6,7 @@
  *   node scripts/social-publish/build-album-carousel.mjs \
  *     --album saturday-triples-the-raiders-open-rdrsVB \
  *     --count 10 --collab nino.chavez.photo
- *   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Almost-Flickday/credential") \
+ *   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \
  *     node scripts/social-publish/post-reels.mjs --event <event> --account flickday --count 1
  *
  * Self-contained: reads the album from the public gallery API (no DB creds), so
@@ -227,13 +227,13 @@ try {
 
 console.log(`\nCollab: ${collaborators.join(', ') || '(none)'}`)
 console.log('\nNext — publish it:')
-console.log(`  IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Almost-Flickday/credential") \\`)
+console.log(`  IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \\`)
 console.log(`    node ${join(HERE, 'post-reels.mjs')} --event ${event} --account ${account} --count 1`)
 
 // 7. Optional one-shot publish.
 if (args.post) {
   console.log('\n--post: publishing now...')
-  const token = execFileSync('op', ['read', 'op://Developer Secrets/Meta Almost-Flickday/credential'], { encoding: 'utf8' }).trim()
+  const token = execFileSync('op', ['read', 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
   execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', event, '--account', account, '--count', '1'],
     { stdio: 'inherit', env: { ...process.env, IG_ACCESS_TOKEN: token } })
 }

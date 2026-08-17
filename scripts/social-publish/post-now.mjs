@@ -106,7 +106,7 @@ execFileSync('node', [join(HERE, 'upload-r2.mjs'),
   { stdio: 'inherit' })
 
 const token = process.env.IG_ACCESS_TOKEN ||
-  execFileSync('op', ['read', 'op://Developer Secrets/Meta Almost-Flickday/credential'], { encoding: 'utf8' }).trim()
+  execFileSync('op', ['read', 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
 
 console.log('')
 execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id],

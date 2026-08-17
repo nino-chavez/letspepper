@@ -3,7 +3,7 @@
  * to post") and write queue/<event>.json so the existing pipeline publishes it.
  *
  *   node scripts/social-publish/build-top-shots.mjs --metric trending --count 10
- *   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Almost-Flickday/credential") \
+ *   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \
  *     node scripts/social-publish/post-reels.mjs --event top-shots --account ninophoto --count 1
  *
  * Data-driven content: pulls the top photos from the gallery's public
@@ -145,13 +145,13 @@ try {
 } catch { /* montage optional */ }
 
 console.log('\nNext — publish it:')
-console.log(`  IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Almost-Flickday/credential") \\`)
+console.log(`  IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \\`)
 console.log(`    node ${join(HERE, 'post-reels.mjs')} --event ${event} --account ${account} --count 1`)
 
 // Optional one-shot publish.
 if (args.post) {
   console.log('\n--post: publishing now...')
-  const token = execFileSync('op', ['read', 'op://Developer Secrets/Meta Almost-Flickday/credential'], { encoding: 'utf8' }).trim()
+  const token = execFileSync('op', ['read', 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
   execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', event, '--account', account, '--count', '1'],
     { stdio: 'inherit', env: { ...process.env, IG_ACCESS_TOKEN: token } })
 }

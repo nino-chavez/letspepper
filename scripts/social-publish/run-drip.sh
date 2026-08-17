@@ -18,7 +18,7 @@ fi
 
 cd "$REPO" || { echo "$(date) FATAL: repo not found" >> "$LOG"; exit 1; }
 
-TOKEN="$(op read "op://Developer Secrets/Meta Almost-Flickday/credential" 2>>"$LOG")"
+TOKEN="$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential" 2>>"$LOG")"
 if [[ -z "$TOKEN" ]]; then
   echo "$(date) FATAL: could not read token from 1Password (op not authorized in this context?)." >> "$LOG"
   exit 1

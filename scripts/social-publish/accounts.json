@@ -1,5 +1,5 @@
 {
-  "_comment": "Registry of owned IG accounts under the Almost Flickday Business Manager (id 4033438730307424). ig_user_id is the Page's instagram_business_account id (resolve via /me/accounts after the Page is connected to the IG account AND assigned to the System User). System User token in 1Password: Meta Almost-Flickday.",
+  "_comment": "Registry of owned IG accounts under the Almost Flickday Business Manager (id 4033438730307424). ig_user_id is the Page's instagram_business_account id (resolve via /me/accounts after the Page is connected to the IG account AND assigned to the System User). Active Instagram System User token in 1Password: Meta Lets Pepper Instagram Publisher.",
   "accounts": {
     "letspepper": {
       "handle": "letspepper.open",

@@ -15,13 +15,16 @@ This is **two capabilities with different scopes and risk**. They ship in two ph
 Get / public-reply / hide / delete comments **and** the comment-triggered private
 reply (DM to a commenter). Per the docs: the private reply hits `POST /{ig}/messages`
 but is authorized by **`instagram_manage_comments`**, *not* `instagram_manage_messages`.
-So the whole v1 surface is one scope the token doesn't yet have.
+So the whole v1 surface is authorized by one purpose-specific scope.
 
 ### Scopes
-Current token (`Meta Almost-Flickday`): `instagram_basic`, `instagram_content_publish`,
-`pages_show_list`, `pages_read_engagement`.
-
-v1 **adds**: `instagram_manage_comments`. (`pages_read_engagement` already present.)
+The active `Meta Lets Pepper Instagram Publisher` token includes
+`instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`,
+`instagram_manage_contents`, `instagram_manage_insights`,
+`instagram_manage_messages`, `pages_show_list`, `pages_read_engagement`,
+`catalog_management`, and `public_profile`. Meta locks this set to the app's
+configured Instagram use case; v1 itself relies on
+`instagram_manage_comments` plus the existing Page-read permissions.
 
 ### Endpoints used
 ```
@@ -139,10 +142,11 @@ Secrets (`wrangler secret put`): `NOTIFY_EMAIL_TO` (or reuse `TRIGGER_KEY` guard
 
 ## Rollout
 
-0. **Token re-auth (blocks everything).** Regenerate the System User token WITH
-   `instagram_manage_comments` added. **Fold in the pending token rotation** (memory
-   open-item: the current token was pasted plaintext) — one re-auth does both. Update
-   1Password `Meta Almost-Flickday`, then `wrangler secret put IG_ACCESS_TOKEN`.
+0. **Token rotation — complete 2026-07-26.** The exposed shared-user credentials
+   were revoked, the replacement token was validated against all three owned
+   Instagram identities, stored as `Meta Lets Pepper Instagram Publisher`, and
+   deployed to the Worker as `IG_ACCESS_TOKEN`. It expires
+   `2026-09-24T21:27:37Z`.
 1. Ship v1 with `SWEEP_ENABLED=1`, `SWEEP_AUTOREPLY=off`. Sweep runs, collects, emails
    digests, shadow-logs intent matches. Sends nothing outward.
 2. **Decision point:** after a few cycles, review the shadow log. If the intent

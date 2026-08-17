@@ -2,11 +2,12 @@
  * Publish due posts to Instagram via the Graph API — multi-account, with
  * user-tagging and Collab co-author invites. Owned pipeline, no third-party.
  *
- *   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Almost-Flickday/credential") \
+ *   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \
  *   node scripts/social-publish/post-reels.mjs --event bell-pepper-2026 --count 2
  *
- * Auth model: ONE System User token (non-expiring) issued from the Almost
- * Flickday Business Manager, which owns every account in accounts.json. Each
+ * Auth model: one 60-day Instagram System User token issued from the Almost
+ * Flickday Business Manager, which owns every account in accounts.json. Page
+ * publishing uses a separate System User and Worker secret. Each Instagram
  * account is addressed by its numeric ig_user_id (resolved into accounts.json
  * — see SETUP.md). Host is graph.facebook.com (Business path), NOT
  * graph.instagram.com (that's the single-account Instagram-Login path).
