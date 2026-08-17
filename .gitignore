@@ -55,3 +55,6 @@ tmp/
 # Real-event roster inputs carry registration/payment status — keep local
 # (demo-roster.csv is the committed, scrubbed stand-in for walkthroughs)
 scripts/story-assets/jpo-mens.csv
+
+# Scratch renders from the composers; regenerate rather than commit.
+.temp/
