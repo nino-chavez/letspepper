@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!-- Sponsor and partner grid. A tile with a `logo` path shows the image; a tile
+     without one sets its name as a wordmark, so the grid is complete before every
+     logo file is. Column count derives from the tile count (4-8).
+     Renders 1080x1350 (feed) and 1080x1920 (story) from RENDER_DATA.format. -->
+<html><head><meta charset="utf-8"><title>Sponsor thanks</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .head { flex: 0 0 auto; margin-top: 34px; text-align: center; }
+  .display { margin-top: 18px; font-family: 'Anton', sans-serif; text-transform: uppercase;
+             color: var(--fg); line-height: 0.88; }
+  .display .hot { display: block; color: var(--heat);
+                  text-shadow: 0 0 64px rgba(var(--heat-rgb), 0.5); }
+  .head .rule { margin: 30px auto 0; width: 180px; height: 3px; }
+
+  /* Tiles stretch to the space rather than clustering in the middle: a 4-tile grid
+     and an 8-tile grid should both look composed, not like one is missing rows. */
+  .grid { flex: 1 1 auto; min-height: 0; display: grid; gap: 22px;
+          align-content: stretch; padding: 42px 0; }
+  .tile { display: flex; align-items: center; justify-content: center; text-align: center;
+          background: rgba(26,26,26,0.6); border: 1px solid var(--line-strong);
+          border-radius: 14px; padding: 22px 18px; min-height: 148px; }
+  .tile img { max-width: 100%; max-height: 104px; object-fit: contain; }
+  .tile .mark { font-family: 'Bebas Neue', sans-serif; font-size: 40px; line-height: 1.04;
+                letter-spacing: 0.05em; color: var(--fg); }
+  .tile.slot { background: transparent; border-style: dashed; border-color: var(--line); }
+  .tile.slot .mark { color: var(--fg3); font-family: 'Space Mono', monospace;
+                     font-size: 19px; font-weight: 700; letter-spacing: 0.20em; }
+  body.story .tile { min-height: 186px; }
+  body.story .tile .mark { font-size: 46px; }
+  body.story .tile img { max-height: 132px; }
+
+  .close { flex: 0 0 auto; text-align: center; font-size: 21px; letter-spacing: 0.14em;
+           text-transform: uppercase; color: var(--fg2); line-height: 1.6; }
+  body.story .close { font-size: 25px; }
+</style></head>
+<body>
+  <div class="ground"></div><div class="grain"></div><div class="vignette"></div>
+  <div class="frame">
+    <div class="gate" id="gate">SAMPLE DATA — NOT FOR PUBLICATION</div>
+    <div class="topline"><span id="handle"></span><span class="stamp" id="stamp"></span></div>
+    <div class="head">
+      <div class="eyebrow" id="eyebrow"></div>
+      <div class="display" id="display"></div>
+      <div class="rule"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="close" id="close"></div>
+  </div>
+<script>
+const D = window.RENDER_DATA || {};
+// Elements are looked up explicitly, never through the id-as-global shortcut:
+// `event`, `close` and `name` are built-in window properties, and assigning
+// through them throws mid-script, leaving a half-populated card that still
+// screenshots cleanly.
+const $ = (id) => document.getElementById(id);
+const REQUIRED = ['handle','eyebrow','display','close'];
+function paint() {
+const HEAT = { mild: ['#4ade80','74, 222, 128'], medium: ['#facc15','250, 204, 21'], hot: ['#f97316','249, 115, 22'] };
+const [hex, rgb] = HEAT[D.heat] || HEAT.mild;
+document.documentElement.style.setProperty('--heat', hex);
+document.documentElement.style.setProperty('--heat-rgb', rgb);
+document.body.className = D.format === 'story' ? 'story' : 'feed';
+
+if (D.facts_confirmed) $('gate').remove();
+$('handle').textContent  = D.handle  || '';
+$('stamp').textContent   = D.stamp   || '';
+$('eyebrow').textContent = D.eyebrow || '';
+$('close').textContent   = D.closing || '';
+
+const parts = (D.headline || 'THANK YOU').split('|');
+$('display').innerHTML = '<span></span><span class="hot"></span>';
+$('display').children[0].textContent = parts[0].trim();
+$('display').children[1].textContent = (parts[1] || '').trim();
+
+const tiles = D.tiles || [];
+// Two columns up to six tiles, three beyond — a 4-up grid of wordmarks reads as a
+// list, and a 3-wide grid of two rows leaves a tile stranded.
+$('grid').style.gridTemplateColumns = 'repeat(' + (tiles.length > 6 ? 3 : 2) + ', 1fr)';
+$('grid').innerHTML = tiles.map(t =>
+  t.logo ? '<div class="tile"><img></div>'
+         : '<div class="tile' + (t.slot ? ' slot' : '') + '"><span class="mark"></span></div>').join('');
+[...grid.children].forEach((el, i) => {
+  const img = el.querySelector('img');
+  if (img) { img.src = tiles[i].logo; img.alt = tiles[i].name || ''; }
+  else el.querySelector('.mark').textContent = tiles[i].name || '';
+});
+
+requestAnimationFrame(() => {
+  const box = document.querySelector('.head').clientWidth;
+  $('display').style.fontSize = '100px';
+  const natural = Math.max(...[...display.children].map(c => c.getBoundingClientRect().width));
+  $('display').style.fontSize = Math.min(100 * box / natural, D.format === 'story' ? 190 : 160) + 'px';
+});
+}
+
+/* Populate inside a guard: a throw here otherwise yields a clean-looking card with
+ * the facts silently absent. REQUIRED lists the nodes that must end up non-empty. */
+function fault(msg) {
+  const d = document.createElement('div');
+  d.className = 'fault';
+  d.innerHTML = '<b></b><span></span>';
+  d.children[0].textContent = 'Render fault — do not publish';
+  d.children[1].textContent = msg;
+  document.body.appendChild(d);
+}
+try {
+  paint();
+  const empty = REQUIRED.filter((id) => !($(id).textContent || '').trim());
+  if (empty.length) fault('empty after populate: ' + empty.join(', '));
+} catch (err) {
+  fault((err && err.message) || String(err));
+}
+</script></body></html>

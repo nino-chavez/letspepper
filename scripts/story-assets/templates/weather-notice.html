@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!-- Notice — icon-free and typographic. Grass tournaments live on weather, so the
+     status word carries the whole card: one line of reason, one line of what to do,
+     one line of where updates land. `kind` picks the color off the heat ladder.
+     Renders 1080x1350 (feed) and 1080x1920 (story) from RENDER_DATA.format. -->
+<html><head><meta charset="utf-8"><title>Weather notice</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .head { flex: 0 0 auto; margin-top: 30px; }
+  .event { font-family: 'Bebas Neue', sans-serif; font-size: 54px; line-height: 1.02;
+           letter-spacing: 0.03em; color: var(--fg); }
+  body.story .event { font-size: 64px; }
+
+  .status { flex: 0 0 auto; margin-top: 30px; }
+  .status .w { display: inline-block; white-space: nowrap;
+               font-family: 'Anton', sans-serif; text-transform: uppercase;
+               color: var(--heat); line-height: 0.86;
+               text-shadow: 0 0 70px rgba(var(--heat-rgb), 0.50); }
+  .status .bar { margin-top: 26px; height: 8px; background: var(--heat);
+                 box-shadow: 0 0 34px rgba(var(--heat-rgb), 0.6); }
+
+  /* Why and what-to-do are one message and stay together; the slack collects
+     between them and the updates line, where a pause belongs. */
+  .body { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column;
+          gap: 52px; padding: 52px 0; }
+  .blk .k { font-size: 18px; font-weight: 700; letter-spacing: 0.24em;
+            text-transform: uppercase; color: var(--heat); }
+  /* JetBrains Mono over Space Mono for the two running lines: the family has no
+     proportional body face, and it is the more readable of the two monos at
+     paragraph length. Both are already committed in ../fonts/. */
+  .blk .t { margin-top: 16px; font-family: 'JetBrains Mono', monospace; font-weight: 500;
+            font-size: 29px; line-height: 1.52; color: var(--fg); }
+  .blk.dim .t { color: var(--fg2); }
+  body.story .blk .k { font-size: 20px; }
+  body.story .blk .t { font-size: 33px; line-height: 1.5; }
+
+  .where { flex: 0 0 auto; margin-top: auto; padding-top: 30px; border-top: 1px solid var(--line); }
+  .where .k { font-size: 18px; font-weight: 700; letter-spacing: 0.24em;
+              text-transform: uppercase; color: var(--fg3); }
+  .where .u { margin-top: 12px; font-family: 'Bebas Neue', sans-serif; font-size: 46px;
+              letter-spacing: 0.04em; color: var(--heat); }
+  body.story .where .u { font-size: 54px; }
+</style></head>
+<body>
+  <div class="ground"></div><div class="grain"></div><div class="vignette"></div>
+  <div class="frame">
+    <div class="gate" id="gate">SAMPLE DATA — NOT FOR PUBLICATION</div>
+    <div class="topline"><span id="handle"></span><span class="stamp" id="stamp"></span></div>
+    <div class="head"><div class="eyebrow" id="eyebrow"></div><div class="event" id="event"></div></div>
+    <div class="status"><span class="w" id="word"></span><div class="bar"></div></div>
+    <div class="body">
+      <div class="blk dim"><div class="k">WHY</div><div class="t" id="reason"></div></div>
+      <div class="blk"><div class="k">WHAT TO DO</div><div class="t" id="next"></div></div>
+    </div>
+    <div class="where"><div class="k">UPDATES POSTED AT</div><div class="u" id="updates"></div></div>
+  </div>
+<script>
+const D = window.RENDER_DATA || {};
+// Elements are looked up explicitly, never through the id-as-global shortcut:
+// `event`, `close` and `name` are built-in window properties, and assigning
+// through them throws mid-script, leaving a half-populated card that still
+// screenshots cleanly.
+const $ = (id) => document.getElementById(id);
+const REQUIRED = ['handle','eyebrow','event','word','reason','next','updates'];
+function paint() {
+/* Kind maps onto the heat ladder as an urgency ladder: an update is the mildest
+   thing that can happen to a match day, a cancellation the hottest. Habanero is
+   reserved in DESIGN-SYSTEM.md — `cancelled` is its one authorised use here. */
+const KIND = {
+  update:    ['#4ade80', '74, 222, 128'],
+  delay:     ['#facc15', '250, 204, 21'],
+  moved:     ['#f97316', '249, 115, 22'],
+  cancelled: ['#ef4444', '239, 68, 68'],
+};
+const [hex, rgb] = KIND[D.kind] || KIND.update;
+document.documentElement.style.setProperty('--heat', hex);
+document.documentElement.style.setProperty('--heat-rgb', rgb);
+document.body.className = D.format === 'story' ? 'story' : 'feed';
+
+if (D.facts_confirmed) $('gate').remove();
+$('handle').textContent  = D.handle  || '';
+$('stamp').textContent   = D.stamp   || '';
+$('eyebrow').textContent = D.eyebrow || '';
+$('event').textContent   = D.event   || '';
+$('word').textContent    = D.headline || '';
+$('reason').textContent  = D.reason  || '';
+$('next').textContent    = D.next    || '';
+$('updates').textContent = D.updates_at || '';
+
+requestAnimationFrame(() => {
+  // The status word is the card. Fit it to the measure, then cap it so a short
+  // word like DELAY does not tower over everything else on the canvas.
+  const box = document.querySelector('.status').clientWidth;
+  $('word').style.fontSize = '100px';
+  const natural = $('word').getBoundingClientRect().width;
+  const cap = D.format === 'story' ? 250 : 210;
+  $('word').style.fontSize = Math.min(100 * box / natural, cap) + 'px';
+});
+}
+
+/* Populate inside a guard: a throw here otherwise yields a clean-looking card with
+ * the facts silently absent. REQUIRED lists the nodes that must end up non-empty. */
+function fault(msg) {
+  const d = document.createElement('div');
+  d.className = 'fault';
+  d.innerHTML = '<b></b><span></span>';
+  d.children[0].textContent = 'Render fault — do not publish';
+  d.children[1].textContent = msg;
+  document.body.appendChild(d);
+}
+try {
+  paint();
+  const empty = REQUIRED.filter((id) => !($(id).textContent || '').trim());
+  if (empty.length) fault('empty after populate: ' + empty.join(', '));
+} catch (err) {
+  fault((err && err.message) || String(err));
+}
+</script></body></html>

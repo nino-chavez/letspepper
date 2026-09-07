@@ -1,0 +1,15 @@
+{
+  "format": "feed",
+  "kind": "cancelled",
+  "handle": "@LETSPEPPER.OPEN",
+  "stamp": "ANNOUNCED 07·28·26",
+  "eyebrow": "SEASON FINALE",
+  "event": "POBLANO PEPPER OPEN · SAT AUG 1",
+  "headline": "CANCELLED",
+  "reason": "Not enough teams registered to run the finale as planned. Rather than shrink the bracket into a different event than the one teams signed up for, we are calling it.",
+  "next": "We will reach out to each captain directly — you do not need to do anything.",
+  "updates_at": "LETSPEPPER.COM/FLAVORS/POBLANO-OPEN",
+  "facts_confirmed": true,
+  "source": "src/lib/tournaments.ts 'poblano-open' record — name :173, date :181, tagline 'Season Finale' :175, cancellation.announcedOn '2026-07-28' :195, cancellation.reason :196-197 (verbatim), cancellation.registeredTeams second sentence :202 (verbatim). Updates URL is the live route src/app/flavors/[slug]/page.tsx for slug 'poblano-open' (:120).",
+  "pulled": "2026-09-07"
+}

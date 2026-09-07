@@ -1,0 +1,20 @@
+{
+  "format": "feed",
+  "heat": "hot",
+  "handle": "@LETSPEPPER.OPEN",
+  "stamp": "SAMPLE",
+  "eyebrow": "GRASS TRIPLES · 3V3",
+  "word": "REGISTER",
+  "repeat": 4,
+  "highlight": 3,
+  "facts": [
+    { "label": "WHEN", "value": "SAMPLE DATE" },
+    { "label": "WHERE", "value": "NATURE MEADOWS PARK · AURORA, IL" },
+    { "label": "FORMAT", "value": "POOL PLAY + BRACKET" }
+  ],
+  "cta": "CLAIM YOUR SPOT",
+  "url": "LETSPEPPER.COM/SIGNUP",
+  "facts_confirmed": false,
+  "source": "UNSOURCED SAMPLE. No Let's Pepper event is open for registration as of 2026-09-07 (src/lib/tournaments.ts nextOpenEvent() returns null: all three 2026 events are past or cancelled). Venue line is real (src/lib/tournaments.ts:109-116); the date is a placeholder. Replace every fact and set facts_confirmed true before this card is published.",
+  "pulled": "2026-09-07"
+}
