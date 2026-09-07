@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<!-- Registration push — word stack. One word repeated, every row outlined, one row
+     solid in the event's heat color. Renders 1080x1350 (feed) and 1080x1920 (story)
+     from RENDER_DATA.format. Edit the facts in the .json; nothing here is hard-coded. -->
+<html><head><meta charset="utf-8"><title>Registration push</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .eyebrow.center { margin-top: 22px; margin-bottom: 16px; text-align: center; }
+
+  .stack { flex: 1 1 auto; min-height: 0; position: relative;
+           display: flex; flex-direction: column; justify-content: center; }
+  .row { text-align: center; }
+  /* The measurable unit is the span. A block-level row always reports the
+     container's width, which silently pins the fitted size at its start value. */
+  .row .w { display: inline-block; white-space: nowrap;
+            font-family: 'Anton', sans-serif; text-transform: uppercase;
+            color: transparent; -webkit-text-stroke: 2px rgba(250,250,250,0.26); }
+  .row.on .w { color: var(--heat); -webkit-text-stroke: 0;
+               text-shadow: 0 0 64px rgba(var(--heat-rgb), 0.55); }
+
+  .facts { flex: 0 0 auto; margin-top: 28px; border-top: 1px solid var(--line); }
+  .fact { display: flex; align-items: baseline; gap: 26px; padding: 16px 2px;
+          border-bottom: 1px solid var(--line); }
+  .fact .k { flex: 0 0 168px; font-size: 18px; font-weight: 700; letter-spacing: 0.20em;
+             text-transform: uppercase; color: var(--fg3); }
+  .fact .v { font-family: 'Bebas Neue', sans-serif; font-size: 46px; line-height: 1;
+             letter-spacing: 0.02em; color: var(--fg); }
+  body.story .fact { padding: 16px 2px; }
+  body.story .fact .k { font-size: 20px; flex-basis: 190px; }
+  body.story .fact .v { font-size: 54px; }
+
+  .cta { flex: 0 0 auto; margin-top: 32px; text-align: center; }
+  .cta .btn { display: inline-block; background: var(--heat); color: #0a0a0a;
+              font-weight: 700; font-size: 26px; letter-spacing: 0.16em; text-transform: uppercase;
+              padding: 20px 50px; border-radius: 9999px;
+              box-shadow: 0 0 54px rgba(var(--heat-rgb), 0.38); }
+  .cta .url { margin-top: 18px; font-size: 20px; letter-spacing: 0.18em;
+              text-transform: uppercase; color: var(--fg3); }
+  body.story .cta { margin-top: 34px; }
+  body.story .cta .btn { font-size: 29px; padding: 22px 56px; }
+</style></head>
+<body>
+  <div class="ground"></div><div class="grain"></div><div class="vignette"></div>
+  <div class="frame">
+    <div class="gate" id="gate">SAMPLE DATA — NOT FOR PUBLICATION</div>
+    <div class="topline"><span id="handle"></span><span class="stamp" id="stamp"></span></div>
+    <div class="eyebrow center" id="eyebrow"></div>
+    <div class="stack" id="stack"></div>
+    <div class="facts" id="facts"></div>
+    <div class="cta"><span class="btn" id="btn"></span><div class="url" id="url"></div></div>
+  </div>
+<script>
+const D = window.RENDER_DATA || {};
+// Elements are looked up explicitly, never through the id-as-global shortcut:
+// `event`, `close` and `name` are built-in window properties, and assigning
+// through them throws mid-script, leaving a half-populated card that still
+// screenshots cleanly.
+const $ = (id) => document.getElementById(id);
+const REQUIRED = ['handle','eyebrow','btn','url'];
+function paint() {
+const HEAT = { mild: ['#4ade80','74, 222, 128'], medium: ['#facc15','250, 204, 21'], hot: ['#f97316','249, 115, 22'] };
+const [hex, rgb] = HEAT[D.heat] || HEAT.hot;
+document.documentElement.style.setProperty('--heat', hex);
+document.documentElement.style.setProperty('--heat-rgb', rgb);
+document.body.className = D.format === 'story' ? 'story' : 'feed';
+
+if (D.facts_confirmed) $('gate').remove();
+$('handle').textContent = D.handle || '';
+$('stamp').textContent  = D.stamp  || '';
+$('eyebrow').textContent = D.eyebrow || '';
+$('btn').textContent = D.cta || '';
+$('url').textContent = D.url || '';
+
+$('facts').innerHTML = (D.facts || []).map(() =>
+  '<div class="fact"><span class="k"></span><span class="v"></span></div>').join('');
+[...facts.children].forEach((el, i) => {
+  el.querySelector('.k').textContent = D.facts[i].label;
+  el.querySelector('.v').textContent = D.facts[i].value;
+});
+
+const n = D.repeat || 5, on = (D.highlight || 3) - 1;
+for (let i = 0; i < n; i++) {
+  const r = document.createElement('div');
+  r.className = 'row' + (i === on ? ' on' : '');
+  r.innerHTML = '<span class="w"></span>';
+  r.firstChild.textContent = D.word || '';
+  $('stack').appendChild(r);
+}
+requestAnimationFrame(() => {
+  const rows = [...stack.querySelectorAll('.row')];
+  // Two bounds, whichever binds first: a row reaches the measure, and n rows at
+  // LEAD leading fit the stack box. A long word is width-bound and bleeds to the
+  // margins; a short one is height-bound and sits inset rather than overlapping.
+  const LEAD = 0.88;
+  const boxW = $('stack').clientWidth, boxH = $('stack').clientHeight;
+  rows.forEach(r => { r.style.fontSize = '100px'; r.style.lineHeight = '1'; });
+  const natural = rows[0].firstChild.getBoundingClientRect().width;
+  const size = Math.min(100 * boxW / natural, boxH / (n * LEAD));
+  rows.forEach(r => { r.style.fontSize = size + 'px'; r.style.lineHeight = (size * LEAD) + 'px'; });
+});
+}
+
+/* Populate inside a guard: a throw here otherwise yields a clean-looking card with
+ * the facts silently absent. REQUIRED lists the nodes that must end up non-empty. */
+function fault(msg) {
+  const d = document.createElement('div');
+  d.className = 'fault';
+  d.innerHTML = '<b></b><span></span>';
+  d.children[0].textContent = 'Render fault — do not publish';
+  d.children[1].textContent = msg;
+  document.body.appendChild(d);
+}
+try {
+  paint();
+  const empty = REQUIRED.filter((id) => !($(id).textContent || '').trim());
+  if (empty.length) fault('empty after populate: ' + empty.join(', '));
+} catch (err) {
+  fault((err && err.message) || String(err));
+}
+</script></body></html>

@@ -1,0 +1,21 @@
+{
+  "format": "feed",
+  "heat": "hot",
+  "handle": "@LETSPEPPER.OPEN",
+  "stamp": "PULLED 09·07·26",
+  "eyebrow": "LET'S PEPPER SERIES",
+  "title": "2026|SEASON",
+  "subtitle": "GRASS TRIPLES · 3V3 · AURORA, IL",
+  "mascot": "../../../public/images/mascots/anime/bell-pepper/champion.png",
+  "mascot_alt": "Bell Pepper mascot, champion pose",
+  "rows": [
+    { "m": "JUN", "d": "07", "name": "BELL PEPPER OPEN", "where": "NATURE MEADOWS PARK · AURORA, IL", "chip": "MILD", "heat": "mild" },
+    { "m": "JUL", "d": "18", "name": "JALAPEÑO OPEN", "where": "NATURE MEADOWS PARK · AURORA, IL", "chip": "HOT", "heat": "hot" },
+    { "m": "AUG", "d": "01", "name": "POBLANO PEPPER OPEN", "where": "NATURE MEADOWS PARK · AURORA, IL", "chip": "CANCELLED", "heat": "medium", "status": "cancelled" }
+  ],
+  "cta": "SEASON RESULTS → LETSPEPPER.COM/STANDINGS",
+  "footer": "PHOTO AND VIDEO BY FLICKDAY MEDIA",
+  "facts_confirmed": true,
+  "source": "src/lib/tournaments.ts — bell-pepper-open name :122 date :129 heat 'bell' :123, jalapeno-open name :148 date :154 heat 'jalapeno' :149, poblano-open name :173 date :181 cancellation :194-203; venue NATURE_MEADOWS_PARK :109-116. Heat chip labels from HEAT_LEVEL :103-107 (bell Mild, jalapeno Hot). Format 'Grass Triples · 3v3' from scripts/story-assets/bell-pepper-2026.mjs:16 and jalapeno-open-2026.mjs:24. Standings route src/app/standings/page.tsx. Flickday credit from tournaments.ts mediaPerks :141 and :166. Mascot pose public/images/mascots/anime/bell-pepper/champion.png.",
+  "pulled": "2026-09-07"
+}
