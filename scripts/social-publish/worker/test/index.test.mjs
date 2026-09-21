@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import worker from '../src/index.js'
-import { seedPayload } from '../../seed-kv.mjs'
+import { seedPayload, lostState, revive } from '../../seed-kv.mjs'
 
 const EVENT = 'test-event'
 
@@ -315,7 +315,7 @@ test('a refused item stays refused when a route is added later', async () => {
   refused.meta = { route: { ...ROUTE } }
   const { calls, fetchImpl } = recording()
   const item = (await runQueue(refused, fetchImpl)).items[0]
-  assert.deepEqual(calls, [], 'a terminal error is reset by hand, not by the next seed')
+  assert.deepEqual(calls, [], 'a terminal error is re-opened with seed-kv --revive, not by the next seed')
   assert.equal(item.status, 'error')
 })
 
@@ -361,4 +361,45 @@ test('seed-kv refuses without a complete, current entry naming every account', (
   assert.match(seedPayload(q, EVENT, routesWith({ ...ROUTE, expires: ymd(-2) })).refused, /expired/)
   assert.match(seedPayload(q, EVENT, routesWith({ ...ROUTE, accounts: ['flickday'] })).refused, /does not list "letspepper"/)
   assert.equal(seedPayload(q, 'adhoc', { events: { adhoc: ROUTE } }).payload, undefined, 'the adhoc ledger never gets a standing route')
+})
+
+test('seed-kv --replace is refused when the local copy would forget what the Worker published', () => {
+  const live = queueWithItem()
+  Object.assign(live.items[0], { status: 'posted', ig_media_id: 'ig-media', facebook_status: 'posted', facebook_post_id: 'fb-post' })
+  const extra = { ...queueWithItem().items[0], id: 'not-started' }
+  live.items.push(extra)
+  assert.deepEqual(lostState(live, queueWithItem()), ['dual-image'], 'a stale local "pending" loses the posted state')
+  assert.deepEqual(lostState(live, { items: [] }), ['dual-image'], 'dropping a posted item loses it too')
+  assert.deepEqual(lostState(live, structuredClone(live)), [], 'a local copy that carries the state is fine')
+  assert.deepEqual(lostState({ items: [extra] }, { items: [] }), [], 'an item the Worker never started carries nothing to lose')
+})
+
+test('seed-kv --revive re-opens a route refusal, and the Worker then publishes it', async () => {
+  const refused = await assertRefused(withRoute(queueWithItem(), undefined), /no meta\.route/)
+  assert.match(revive(refused, ['nope']).refused, /not route-refused/)
+  const { queue } = revive(refused, ['dual-image'])
+  assert.equal(refused.items[0].status, 'error', 'the input is not mutated')
+  assert.equal(queue.items[0].status, 'pending')
+  assert.equal(queue.items[0].facebook_status, 'pending')
+  assert.equal(queue.items[0].route_error, undefined)
+  const item = (await runQueue(seedPayload(queue, EVENT, routesWith(ROUTE)).payload, graphFetch())).items[0]
+  assert.equal(item.status, 'posted')
+  assert.equal(item.facebook_status, 'posted')
+})
+
+test('seed-kv --revive leaves a Graph error terminal', () => {
+  const q = queueWithItem()
+  Object.assign(q.items[0], { status: 'error', error: 'container ERROR', facebook_status: 'error', facebook_error: 'no route: x', route_error: 'no route: x' })
+  const item = revive(q, ['dual-image']).queue.items[0]
+  assert.equal(item.status, 'error')
+  assert.equal(item.facebook_status, 'pending')
+})
+
+test('an Instagram-less item left building is not resumed through Instagram', async () => {
+  const q = queueWithItem()
+  Object.assign(q.items[0], { channels: ['facebook'], status: 'building', ig_container_id: 'stray', facebook_status: 'posted' })
+  const { calls, fetchImpl } = recording()
+  const item = (await runQueue(q, fetchImpl)).items[0]
+  assert.deepEqual(calls, [])
+  assert.equal(item.route_error, undefined)
 })

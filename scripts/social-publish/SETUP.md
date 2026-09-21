@@ -37,11 +37,13 @@ Every local publish passes through `route-gate.mjs` before the copy audit, the R
 **The scheduled Worker** checks the same entry shape (`route-shape.mjs` owns it for both). It publishes an item only when that item's KV queue carries `meta.route`, a complete entry that is still in date and names the item's account. Anything else goes terminal before any Graph call, in the resume path as well as the fresh-post path. Terminal means both destinations are marked `error`, and `route_error` says why. `/status` reports each event's `route` and a `route_refused` count. Seed with `seed-kv.mjs`, which copies `meta.route` from the event's `graph-routes.json` entry and refuses when there isn't one:
 
 ```bash
-node scripts/social-publish/seed-kv.mjs --event <slug>          # writes queue/<slug>.kv.json, prints the put
-node scripts/social-publish/seed-kv.mjs --event <slug> --put    # also writes it to production KV
+node scripts/social-publish/seed-kv.mjs --event <slug>                     # preview: writes queue/<slug>.kv.json only
+node scripts/social-publish/seed-kv.mjs --event <slug> --put               # stamps the route onto the live queue
+node scripts/social-publish/seed-kv.mjs --event <slug> --replace --put     # pushes changed local content
+node scripts/social-publish/seed-kv.mjs --event <slug> --revive a,b --put  # re-opens route-refused items
 ```
 
-The seeded value replaces the Worker's copy of the queue, posted state included, so read the live key first when a campaign is already running. A refused item stays refused: adding a route later does not revive it. Reset its `status` / `facebook_status` to `pending` and clear `route_error` by hand, then re-seed.
+KV, not `queue/<slug>.json`, is the record of what the Worker has published, so the script reads the live key first. When it exists, the route is stamped onto the live queue and its items are left alone. `--replace` pushes the local file instead, and is refused if that would drop any publish state the Worker recorded: with a route on it, a queue that forgot an item was posted would post it again. A refused item stays refused when a route is added later. `--revive` puts the destinations a route refusal closed back to `pending`; a Graph error stays terminal.
 
 **What this does not prove.** A queue written to KV is no longer, by itself, an instruction to publish. But `meta.route` is still written by whoever writes KV, so a hand-written block passes the Worker exactly as a copied one does. The tracked `graph-routes.json` entry is the approval, and the KV copy only carries it. Making the Worker refuse anything that file lacks would mean bundling the file into the Worker, so every approval would need a deploy. Not done.
 
@@ -49,7 +51,7 @@ Why it exists: on 2026-09-21 an agent asked to publish an ad hoc Collab carousel
 
 ```bash
 pnpm test:social          # 24 tests, including a replay of that incident: exit 3, zero Graph requests
-pnpm social:worker:test   # 16 tests: every Worker refusal sees zero Graph requests, beside a control that sees the publish
+pnpm social:worker:test   # 20 tests: every Worker refusal sees zero Graph requests, beside a control that sees the publish
 ```
 
 ---

@@ -432,7 +432,7 @@ async function publishItem(env, ev, q, item) {
 async function resumeIfBuilding(env, ev) {
   const q = await loadQueue(env, ev); if (!q) return null
   const building = q.items.filter((it) =>
-    (it.status === 'building' && it.ig_container_id) ||
+    (wantsInstagram(it) && it.status === 'building' && it.ig_container_id) ||
     (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id))
   if (!building.length) return null
   const [item] = await routed(env, ev, q, building)
