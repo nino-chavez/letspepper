@@ -1,11 +1,11 @@
 {
   "_about": [
-    "Standing approvals for publishing through the Graph API from this machine. Enforced by route-gate.mjs.",
-    "An event listed under `events` may publish through post-reels.mjs without a per-post reason.",
+    "Standing approvals for publishing through the Graph API. Enforced by route-gate.mjs on this machine, and by the scheduled Worker on the copy seed-kv.mjs writes into its KV queue.",
+    "An event listed under `events` may publish through post-reels.mjs without a per-post reason, and through the Worker once seeded.",
     "Only scheduled, batch, drip or queue-owned campaigns belong here. A single post never does: it takes --graph-route \"<Nino's words>\" instead, and the `adhoc` ledger is refused a standing route by the gate.",
     "Nino approves entries. An agent adds one only when he has asked for that campaign to run through the API, and quotes or paraphrases that instruction in `reason`. This file is tracked so the approval shows up as a diff.",
     "Entry shape: \"<event-slug>\": { \"reason\": \"why this campaign runs through the API\", \"approved\": \"YYYY-MM-DD\", \"accounts\": [\"letspepper\"], \"expires\": \"YYYY-MM-DD (optional)\" }. `accounts` are accounts.json slugs and are enforced, including against --account; an entry missing any required field approves nothing.",
-    "The scheduled Worker (worker/src/index.js) reads its own KV queue and does not consult this file.",
+    "The scheduled Worker (worker/src/index.js) cannot read this file. It checks `meta.route` in its KV queue, which seed-kv.mjs copies from the entry here and refuses to write without one. A hand-written `meta.route` in KV passes the Worker too, so this file, not KV, is the approval.",
     "Starts empty on purpose (2026-09-21): no campaign was publishing from this machine, and the local queue copies held more than 80 overdue pending items that a stray run would have started posting."
   ],
   "events": {}

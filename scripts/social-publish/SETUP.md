@@ -11,7 +11,9 @@ build-album-carousel.mjs gallery album → R2-hosted CAROUSEL queue/<event>.json
 upload-r2.mjs            push media to a public R2 bucket, write URLs into the queue
 post-reels.mjs           local Instagram publisher (reels / image / carousel)
 route-gate.mjs           refuses any local publish that has no approved Graph route
+route-shape.mjs          the standing-route check both publishers share
 graph-routes.json        tracked list of campaigns approved to publish through the API
+seed-kv.mjs              seeds a queue into the Worker's KV with its route copied from graph-routes.json
 worker/src/index.js      scheduled Instagram + Facebook Page publisher
 ```
 
@@ -30,12 +32,26 @@ Every local publish passes through `route-gate.mjs` before the copy audit, the R
 - **Standing route.** The event is listed in `graph-routes.json` with a reason, an approval date and the `accounts` it covers (enforced, including against `--account`; optional `expires`). For a scheduled, batch or drip campaign Nino has approved to run through the API. The file is tracked, so the approval is a diff he can review. It starts empty.
 - **One-off route.** The command is run with `--graph-route "<Nino's words>"`, and the words have to name the Graph API as the way this post goes out — "publish this now" is not that. The reason is recorded on the queue item as `route` — the route receipt — once the run is past its token check and copy audit, and it stays in the ledger. `post-now.mjs` always needs one, because every ad hoc post is a one-off. A one-off is **one post, and the one Nino named**: without a standing route a run publishes exactly one item, picked with `--id` whenever more than one is due. So a reason given for one post cannot be stretched over a backlog with `--force --count 80`, and `--count 1` cannot land his words on whichever item happens to be oldest. A receipt goes stale after 24 hours — approval for an ad hoc post means "now" — and it is bound to the post it approved: change the account, caption, media, tags or collaborators and the item needs a new yes.
 
-`--dry-run` is refused the same way, so a dry run cannot pass where the live run would stop. Gated entry points: `post-reels.mjs`, `post-now.mjs`, and `--post` on `build-album-carousel.mjs` and `build-top-shots.mjs`. Not gated: `build-fb-album.mjs`, a bulk fill the Facebook composer cannot do. **Known gap:** the scheduled Worker reads its own KV queue and checks no route, so an item written to KV under an active event publishes on the next tick. Seeding KV is a deliberate remote write, but it is not an approval. Closing it means route metadata in KV and a Worker deploy.
+`--dry-run` is refused the same way, so a dry run cannot pass where the live run would stop. Gated entry points: `post-reels.mjs`, `post-now.mjs`, and `--post` on `build-album-carousel.mjs` and `build-top-shots.mjs`. Not gated: `build-fb-album.mjs`, a bulk fill the Facebook composer cannot do.
+
+**The scheduled Worker** checks the same entry shape (`route-shape.mjs` owns it for both). It publishes an item only when that item's KV queue carries `meta.route`, a complete entry that is still in date and names the item's account. Anything else goes terminal before any Graph call, in the resume path as well as the fresh-post path. Terminal means both destinations are marked `error`, and `route_error` says why. `/status` reports each event's `route` and a `route_refused` count. Seed with `seed-kv.mjs`, which copies `meta.route` from the event's `graph-routes.json` entry and refuses when there isn't one:
+
+```bash
+node scripts/social-publish/seed-kv.mjs --event <slug>                     # preview: writes queue/<slug>.kv.json only
+node scripts/social-publish/seed-kv.mjs --event <slug> --put               # stamps the route onto the live queue
+node scripts/social-publish/seed-kv.mjs --event <slug> --replace --put     # pushes changed local content
+node scripts/social-publish/seed-kv.mjs --event <slug> --revive a,b --put  # re-opens route-refused items
+```
+
+KV, not `queue/<slug>.json`, is the record of what the Worker has published, so the script reads the live key first. When it exists, the route is stamped onto the live queue and its items are left alone. `--replace` pushes the local file instead, and is refused if that would drop any publish state the Worker recorded: with a route on it, a queue that forgot an item was posted would post it again. KV has no compare-and-set, so `--put` refuses within five minutes of the hourly tick and re-reads the key just before writing; that narrows the race with a Worker run to milliseconds without closing it. A refused item stays refused when a route is added later. `--revive` puts the destinations a route refusal closed back to `pending`; a Graph error stays terminal.
+
+**What this does not prove.** A queue written to KV is no longer, by itself, an instruction to publish. But `meta.route` is still written by whoever writes KV, so a hand-written block passes the Worker exactly as a copied one does. The tracked `graph-routes.json` entry is the approval, and the KV copy only carries it. Making the Worker refuse anything that file lacks would mean bundling the file into the Worker, so every approval would need a deploy. Not done.
 
 Why it exists: on 2026-09-21 an agent asked to publish an ad hoc Collab carousel found this publisher, confirmed it supported the job, and published. Nino's correction — the post should have gone out by hand — arrived 26 seconds after it went live. The instructions that would have stopped it were written down and were not read. The gate does not depend on anything being read.
 
 ```bash
-pnpm test:social   # 28 tests, including a replay of that incident: exit 3, zero Graph requests
+pnpm test:social          # 28 tests, including a replay of that incident: exit 3, zero Graph requests
+pnpm social:worker:test   # 21 tests: every Worker refusal sees zero Graph requests, beside a control that sees the publish
 ```
 
 ---
@@ -167,7 +183,7 @@ node scripts/social-publish/post-reels.mjs --event $EVENT --dry-run
 node scripts/social-publish/post-reels.mjs --event $EVENT --count 2
 ```
 
-Campaigns are scheduled through the Worker (`worker/wrangler.jsonc` carries the hourly cron; whether the deployed copy is armed is a Cloudflare fact, so check there). No cron or launchd job on this machine publishes (checked 2026-09-21). A local cron would look like this, and needs the event's standing route in `graph-routes.json` or every run is refused:
+Campaigns are scheduled through the Worker (`worker/wrangler.jsonc` carries the hourly cron; whether the deployed copy is armed is a Cloudflare fact, so check there). The Worker publishes a campaign only once `seed-kv.mjs` has seeded it with its route, so a campaign needs its `graph-routes.json` entry either way. No cron or launchd job on this machine publishes (checked 2026-09-21). A local cron would look like this, and needs the event's standing route in `graph-routes.json` or every run is refused:
 ```
 5 12 * * *  cd /Users/nino/Workspace/dev/apps/letspepper && \
   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \

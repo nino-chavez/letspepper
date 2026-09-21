@@ -32,7 +32,19 @@
  * the SAME container (idempotent) — this is what stopped the double-posting:
  * Meta's "unexpected error" on media_publish often means it DID publish, so we
  * must not re-create+re-publish. See git history / memory for the full story.
+ *
+ * Route gate (2026-09-21): an item publishes only when its queue carries
+ * `meta.route`, a complete standing entry (reason, approved date, accounts,
+ * optional expires — the shape route-shape.mjs owns) that is still in date and
+ * names the item's account. seed-kv.mjs copies it from the tracked
+ * graph-routes.json. Anything else goes terminal with `route_error` set, on
+ * both destinations, before any Graph call — in the resume path as well as
+ * the fresh-post path. What this proves is narrow: a queue written to KV is no
+ * longer, by itself, an instruction to publish. The route in KV is still
+ * written by whoever writes KV.
  */
+
+import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
@@ -169,6 +181,48 @@ const facebookPending = (it) => wantsFacebook(it) &&
 
 async function persistQueue(env, ev, q) {
   await env.QUEUE.put(ev, JSON.stringify(q))
+}
+
+async function loadQueue(env, ev) {
+  const raw = await env.QUEUE.get(ev)
+  return raw ? JSON.parse(raw) : null
+}
+
+const queueRoute = (q, ev) => standingEntry(ev, { events: { [ev]: q.meta?.route } })
+
+// Why this item may not publish, or null when its queue's route covers it.
+function routeRefusal(q, ev, item, now) {
+  const entry = queueRoute(q, ev)
+  if (!q.meta?.route) return `no route: queue "${ev}" carries no meta.route — seed it with seed-kv.mjs from its graph-routes.json entry`
+  if (!entry) return `no route: meta.route for "${ev}" is incomplete (needs reason, approved YYYY-MM-DD, accounts[], optional expires YYYY-MM-DD)`
+  if (!inDate(entry, now)) return `no route: meta.route for "${ev}" expired ${entry.expires}`
+  if (!entryCovers(entry, [item.account], now)) return `no route: meta.route for "${ev}" does not list account "${item.account}"`
+  return null
+}
+
+// Terminal on every destination still waiting, so neither channel retries it next tick.
+function refuse(item, why) {
+  const ig = instagramPending(item)
+  const fb = facebookPending(item)
+  item.route_error = why
+  if (ig) { item.status = 'error'; item.error = why }
+  if (fb) { item.facebook_status = 'error'; item.facebook_error = why }
+}
+
+// The candidates a route covers. The rest are refused and the queue persisted
+// once, before the caller makes any Graph call.
+async function routed(env, ev, q, candidates, now = new Date()) {
+  const allowed = []
+  let refused = 0
+  for (const item of candidates) {
+    const why = routeRefusal(q, ev, item, now)
+    if (!why) { allowed.push(item); continue }
+    refuse(item, why)
+    refused++
+    console.error(`refused ${ev}/${item.id}: ${why}`)
+  }
+  if (refused) await persistQueue(env, ev, q)
+  return allowed
 }
 
 // Publish the Instagram destination only. Its legacy fields stay intact so all
@@ -376,11 +430,12 @@ async function publishItem(env, ev, q, item) {
 
 // Finish an in-flight container/upload for this event, if any. Returns result or null.
 async function resumeIfBuilding(env, ev) {
-  const raw = await env.QUEUE.get(ev); if (!raw) return null
-  const q = JSON.parse(raw)
-  const item = q.items.find((it) =>
-    (it.status === 'building' && it.ig_container_id) ||
+  const q = await loadQueue(env, ev); if (!q) return null
+  const building = q.items.filter((it) =>
+    (wantsInstagram(it) && it.status === 'building' && it.ig_container_id) ||
     (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id))
+  if (!building.length) return null
+  const [item] = await routed(env, ev, q, building)
   if (!item) return null
   return publishItem(env, ev, q, item)
 }
@@ -399,13 +454,12 @@ function eligibleNow(it, nowMs, hourAllowed) {
 // (deterministic calendar order); legacy (no-scheduledAt) items keep the random
 // pick. Returns result, or null if nothing is due.
 async function postDuePending(env, ev, hourAllowed) {
-  const raw = await env.QUEUE.get(ev); if (!raw) return null
-  const q = JSON.parse(raw)
+  const q = await loadQueue(env, ev); if (!q) return null
   const now = Date.now()
-  const due = q.items.filter((it) =>
+  const due = await routed(env, ev, q, q.items.filter((it) =>
     (instagramPending(it) || facebookPending(it)) &&
     hasMedia(it) &&
-    eligibleNow(it, now, hourAllowed))
+    eligibleNow(it, now, hourAllowed)))
   if (!due.length) return null
   const scheduled = due.filter((it) => it.scheduledAt).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
   const item = scheduled.length ? scheduled[0] : due[Math.floor(Math.random() * due.length)]
@@ -566,14 +620,17 @@ export default {
       if (!authed) return new Response('forbidden', { status: 403 })
       const out = { allowedHoursUTC: allowedHours(env), priorityOrder: events(env), events: {} }
       for (const ev of events(env)) {
-        const raw = await env.QUEUE.get(ev)
-        if (!raw) { out.events[ev] = 'no queue'; continue }
-        const q = JSON.parse(raw)
+        const q = await loadQueue(env, ev)
+        if (!q) { out.events[ev] = 'no queue'; continue }
         const by = (s) => q.items.filter((i) => i.status === s).length
         const facebookItems = q.items.filter(wantsFacebook)
         const facebookBy = (s) => facebookItems.filter((i) => (i.facebook_status || 'pending') === s).length
+        const entry = queueRoute(q, ev)
         out.events[ev] = { total: q.items.length, posted: by('posted'), pending: by('pending'),
           building: by('building'), error: by('error'),
+          route: entry ? { approved: entry.approved, accounts: entry.accounts, expires: entry.expires ?? null }
+            : q.meta?.route ? 'incomplete' : 'none',
+          route_refused: q.items.filter((i) => i.route_error).length,
           errors: q.items.filter((i) => i.status === 'error').map((i) => ({ id: i.id, err: i.error })),
           facebook: {
             enabled: facebookItems.length,

@@ -35,6 +35,9 @@
     // any more: it is fully published, and re-arming it could only re-post promo
     // for a cancelled event. jpo-teams / flickday-grass-drip / bell-pepper-2026
     // sit inert in KV — re-add to ACTIVE_EVENTS to resume.
+    // Listing an event is not enough to publish from it: its KV queue must also
+    // carry meta.route, seeded by seed-kv.mjs from graph-routes.json. Neither
+    // queue listed here has one (read 2026-09-21), and neither has a pending item.
     "ACTIVE_EVENTS": "cutting-board-announce,poblano-2026-cancellation",
     // UTC posting slots — the daily cap for LEGACY (no-scheduledAt) items only.
     // The cancellation item carries no scheduledAt, so it IS gated by these hours
