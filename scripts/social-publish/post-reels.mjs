@@ -250,18 +250,21 @@ for (const it of batch) {
     // 2026-06-14 duplicate happened. Same creation_id retries are idempotent.
     // ...but only a container built from THIS payload. If the item changed since the
     // container was made, reusing it would publish the old post under the new approval.
+    // ALWAYS ask about a saved container first, even one built from an older payload:
+    // if its publish landed, this item is already live and a rebuild would post it twice.
     const payload = digestOf(it, accountOverride, event)
-    let containerId = it.ig_container_id && it.ig_container_digest === payload ? it.ig_container_id : null
+    let containerId = it.ig_container_id ?? null
     if (containerId) {
       const status = await api(`${containerId}`, { fields: 'status_code' }, 'GET')
         .then((r) => r.status_code).catch(() => null)
-      if (status === 'PUBLISHED') {
+      if (status !== 'PUBLISHED' && it.ig_container_digest !== payload) containerId = null // built from another payload — rebuild
+      else if (status === 'PUBLISHED') {
         it.status = 'posted'; it.posted_at = new Date().toISOString()
         it.error = 'published by a prior run — ig_media_id unknown, reconcile via GET /{ig}/media'
         save(); console.log('already published by a prior run — marked posted'); ok++
         continue
       }
-      if (status !== 'FINISHED' && status !== 'IN_PROGRESS') containerId = null // expired/errored — rebuild
+      else if (status !== 'FINISHED' && status !== 'IN_PROGRESS') containerId = null // expired/errored — rebuild
     }
     if (!containerId) {
       containerId = await buildContainer(ig, it)

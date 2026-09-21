@@ -96,7 +96,8 @@ export function hasStandingRoute(event, routes, accounts = [], now = new Date())
   const entry = standingEntry(event, routes)
   if (!entry) return false
   if (entry.expires && now.getTime() > Date.parse(entry.expires) + 86_400_000) return false
-  return accounts.every((a) => entry.accounts.includes(a))
+  // No known account fails closed: an empty list would otherwise pass every().
+  return accounts.length > 0 && accounts.every((a) => entry.accounts.includes(a))
 }
 
 const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' &&
@@ -141,8 +142,11 @@ export function cleanReason(flag) {
   if (reason.length < MIN_REASON) return null
   // The approval has to be FOR this surface. "Nino said publish this now" is a yes to
   // publishing, which is exactly what got read as a yes to the API on 2026-09-21.
-  if (!/\b(graph|api)\b/i.test(reason)) return null
-  if (/\b(don'?t|do not|not|never|no|without|instead of|avoid)\b[^.;]{0,40}\b(graph|api)\b/i.test(reason)) return null
+  // An affirmative construction ("use / via / through / with ... the API"), and no negation
+  // on either side of it. A regex cannot settle intent; it can refuse the obvious misreadings.
+  if (!/\b(use|using|via|through|with|for|run|send|post|publish)\b[^.;]{0,30}\b(graph|api)\b/i.test(reason)) return null
+  if (/\b(don'?t|do not|not|never|no|without|instead of|avoid|skip|wrong)\b[^.;]{0,40}\b(graph|api)\b/i.test(reason)) return null
+  if (/\b(graph|api)\b[^.;]{0,40}\b(not|never|wrong|shouldn'?t|should not|isn'?t|is not|skip|avoid)\b/i.test(reason)) return null
   return reason
 }
 
@@ -222,8 +226,8 @@ export function refusal({ event, items = [], missing = [], stale = [], changed =
 }
 
 /** For a builder that publishes at the end (--post): the same check, run before the batch exists. */
-export function assertRouteBeforeBuild({ event, reasonFlag, script, routes }) {
-  return assertGraphRoute({ event, items: [{ id: `${event}, not built yet` }], reasonFlag, script, routes, beforeBuild: true })
+export function assertRouteBeforeBuild({ event, account, reasonFlag, script, routes }) {
+  return assertGraphRoute({ event, items: [{ id: `${event}, not built yet`, account }], reasonFlag, script, routes, beforeBuild: true })
 }
 
 /**
