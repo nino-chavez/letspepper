@@ -147,7 +147,9 @@ async function api(path, params, method = 'POST') {
     // in error_user_msg. Surface both so a failure is diagnosable without a
     // manual curl round-trip.
     const { message, error_user_msg: userMsg } = json.error || {}
-    throw new Error([message, userMsg].filter(Boolean).join(' — ') || JSON.stringify(json))
+    const err = new Error([message, userMsg].filter(Boolean).join(' — ') || JSON.stringify(json))
+    err.http = res.status; err.code = json.error?.code ?? null; err.subcode = json.error?.error_subcode ?? null
+    throw err
   }
   return json
 }
@@ -255,8 +257,21 @@ for (const it of batch) {
     const payload = digestOf(it, accountOverride, event)
     let containerId = it.ig_container_id ?? null
     if (containerId) {
+      // GONE only when Graph says the object does not exist: code 100 with subcode 33 (code 100
+      // alone is the general "invalid parameter"). Known limit: 100/33 also covers "this token
+      // cannot see it", so after a token change to a different app, reconcile by hand with
+      // GET /{ig}/media before re-running an item that holds a container. Graph
+      // reports throttling (codes 4, 17, 32, 613) and token errors as HTTP 400/403 too, so the
+      // HTTP status cannot decide this. A timeout, 5xx, throttle or anything else is UNKNOWN — the same weather that makes a landed publish look failed —
+      // and on UNKNOWN nothing is rebuilt: a second container is how a post goes out twice.
       const status = await api(`${containerId}`, { fields: 'status_code' }, 'GET')
-        .then((r) => r.status_code).catch(() => null)
+        .then((r) => r.status_code)
+        .catch((e) => (e.code === 100 && e.subcode === 33 ? 'GONE' : 'UNKNOWN'))
+      if (status === 'UNKNOWN') {
+        it.status = 'error'; it.error = `could not confirm whether container ${containerId} already published — not rebuilding; run again`
+        save(); console.error(`HELD: ${it.error}`)
+        continue
+      }
       if (status !== 'PUBLISHED' && it.ig_container_digest !== payload) containerId = null // built from another payload — rebuild
       else if (status === 'PUBLISHED') {
         it.status = 'posted'; it.posted_at = new Date().toISOString()
