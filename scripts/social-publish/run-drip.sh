@@ -20,8 +20,9 @@ cd "$REPO" || { echo "$(date) FATAL: repo not found" >> "$LOG"; exit 1; }
 
 # Route check first, with no credential in hand: an event with no standing route
 # is refused here, before anything is read from 1Password.
-if ! node scripts/social-publish/post-reels.mjs --event "$EVENT" --count 1 --dry-run >> "$LOG" 2>&1; then
-  code=$?
+node scripts/social-publish/post-reels.mjs --event "$EVENT" --count 1 --dry-run >> "$LOG" 2>&1
+code=$?   # taken directly: inside `if ! cmd` the status is already inverted to 0
+if [[ "$code" -ne 0 ]]; then
   echo "$(date) --- stopped before reading the token (exit $code, see above) ---" >> "$LOG"
   exit $code
 fi

@@ -50,7 +50,7 @@ KV, not `queue/<slug>.json`, is the record of what the Worker has published, so 
 Why it exists: on 2026-09-21 an agent asked to publish an ad hoc Collab carousel found this publisher, confirmed it supported the job, and published. Nino's correction — the post should have gone out by hand — arrived 26 seconds after it went live. The instructions that would have stopped it were written down and were not read. The gate does not depend on anything being read.
 
 ```bash
-pnpm test:social          # 24 tests, including a replay of that incident: exit 3, zero Graph requests
+pnpm test:social          # 28 tests, including a replay of that incident: exit 3, zero Graph requests
 pnpm social:worker:test   # 20 tests: every Worker refusal sees zero Graph requests, beside a control that sees the publish
 ```
 
