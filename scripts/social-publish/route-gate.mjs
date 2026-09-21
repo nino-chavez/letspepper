@@ -21,9 +21,12 @@
  *                   --graph-route "<Nino's words>" to the publishing command.
  *                   The receipt stays on the item in the queue ledger.
  *
- * A one-off is ONE post. Without a standing route a run may publish exactly one
- * item, so one reason can never be stretched over a backlog (`--force --count 80`
- * is refused), and a bare run cannot sweep up several receipted leftovers. A
+ * A one-off is ONE post, and it is the post Nino NAMED. Without a standing route
+ * a run may publish exactly one item, and that item has to be picked with --id:
+ * `--count 1` on a queue with several due items would otherwise publish whichever
+ * is oldest and record his words against a post he never saw. So one reason can
+ * never be stretched over a backlog (`--force --count 80` is refused), and a bare
+ * run cannot sweep up several receipted leftovers. A
  * receipt also goes stale after RECEIPT_TTL_HOURS: approval for an ad hoc post
  * means "now", and a post that failed and sat for a week gets asked about again
  * rather than published on an old yes.
@@ -93,21 +96,25 @@ export function makeReceipt(reason, via, now = new Date()) {
  * Returns { ok, kind, why, missing, stale, stamp }. `stamp` holds the one item
  * that should be given a receipt built from the reason; the caller decides when
  * to persist it. `why` on a refusal: 'batch' (a one-off run of more than one
- * item), 'reason' (an unusable --graph-route value), 'route' (nothing approved).
+ * item), 'unnamed' (one item, but chosen by queue order out of several rather
+ * than by --id), 'reason' (an unusable --graph-route value), 'route' (nothing
+ * approved). `named` is true when the caller picked the item with --id;
+ * `candidates` is how many items were due before --count trimmed the batch.
  */
-export function checkRoute({ event, items, routes, reasonFlag, now = new Date() }) {
+export function checkRoute({ event, items, routes, reasonFlag, now = new Date(), named = true, candidates = items.length }) {
   if (hasStandingRoute(event, routes)) return { ok: true, kind: 'standing', missing: [], stale: [], stamp: [] }
   const missing = items.filter((it) => !hasReceipt(it, now))
   const stale = items.filter((it) => isStale(it, now))
   const no = (why) => ({ ok: false, kind: null, why, missing, stale, stamp: [] })
   if (items.length !== 1) return no('batch')
+  if (!named && candidates > 1) return no('unnamed')
   if (!missing.length) return { ok: true, kind: 'one-off', missing: [], stale: [], stamp: [] }
   const reason = cleanReason(reasonFlag)
   if (reason) return { ok: true, kind: 'one-off', missing: [], stale: [], stamp: missing, reason }
   return no(reasonFlag !== undefined ? 'reason' : 'route')
 }
 
-export function refusal({ event, items = [], missing = [], stale = [], script, why = 'route' }) {
+export function refusal({ event, items = [], missing = [], stale = [], script, why = 'route', candidates = items.length }) {
   const list = (arr) => `${arr.slice(0, 5).map((it) => it.id).filter(Boolean).join(', ')}${arr.length > 5 ? ', …' : ''}`
   const what = why === 'batch' ? `${items.length} items in this run` : missing.length ? `item: ${list(missing)}` : 'this post'
   return [
@@ -117,6 +124,9 @@ export function refusal({ event, items = [], missing = [], stale = [], script, w
     '',
     why === 'batch'
       ? `A one-off route covers ONE post, and this run would publish ${items.length} (${list(items)}). Publish one item with --id <item-id>.\nSeveral posts on a schedule is a campaign, and a campaign needs a standing route from Nino — a reason given for one post does not stretch over a queue.\n`
+      : null,
+    why === 'unnamed'
+      ? `A one-off route covers the post Nino NAMED. ${candidates} items are due in this queue and none was picked with --id, so this run would publish whichever is oldest (${list(items)}) and record his words against it. Pass --id <item-id>.\n`
       : null,
     why === 'reason'
       ? `--graph-route needs Nino's own words as its value (at least ${MIN_REASON} characters). A bare flag or "ok" is not a reason.\n`
@@ -152,10 +162,10 @@ export function assertRouteBeforeBuild({ event, reasonFlag, script, routes }) {
  * not leave an approved-looking item behind. Exits REFUSED before any side
  * effect when no route holds.
  */
-export function assertGraphRoute({ event, items, reasonFlag, script, routes = loadRoutes(), now = new Date(), beforeBuild = false }) {
-  const verdict = checkRoute({ event, items, routes, reasonFlag, now })
+export function assertGraphRoute({ event, items, reasonFlag, script, routes = loadRoutes(), now = new Date(), beforeBuild = false, named = true, candidates = items.length }) {
+  const verdict = checkRoute({ event, items, routes, reasonFlag, now, named, candidates })
   if (!verdict.ok) {
-    console.error(refusal({ event, items, missing: verdict.missing, stale: verdict.stale, script, why: verdict.why }))
+    console.error(refusal({ event, items, missing: verdict.missing, stale: verdict.stale, script, why: verdict.why, candidates }))
     process.exit(REFUSED)
   }
   for (const it of verdict.stamp) it.route = makeReceipt(verdict.reason, `${script} --graph-route`, now)

@@ -34,8 +34,9 @@
  * ROUTE GATE (route-gate.mjs): nothing here runs — not the copy audit, not a
  * Graph call, not on --dry-run either — until the batch has an approved Graph
  * route: the event listed in graph-routes.json (a campaign), or a one-off
- * `route` receipt — and a one-off run publishes exactly ONE item, so a reason
- * given for one post cannot be stretched over a backlog. Posts to Nino's
+ * `route` receipt — and a one-off run publishes exactly ONE item, picked with
+ * --id whenever more than one is due, so a reason given for one post cannot be
+ * stretched over a backlog or land on a different post. Posts to Nino's
  * accounts go out by hand unless he approved the API for them; the
  * `meta-publish` skill owns that decision. Exit code 3 on refusal.
  *
@@ -115,7 +116,7 @@ const batch = due.slice(0, count)
 // Route first. It comes before the token check on purpose: an agent that is
 // refused for a missing token goes and fetches one, and only then learns the
 // post should not be going through this publisher at all.
-assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs' })
+assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs', named: !!idFilter, candidates: due.length })
 
 if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token — see SETUP.md).'); process.exit(1) }
 

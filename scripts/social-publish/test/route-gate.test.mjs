@@ -184,6 +184,27 @@ test('the default --count 2 with a reason is refused too: the second item was ne
   } finally { await graph.close(); sb.cleanup() }
 })
 
+test('--count 1 with a reason does not publish whichever item is oldest: the post has to be named with --id', async () => {
+  const sb = sandbox({ queue: backlog(2) }); const graph = await graphStub()
+  try {
+    const before = readFileSync(sb.queuePath(), 'utf8')
+    const reason = 'Nino asked for the API on this one'
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--graph-route', reason], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED, `${r.out}\n${r.err}`)
+    assert.deepEqual(graph.seen, [])
+    assert.equal(readFileSync(sb.queuePath(), 'utf8'), before)
+    assert.match(r.err, /covers the post Nino NAMED\. 2 items are due/)
+
+    // the same run with the item named goes through, and only that item is touched
+    const named = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', `${EVENT}-2`, '--graph-route', reason], { cwd: sb.root, base: graph.base })
+    assert.equal(named.code, 0, `${named.out}\n${named.err}`)
+    const items = JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items
+    assert.deepEqual(items.map((i) => i.status), ['pending', 'posted'])
+    assert.equal(items[0].route, undefined)
+    assert.equal(items[1].route.reason, reason)
+  } finally { await graph.close(); sb.cleanup() }
+})
+
 test('a bare run cannot sweep up several receipted leftovers', async () => {
   const fresh = makeReceipt('Nino asked for the API on this one', 'test')
   const sb = sandbox({ queue: backlog(2, fresh) }); const graph = await graphStub()
@@ -271,6 +292,10 @@ test('checkRoute: the rules, without a subprocess', () => {
   assert.deepEqual(checkRoute({ event: EVENT, items: mixed, routes: none }).missing.map((i) => i.id), ['second'])
   assert.equal(checkRoute({ event: EVENT, items: [stamped[0], stamped[0]], routes: none }).why, 'batch')
   assert.equal(checkRoute({ event: EVENT, items: mixed, routes: none, reasonFlag: 'Nino asked for the API' }).ok, false)
+  // one item in the batch, but picked by queue order out of several: refused until it is named
+  assert.equal(checkRoute({ event: EVENT, items, routes: none, reasonFlag: 'Nino asked for the API', named: false, candidates: 2 }).why, 'unnamed')
+  assert.equal(checkRoute({ event: EVENT, items, routes: none, reasonFlag: 'Nino asked for the API', named: false, candidates: 1 }).ok, true, 'a queue holding one due item names it by itself')
+  assert.equal(checkRoute({ event: EVENT, items: stamped, routes: none, named: false, candidates: 3 }).why, 'unnamed', 'a fresh receipt does not excuse an unnamed pick either')
   // a reason stamps exactly the one item
   assert.deepEqual(checkRoute({ event: EVENT, items, routes: none, reasonFlag: 'Nino asked for the API' }).stamp.map((i) => i.id), [ITEM_ID])
 
