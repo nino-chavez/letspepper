@@ -403,3 +403,20 @@ test('an Instagram-less item left building is not resumed through Instagram', as
   assert.deepEqual(calls, [])
   assert.equal(item.route_error, undefined)
 })
+
+test('a saved container whose status check is throttled goes terminal, never rebuilt', async () => {
+  // Graph returns throttles as HTTP 400. The Worker reuses ig_container_id and has
+  // no rebuild path: any status-check failure must end the item, not build a second container.
+  const q = queueWithReel()
+  Object.assign(q.items[0], { channels: ['instagram'], status: 'building', ig_container_id: 'saved-container' })
+  delete q.items[0].facebook_status
+  const { calls, fetchImpl } = recording(async () =>
+    Response.json({ error: { message: 'Application request limit reached', code: 4 } }, { status: 400 }))
+  const item = (await runQueue(q, fetchImpl)).items[0]
+  assert.equal(calls.length, 1, 'one status check, then stop')
+  assert.match(calls[0], /^GET .*\/saved-container\?/)
+  assert.ok(!calls.some((c) => c.includes('/media')), 'no new container, no publish')
+  assert.equal(item.ig_container_id, 'saved-container')
+  assert.equal(item.status, 'error')
+  assert.match(item.error, /request limit/)
+})

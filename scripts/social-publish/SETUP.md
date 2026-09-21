@@ -51,7 +51,7 @@ Why it exists: on 2026-09-21 an agent asked to publish an ad hoc Collab carousel
 
 ```bash
 pnpm test:social          # 28 tests, including a replay of that incident: exit 3, zero Graph requests
-pnpm social:worker:test   # 20 tests: every Worker refusal sees zero Graph requests, beside a control that sees the publish
+pnpm social:worker:test   # 21 tests: every Worker refusal sees zero Graph requests, beside a control that sees the publish
 ```
 
 ---
