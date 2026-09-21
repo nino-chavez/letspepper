@@ -82,8 +82,9 @@ async function graphStub() {
   const server = http.createServer((req, res) => {
     seen.push(`${req.method} ${req.url.split('?')[0]}`)
     if (req.url.includes('graph-is-down')) { res.writeHead(503, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"unavailable","code":2}}') }
+    if (req.url.includes('bad-param')) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"Invalid parameter","code":100}}') }
     if (req.url.includes('throttled')) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"Application request limit reached","code":4}}') }
-    if (req.url.includes('no-such-container')) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"Unsupported get request","code":100}}') }
+    if (req.url.includes('no-such-container')) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"Unsupported get request","code":100,"error_subcode":33}}') }
     const body = req.url.includes('media_publish') ? { id: 'stub-media-1' }
       : req.method === 'GET' ? { status_code: req.url.includes('already-live') ? 'PUBLISHED' : 'FINISHED' }
       : { id: `stub-container-${seen.length}` }
@@ -320,7 +321,7 @@ test('a stale container whose publish already landed marks the item posted and n
 })
 
 test('when Graph cannot say whether a saved container published, nothing is rebuilt', async () => {
-  for (const id of ['graph-is-down', 'throttled']) { // a 503, and a throttle that Graph reports as HTTP 400 code 4
+  for (const id of ['graph-is-down', 'throttled', 'bad-param']) { // a 503, and a throttle that Graph reports as HTTP 400 code 4
   const q = incidentQueue(); q.items[0].ig_container_id = id; q.items[0].ig_container_digest = 'digest-of-the-old-payload'
   const sb = sandbox({ queue: q }); const graph = await graphStub()
   try {
