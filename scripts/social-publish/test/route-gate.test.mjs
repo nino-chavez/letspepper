@@ -82,7 +82,7 @@ async function graphStub() {
   const server = http.createServer((req, res) => {
     seen.push(`${req.method} ${req.url.split('?')[0]}`)
     const body = req.url.includes('media_publish') ? { id: 'stub-media-1' }
-      : req.method === 'GET' ? { status_code: 'FINISHED' }
+      : req.method === 'GET' ? { status_code: req.url.includes('already-live') ? 'PUBLISHED' : 'FINISHED' }
       : { id: `stub-container-${seen.length}` }
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(body))
   })
@@ -300,8 +300,19 @@ test('a container built from an older version of the post is not reused under a 
   try {
     const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', ITEM_ID, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
     assert.equal(r.code, 0, `${r.out}\n${r.err}`)
-    assert.ok(!graph.seen.some((s) => s.includes('old-container')), `the stale container was touched: ${graph.seen.join(', ')}`)
+    assert.ok(!graph.seen.some((s) => s.startsWith('POST') && s.includes('old-container')), `the stale container was published: ${graph.seen.join(', ')}`)
     assert.notEqual(JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0].ig_container_id, 'old-container')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('a stale container whose publish already landed marks the item posted and never posts it twice', async () => {
+  const q = incidentQueue(); q.items[0].ig_container_id = 'already-live'; q.items[0].ig_container_digest = 'digest-of-the-old-payload'
+  const sb = sandbox({ queue: q }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', ITEM_ID, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 0, `${r.out}\n${r.err}`)
+    assert.deepEqual(graph.seen.filter((s) => s.startsWith('POST')), [], `something was built or published: ${graph.seen.join(', ')}`)
+    assert.equal(JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0].status, 'posted')
   } finally { await graph.close(); sb.cleanup() }
 })
 
@@ -415,6 +426,9 @@ test('checkRoute: the rules, without a subprocess', () => {
   assert.equal(cleanReason('Nino said do not use the API for this'), null)
   assert.equal(cleanReason('Nino: post it by hand instead of the Graph API'), null)
   assert.equal(cleanReason('Nino: use the Graph API for this one'), 'Nino: use the Graph API for this one')
+  for (const no of ['Nino said skip the API on this one', 'Nino said the API is wrong for this, post by hand', 'Nino said the Graph API should not be used', 'Nino mentioned the API yesterday'])
+    assert.equal(cleanReason(no), null, no)
+  assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: entry } }, []), false, 'an unknown account fails closed')
   assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: true } }), false)
 
   // the ad hoc ledger can never be given a standing route

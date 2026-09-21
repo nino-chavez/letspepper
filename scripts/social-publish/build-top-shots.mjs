@@ -55,7 +55,7 @@ const event = typeof args.event === 'string' ? args.event : 'top-shots'
 // --post publishes through the Graph API, so it needs an approved route — checked
 // here, before the gallery is read or anything reaches R2. Building and staging
 // without --post is ungated; post-reels.mjs gates the publish either way.
-if (args.post) assertRouteBeforeBuild({ event, reasonFlag: args['graph-route'], script: 'build-top-shots.mjs --post' })
+if (args.post) assertRouteBeforeBuild({ event, account, reasonFlag: args['graph-route'], script: 'build-top-shots.mjs --post' })
 const site = (typeof args.site === 'string' ? args.site : 'https://ninochavez.co/photography').replace(/\/$/, '')
 const bucket = typeof args.bucket === 'string' ? args.bucket : 'flickday-social'
 const publicBase = (typeof args['public-base'] === 'string' ? args['public-base'] : 'https://pub-068210f3c0834d56a2eef0f10bf15e2d.r2.dev').replace(/\/$/, '')

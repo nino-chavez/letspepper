@@ -72,7 +72,7 @@ const event = typeof args.event === 'string' ? args.event : albumKey
 // --post publishes through the Graph API, so it needs an approved route — checked
 // here, before the gallery is read or anything reaches R2. Building and staging
 // without --post is ungated; post-reels.mjs gates the publish either way.
-if (args.post) assertRouteBeforeBuild({ event, reasonFlag: args['graph-route'], script: 'build-album-carousel.mjs --post' })
+if (args.post) assertRouteBeforeBuild({ event, account, reasonFlag: args['graph-route'], script: 'build-album-carousel.mjs --post' })
 
 function cfLarge(id) { return `https://imagedelivery.net/${CF_HASH}/${id}/large` }
 

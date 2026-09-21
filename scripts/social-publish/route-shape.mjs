@@ -22,9 +22,15 @@ export function standingEntry(event, routes) {
   return ok ? entry : null
 }
 
-/** Still in date (`expires` is the last approved day, UTC), and naming every account the run publishes to. */
+/** Still in date: `expires` is the last approved day, UTC. */
+export function inDate(entry, now = new Date()) {
+  return !!entry && !(entry.expires && now.getTime() > Date.parse(entry.expires) + 86_400_000)
+}
+
+/**
+ * In date, and naming every account the run publishes to. No known account
+ * fails closed: an empty list would otherwise pass every().
+ */
 export function entryCovers(entry, accounts = [], now = new Date()) {
-  if (!entry) return false
-  if (entry.expires && now.getTime() > Date.parse(entry.expires) + 86_400_000) return false
-  return accounts.every((a) => entry.accounts.includes(a))
+  return inDate(entry, now) && accounts.length > 0 && accounts.every((a) => entry.accounts.includes(a))
 }

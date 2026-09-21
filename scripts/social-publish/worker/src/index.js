@@ -44,7 +44,7 @@
  * written by whoever writes KV.
  */
 
-import { standingEntry, entryCovers } from '../../route-shape.mjs'
+import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
@@ -195,7 +195,7 @@ function routeRefusal(q, ev, item, now) {
   const entry = queueRoute(q, ev)
   if (!q.meta?.route) return `no route: queue "${ev}" carries no meta.route — seed it with seed-kv.mjs from its graph-routes.json entry`
   if (!entry) return `no route: meta.route for "${ev}" is incomplete (needs reason, approved YYYY-MM-DD, accounts[], optional expires YYYY-MM-DD)`
-  if (!entryCovers(entry, [], now)) return `no route: meta.route for "${ev}" expired ${entry.expires}`
+  if (!inDate(entry, now)) return `no route: meta.route for "${ev}" expired ${entry.expires}`
   if (!entryCovers(entry, [item.account], now)) return `no route: meta.route for "${ev}" does not list account "${item.account}"`
   return null
 }

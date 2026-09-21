@@ -96,7 +96,7 @@ const item = {
 // the queue write and the R2 upload — the first two side effects — and on
 // --dry-run as well. The receipt itself is written by post-reels.mjs, which gets
 // the reason passed through and records it only once it is about to publish.
-assertRouteBeforeBuild({ event: EVENT, reasonFlag: args['graph-route'], script: 'post-now.mjs' })
+assertRouteBeforeBuild({ event: EVENT, account, reasonFlag: args['graph-route'], script: 'post-now.mjs' })
 
 if (dryRun) {
   console.log(`[dry-run] would upload + publish to @${registry[account].handle}:\n`)

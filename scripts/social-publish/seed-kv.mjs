@@ -29,7 +29,7 @@ import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadRoutes, REFUSED } from './route-gate.mjs'
-import { standingEntry, entryCovers } from './route-shape.mjs'
+import { standingEntry, inDate, entryCovers } from './route-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WRANGLER_CONFIG = join(HERE, 'worker', 'wrangler.jsonc')
@@ -41,7 +41,7 @@ const WRANGLER_CONFIG = join(HERE, 'worker', 'wrangler.jsonc')
 export function seedPayload(queue, event, routes, now = new Date()) {
   const entry = standingEntry(event, routes)
   if (!entry) return { refused: `"${event}" has no complete entry in graph-routes.json (reason, approved YYYY-MM-DD, accounts[], optional expires).` }
-  if (!entryCovers(entry, [], now)) return { refused: `the graph-routes.json entry for "${event}" expired ${entry.expires}.` }
+  if (!inDate(entry, now)) return { refused: `the graph-routes.json entry for "${event}" expired ${entry.expires}.` }
   const accounts = [...new Set((queue.items || []).map((it) => it.account))]
   const unlisted = accounts.filter((a) => !entryCovers(entry, [a], now))
   if (unlisted.length) return { refused: `the graph-routes.json entry for "${event}" does not list ${unlisted.map((a) => `"${a}"`).join(', ')}.` }
