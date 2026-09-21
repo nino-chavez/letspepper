@@ -2,8 +2,9 @@
  * Route gate — the check between a queue item and the Graph API.
  *
  * WHY THIS EXISTS (2026-09-21): an agent asked to publish an ad hoc Collab
- * carousel found this publisher, confirmed it could do the job, and published
- * live 53 seconds before Nino said the post should have gone out by hand. The
+ * carousel found this publisher, confirmed it could do the job, and published.
+ * Nino's correction — the post should have gone out by hand — arrived 26 seconds
+ * after it went live (17:12:39Z publish, 17:13:05Z correction, Codex 01a0c4e7). The
  * publisher being ABLE to do a job is not approval to use it. Posts to Nino's
  * accounts go out by hand (native Instagram, or Meta Business Suite) unless he
  * has approved the Graph API for that post or campaign. The routing table is

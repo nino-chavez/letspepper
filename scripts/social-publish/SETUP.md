@@ -32,7 +32,7 @@ Every local publish passes through `route-gate.mjs` before the copy audit, the R
 
 `--dry-run` is refused the same way, so a dry run cannot pass where the live run would stop. Gated entry points: `post-reels.mjs`, `post-now.mjs`, and `--post` on `build-album-carousel.mjs` and `build-top-shots.mjs`. Not gated, on purpose: the scheduled Worker, which reads its own KV queue (seeding KV is already a deliberate remote write), and `build-fb-album.mjs`, a bulk fill the Facebook composer cannot do.
 
-Why it exists: on 2026-09-21 an agent asked to publish an ad hoc Collab carousel found this publisher, confirmed it supported the job, and published live 53 seconds before Nino said the post should have gone out by hand. The instructions that would have stopped it were written down and were not read. The gate does not depend on anything being read.
+Why it exists: on 2026-09-21 an agent asked to publish an ad hoc Collab carousel found this publisher, confirmed it supported the job, and published. Nino's correction — the post should have gone out by hand — arrived 26 seconds after it went live. The instructions that would have stopped it were written down and were not read. The gate does not depend on anything being read.
 
 ```bash
 pnpm test:social   # 16 tests, including a replay of that incident: exit 3, zero Graph requests
