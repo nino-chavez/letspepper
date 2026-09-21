@@ -29,6 +29,13 @@
  *
  * Flags: --count N (default 2) · --account slug (override) · --id <item-id>
  *        (publish only that queue item) · --force · --dry-run
+ *        --graph-route "<Nino's words>"  one-off approval to use this publisher
+ *
+ * ROUTE GATE (route-gate.mjs): nothing here runs — not the copy audit, not a
+ * Graph call, not on --dry-run either — until the batch has an approved Graph
+ * route: the event listed in graph-routes.json, or a `route` receipt on each
+ * item. Posts to Nino's accounts go out by hand unless he approved the API for
+ * them; the `meta-publish` skill owns that decision. Exit code 3 on refusal.
  *
  * Flow (Graph API v25.0):
  *   POST /{ig}/media  (build container; carousel = children first) → creation_id
@@ -47,6 +54,7 @@ import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { assertGraphRoute } from './route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -69,19 +77,12 @@ const idFilter = typeof args.id === 'string' ? args.id : null
 
 const TOKEN = process.env.IG_ACCESS_TOKEN
 if (!event) { console.error('Required: --event <slug>'); process.exit(1) }
-if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token — see SETUP.md).'); process.exit(1) }
 
 const registry = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
 const queuePath = join(HERE, 'queue', `${event}.json`)
 if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath}`); process.exit(1) }
 const q = JSON.parse(readFileSync(queuePath, 'utf8'))
 const save = () => writeFileSync(queuePath, JSON.stringify(q, null, 2))
-
-// Refuse to publish when the current caption queue breaks its reader contract.
-// This runs before the first Graph API call and audits only JSON caption fields.
-execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
-  `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
-  { stdio: 'inherit' })
 
 function igIdFor(item) {
   const slug = accountOverride || item.account
@@ -106,6 +107,22 @@ if (!due.length) {
   else console.log(`Nothing due. Next: ${remaining[0].id} at ${remaining[0].scheduledAt}`)
   process.exit(0)
 }
+
+const batch = due.slice(0, count)
+
+// Route first. It comes before the token check on purpose: an agent that is
+// refused for a missing token goes and fetches one, and only then learns the
+// post should not be going through this publisher at all.
+assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs' })
+if (!dryRun) save() // keep a one-off receipt on the item before the first Graph call
+
+if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token — see SETUP.md).'); process.exit(1) }
+
+// Refuse to publish when the current caption queue breaks its reader contract.
+// This runs before the first Graph API call and audits only JSON caption fields.
+execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
+  `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
+  { stdio: 'inherit' })
 
 async function api(path, params, method = 'POST') {
   const url = new URL(`${GRAPH}/${path}`)
@@ -202,7 +219,6 @@ async function buildContainer(ig, it) {
   return id
 }
 
-const batch = due.slice(0, count)
 console.log(`${dryRun ? '[dry-run] ' : ''}Publishing ${batch.length} of ${due.length} due items...\n`)
 
 let ok = 0
