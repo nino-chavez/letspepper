@@ -19,6 +19,10 @@
  * content instead, and is refused if that would drop any publish state the
  * Worker recorded (posted, building, error, a container or upload id): with a
  * valid route on it, a queue that forgot an item was posted would post it again.
+ * KV has no compare-and-set, so --put also refuses within five minutes of the
+ * hourly tick and re-reads the key just before writing. That narrows the race
+ * with a Worker run (scheduled, or /run over HTTP) to milliseconds; it does not
+ * close it.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
@@ -127,9 +131,14 @@ function main() {
   mkdirSync(join(HERE, 'queue'), { recursive: true })
   const outPath = join(HERE, 'queue', `${event}.kv.json`)
   writeFileSync(outPath, JSON.stringify(verdict.payload, null, 2))
-  const source = reviveIds ? `live queue, revived ${reviveIds.join(', ')}` : queue === live ? 'live queue, route restamped' : `queue/${event}.json`
+  const source = reviveIds ? `live queue, revived ${reviveIds.join(', ')}` : queue === live ? 'live queue, route restamped' : `local queue/${event}.json`
   console.log(`Wrote ${outPath} from the ${source} (${verdict.payload.items.length} items, route approved ${verdict.payload.meta.route.approved}).`)
   if (!argv.includes('--put')) { console.log('Preview only. Re-run with --put to write it to production KV.'); return }
+  // KV has no compare-and-set, so the put would revert anything the Worker wrote since the read — and with a
+  // route on it, a reverted "posted" publishes again. Stay clear of the hourly tick, and re-read just before writing.
+  const minute = new Date().getUTCMinutes()
+  if (minute >= 55 || minute < 5) refuse(`it is ${minute} past the hour, inside the Worker's tick window (:55–:05). Re-run after :05.`)
+  if (JSON.stringify(readLive(event)) !== JSON.stringify(live)) refuse(`KV key "${event}" changed since it was read (the Worker ran, or someone wrote it). Re-run to build from the current value.`)
   wrangler(['put', event, `--path=${outPath}`], { stdio: 'inherit' })
   console.log(`Seeded KV key "${event}".`)
 }
