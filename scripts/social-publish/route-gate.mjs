@@ -64,16 +64,39 @@ export const RECEIPT_TTL_HOURS = 24
 
 export function loadRoutes(path = ROUTES_PATH) {
   if (!existsSync(path)) return { events: {} }
-  const parsed = JSON.parse(readFileSync(path, 'utf8'))
+  let parsed
+  try { parsed = JSON.parse(readFileSync(path, 'utf8')) } catch (e) {
+    // Fail closed, with the gate's own exit code: an unreadable approval list approves nothing.
+    console.error(`REFUSED — ${path} is not valid JSON (${e.message}). No standing route can be read from it.`)
+    process.exit(REFUSED)
+  }
   return { events: parsed && typeof parsed.events === 'object' && parsed.events ? parsed.events : {} }
 }
 
 const filled = (v) => typeof v === 'string' && v.trim().length > 0
 
-export function hasStandingRoute(event, routes) {
-  if (event === ADHOC) return false
-  const entry = routes?.events?.[event]
-  return !!entry && typeof entry === 'object' && filled(entry.reason) && filled(entry.approved)
+const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v))
+
+/** A complete standing entry: a reason, a real approval date, and the accounts it covers. */
+export function standingEntry(event, routes) {
+  if (event === ADHOC) return null
+  const entry = Object.hasOwn(routes?.events || {}, event) ? routes.events[event] : null
+  const ok = !!entry && typeof entry === 'object' && filled(entry.reason) && isDate(entry.approved) &&
+    Array.isArray(entry.accounts) && entry.accounts.length > 0 && entry.accounts.every(filled) &&
+    (entry.expires === undefined || isDate(entry.expires))
+  return ok ? entry : null
+}
+
+/**
+ * A standing route covers a run only for the accounts it names, and only until
+ * it expires. `accounts` are the accounts this run would publish to, after any
+ * --account override — so an approved campaign cannot be pointed somewhere else.
+ */
+export function hasStandingRoute(event, routes, accounts = [], now = new Date()) {
+  const entry = standingEntry(event, routes)
+  if (!entry) return false
+  if (entry.expires && now.getTime() > Date.parse(entry.expires) + 86_400_000) return false
+  return accounts.every((a) => entry.accounts.includes(a))
 }
 
 const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' &&
@@ -83,12 +106,17 @@ const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' 
  * What an approval is an approval OF. `account` is the account the run will
  * actually publish to, which --account can point away from item.account.
  */
-export function digestOf(item, account) {
-  const media = item?.media_type === 'CAROUSEL'
-    ? (item.children || []).map((c) => c.video_url || c.image_url || null)
-    : [item?.video_url || item?.image_url || null]
-  const shown = [account || item?.account || null, item?.media_type || 'REELS', item?.caption || '',
-    item?.collaborators || [], item?.user_tags || [], media]
+export function digestOf(item, account, event = '') {
+  // Mirror post-reels.mjs buildContainer(): hash the fields that are actually sent, per media type.
+  const type = item?.media_type || 'REELS'
+  const media = type === 'CAROUSEL'
+    ? (item.children || []).map((c) => (c.media_type === 'VIDEO' ? ['VIDEO', c.video_url || null] : ['IMAGE', c.image_url || null]))
+    : type === 'IMAGE' ? [['IMAGE', item?.image_url || null]]
+    : type === 'STORIES' ? [item?.video_url ? ['VIDEO', item.video_url] : ['IMAGE', item?.image_url || null]]
+    : [['VIDEO', item?.video_url || null]]
+  // Stories are bare media: caption, tags and collaborators are not sent, so they are not part of what was approved.
+  const words = type === 'STORIES' ? [] : [item?.caption || '', item?.collaborators || [], item?.user_tags || []]
+  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media]
   return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
 }
 
@@ -98,19 +126,24 @@ const fresh = (r, now) => {
 }
 
 /** A receipt that is well formed, still fresh, and still describes this post. */
-export function hasReceipt(item, now = new Date(), account) {
+export function hasReceipt(item, now = new Date(), account, event = '') {
   const r = item?.route
-  return wellFormed(r) && fresh(r, now) && r.digest === digestOf(item, account)
+  return wellFormed(r) && fresh(r, now) && r.digest === digestOf(item, account, event)
 }
 
 const isExpired = (item, now) => wellFormed(item?.route) && !fresh(item.route, now)
-const isChanged = (item, now, account) => wellFormed(item?.route) && fresh(item.route, now) && item.route.digest !== digestOf(item, account)
+const isChanged = (item, now, account, event) => wellFormed(item?.route) && fresh(item.route, now) && item.route.digest !== digestOf(item, account, event)
 
 /** A usable --graph-route value, or null. A bare flag parses to `true`. */
 export function cleanReason(flag) {
   if (typeof flag !== 'string') return null
   const reason = flag.trim()
-  return reason.length >= MIN_REASON ? reason : null
+  if (reason.length < MIN_REASON) return null
+  // The approval has to be FOR this surface. "Nino said publish this now" is a yes to
+  // publishing, which is exactly what got read as a yes to the API on 2026-09-21.
+  if (!/\b(graph|api)\b/i.test(reason)) return null
+  if (/\b(don'?t|do not|not|never|no|without|instead of|avoid)\b[^.;]{0,40}\b(graph|api)\b/i.test(reason)) return null
+  return reason
 }
 
 export function makeReceipt(reason, via, now = new Date(), digest = '') {
@@ -130,17 +163,20 @@ export function makeReceipt(reason, via, now = new Date(), digest = '') {
  * whose receipt expired, `changed` those whose post no longer matches it.
  */
 export function checkRoute({ event, items, routes, reasonFlag, now = new Date(), named = true, candidates = items.length, account }) {
-  if (hasStandingRoute(event, routes)) return { ok: true, kind: 'standing', missing: [], stale: [], changed: [], stamp: [] }
-  const missing = items.filter((it) => !hasReceipt(it, now, account))
+  const accounts = [...new Set(items.map((it) => account || it.account).filter(Boolean))]
+  if (hasStandingRoute(event, routes, accounts, now)) return { ok: true, kind: 'standing', missing: [], stale: [], changed: [], stamp: [] }
+  const missing = items.filter((it) => !hasReceipt(it, now, account, event))
   const stale = items.filter((it) => isExpired(it, now))
-  const changed = items.filter((it) => isChanged(it, now, account))
+  const changed = items.filter((it) => isChanged(it, now, account, event))
   const no = (why) => ({ ok: false, kind: null, why, missing, stale, changed, stamp: [] })
   if (items.length !== 1) return no('batch')
   if (!named && candidates > 1) return no('unnamed')
   if (!missing.length) return { ok: true, kind: 'one-off', missing: [], stale: [], changed: [], stamp: [] }
   const reason = cleanReason(reasonFlag)
   if (reason) return { ok: true, kind: 'one-off', missing: [], stale: [], changed: [], stamp: missing, reason }
-  return no(reasonFlag !== undefined ? 'reason' : 'route')
+  if (reasonFlag !== undefined) return no('reason')
+  const entry = standingEntry(event, routes)
+  return no(entry ? 'scope' : 'route')
 }
 
 export function refusal({ event, items = [], missing = [], stale = [], changed = [], script, why = 'route', candidates = items.length }) {
@@ -158,7 +194,10 @@ export function refusal({ event, items = [], missing = [], stale = [], changed =
       ? `A one-off route covers the post Nino NAMED. ${candidates} items are due in this queue and none was picked with --id, so this run would publish whichever is oldest (${list(items)}) and record his words against it. Pass --id <item-id>.\n`
       : null,
     why === 'reason'
-      ? `--graph-route needs Nino's own words as its value (at least ${MIN_REASON} characters). A bare flag or "ok" is not a reason.\n`
+      ? `--graph-route needs Nino's own words as its value, and they have to name the Graph API (or "the API") as the way this post goes out. "Publish this now" is a yes to publishing, not to this publisher. A bare flag, "ok", or a sentence telling you NOT to use the API is not a reason.\n`
+      : null,
+    why === 'scope'
+      ? `"${event}" has a standing route, but not for this run: it names the accounts it covers and may carry an expiry, and --account cannot point an approved campaign somewhere else. Read its entry in graph-routes.json.\n`
       : null,
     stale.length
       ? `${list(stale)}: the route receipt is older than ${RECEIPT_TTL_HOURS}h. Approval for an ad hoc post means "now" — ask again before publishing it.\n`
@@ -200,7 +239,7 @@ export function assertGraphRoute({ event, items, reasonFlag, script, routes = lo
     console.error(refusal({ event, items, missing: verdict.missing, stale: verdict.stale, changed: verdict.changed, script, why: verdict.why, candidates }))
     process.exit(REFUSED)
   }
-  for (const it of verdict.stamp) it.route = makeReceipt(verdict.reason, `${script} --graph-route`, now, digestOf(it, account))
+  for (const it of verdict.stamp) it.route = makeReceipt(verdict.reason, `${script} --graph-route`, now, digestOf(it, account, event))
   const how = verdict.kind === 'standing'
     ? `standing route in graph-routes.json`
     : !verdict.stamp.length ? 'one-off receipt already on the item'

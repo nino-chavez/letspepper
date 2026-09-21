@@ -52,7 +52,7 @@ const incidentQueue = () => ({
 // The incident item plus n-1 siblings, all due: the shape of a backlog.
 // `receiptAt`: give every item a valid receipt recorded at that time, bound to the item as it stands.
 const REASON = 'Nino asked for the API on this one'
-const receiptFor = (item, at = new Date(), account) => makeReceipt(REASON, 'test', at, digestOf(item, account))
+const receiptFor = (item, at = new Date(), account) => makeReceipt(REASON, 'test', at, digestOf(item, account, EVENT))
 const backlog = (n, receiptAt) => {
   const q = incidentQueue(); const [first] = q.items
   q.items = Array.from({ length: n }, (_, i) => {
@@ -155,7 +155,7 @@ test('control: with a recorded one-off route the same item publishes, and the st
 })
 
 test('a standing route in graph-routes.json lets a campaign publish several items with no per-post reason', async () => {
-  const routes = { events: { [EVENT]: { reason: 'test fixture: scheduled drip approved by Nino', approved: '2026-09-21', scope: 'fixture' } } }
+  const routes = { events: { [EVENT]: { reason: 'test fixture: scheduled drip approved by Nino', approved: '2026-09-21', accounts: ['flickday'] } } }
   const sb = sandbox({ routes, queue: backlog(2) }); const graph = await graphStub()
   try {
     const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '2'], { cwd: sb.root, base: graph.base })
@@ -265,6 +265,54 @@ test('a receipt approves THAT post: a new caption, new photos or another account
   } finally { await graph.close(); sb.cleanup() }
 })
 
+test('"publish this now" is not approval for the API: the reason has to name the surface', async () => {
+  for (const reason of ['Nino said publish this now', 'Nino said do not use the Graph API here']) {
+    const sb = sandbox(); const graph = await graphStub()
+    try {
+      const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', ITEM_ID, '--graph-route', reason], { cwd: sb.root, base: graph.base })
+      assert.equal(r.code, REFUSED, reason); assert.deepEqual(graph.seen, [], reason)
+      assert.match(r.err, /have to name the Graph API/)
+    } finally { await graph.close(); sb.cleanup() }
+  }
+})
+
+test('a standing route cannot be pointed at another account with --account', async () => {
+  const routes = { events: { [EVENT]: { reason: 'test fixture: drip approved by Nino', approved: '2026-09-21', accounts: ['flickday'] } } }
+  const sb = sandbox({ routes, queue: backlog(2) }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '2', '--account', 'ninophoto'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED, `${r.out}\n${r.err}`); assert.deepEqual(graph.seen, [])
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('duplicate or missing ids stop the run before anything is selected', async () => {
+  const q = backlog(2); q.items[1].id = q.items[0].id
+  const sb = sandbox({ queue: q }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', q.items[0].id, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 1); assert.match(r.err, /unique, non-empty id/); assert.deepEqual(graph.seen, [])
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('a container built from an older version of the post is not reused under a new approval', async () => {
+  const q = incidentQueue(); q.items[0].ig_container_id = 'old-container'; q.items[0].ig_container_digest = 'digest-of-the-old-payload'
+  const sb = sandbox({ queue: q }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', ITEM_ID, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 0, `${r.out}\n${r.err}`)
+    assert.ok(!graph.seen.some((s) => s.includes('old-container')), `the stale container was touched: ${graph.seen.join(', ')}`)
+    assert.notEqual(JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0].ig_container_id, 'old-container')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('an unreadable approval list fails closed with the gate\'s exit code', async () => {
+  const sb = sandbox(); writeFileSync(join(sb.social, 'graph-routes.json'), '{ not json'); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED); assert.deepEqual(graph.seen, [])
+  } finally { await graph.close(); sb.cleanup() }
+})
+
 test('a run that stops at the token check leaves no receipt behind', async () => {
   const sb = sandbox(); const graph = await graphStub()
   try {
@@ -341,24 +389,36 @@ test('checkRoute: the rules, without a subprocess', () => {
   // freshness: a receipt is good for RECEIPT_TTL_HOURS, not before it was written, not after it lapsed
   const at = new Date('2026-09-21T18:00:00Z')
   const r = (hoursAgo) => ({ ...items[0], route: receiptFor(items[0], new Date(at.getTime() - hoursAgo * 3600_000)) })
-  assert.equal(hasReceipt(r(1), at), true)
-  assert.equal(hasReceipt(r(RECEIPT_TTL_HOURS + 1), at), false)
-  assert.equal(hasReceipt(r(-1), at), false, 'a receipt dated in the future is not a receipt')
+  assert.equal(hasReceipt(r(1), at, undefined, EVENT), true)
+  assert.equal(hasReceipt(r(RECEIPT_TTL_HOURS + 1), at, undefined, EVENT), false)
+  assert.equal(hasReceipt(r(-1), at, undefined, EVENT), false, 'a receipt dated in the future is not a receipt')
   assert.equal(hasReceipt({ ...items[0], route: { ...receiptFor(items[0]), recorded_at: 'not a date' } }, at), false)
 
   // malformed receipts and entries do not count
-  assert.equal(hasReceipt({ ...items[0], route: makeReceipt('Nino named the API for this post', 'test') }), false, 'a receipt with no digest approves nothing')
-  assert.equal(hasReceipt({ ...items[0], caption: 'edited', route: receiptFor(items[0]) }), false, 'the digest binds the caption')
-  assert.equal(hasReceipt({ ...items[0], route: receiptFor(items[0]) }, new Date(), 'ninophoto'), false, 'and the account the run will publish to')
-  assert.equal(hasReceipt({ ...items[0], route: receiptFor(items[0], new Date(), 'ninophoto') }, new Date(), 'ninophoto'), true)
+  assert.equal(hasReceipt({ ...items[0], route: makeReceipt('Nino named the API for this post', 'test') }, new Date(), undefined, EVENT), false, 'a receipt with no digest approves nothing')
+  assert.equal(hasReceipt({ ...items[0], caption: 'edited', route: receiptFor(items[0]) }, new Date(), undefined, EVENT), false, 'the digest binds the caption')
+  assert.equal(hasReceipt({ ...items[0], route: receiptFor(items[0]) }, new Date(), 'ninophoto', EVENT), false, 'and the account the run will publish to')
+  assert.equal(hasReceipt({ ...items[0], route: receiptFor(items[0], new Date(), 'ninophoto') }, new Date(), 'ninophoto', EVENT), true)
   assert.equal(hasReceipt({ route: { surface: 'graph', reason: '' , recorded_at: 'x' } }), false)
   assert.equal(hasReceipt({ route: { surface: 'suite', reason: 'r', recorded_at: 'x' } }), false)
   assert.equal(hasReceipt({ route: true }), false)
   assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: { reason: 'r' } } }), false, 'an entry with no approval date is not an approval')
+  const entry = { reason: 'drip approved', approved: '2026-09-21', accounts: ['flickday'] }
+  assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: entry } }, ['flickday']), true)
+  assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: entry } }, ['ninophoto']), false, 'a standing route covers the accounts it names, nothing else')
+  assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: { ...entry, approved: 'yes' } } }, ['flickday']), false, 'approved has to be a date')
+  assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: { reason: 'r', approved: '2026-09-21' } } }, ['flickday']), false, 'no accounts, no route')
+  assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: { ...entry, expires: '2026-09-01' } } }, ['flickday'], new Date('2026-09-21')), false, 'an expired route is over')
+  assert.equal(hasStandingRoute('constructor', { events: {} }, []), false)
+  // the reason has to approve THIS surface
+  assert.equal(cleanReason('Nino said publish this now'), null, 'a yes to publishing is not a yes to the API')
+  assert.equal(cleanReason('Nino said do not use the API for this'), null)
+  assert.equal(cleanReason('Nino: post it by hand instead of the Graph API'), null)
+  assert.equal(cleanReason('Nino: use the Graph API for this one'), 'Nino: use the Graph API for this one')
   assert.equal(hasStandingRoute(EVENT, { events: { [EVENT]: true } }), false)
 
   // the ad hoc ledger can never be given a standing route
-  const adhocListed = { events: { adhoc: { reason: 'r', approved: '2026-09-21' } } }
+  const adhocListed = { events: { adhoc: { reason: 'r', approved: '2026-09-21', accounts: ['flickday'] } } }
   assert.equal(hasStandingRoute('adhoc', adhocListed), false)
   assert.equal(checkRoute({ event: 'adhoc', items, routes: adhocListed }).ok, false)
 

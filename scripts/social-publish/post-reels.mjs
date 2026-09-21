@@ -57,7 +57,7 @@ import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { assertGraphRoute } from './route-gate.mjs'
+import { assertGraphRoute, digestOf } from './route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -93,6 +93,12 @@ function igIdFor(item) {
   if (!acct) throw new Error(`unknown account "${slug}" (not in accounts.json)`)
   if (!acct.ig_user_id) throw new Error(`accounts.json: ${slug}.ig_user_id is null — resolve it (SETUP.md)`)
   return acct.ig_user_id
+}
+
+// Every item needs its own id: --id selects by it, and a route receipt is bound to it.
+const ids = q.items.map((it) => it.id)
+if (ids.some((id) => typeof id !== 'string' || !id.trim()) || new Set(ids).size !== ids.length) {
+  console.error(`Queue ${event}: every item needs a unique, non-empty id. Fix the queue file before publishing.`); process.exit(1)
 }
 
 const now = Date.now()
@@ -242,7 +248,10 @@ for (const it of batch) {
     // Reuse a prior failed run's container — a "failed" media_publish can still
     // land on Meta's side, and rebuilding a fresh container is how the Worker's
     // 2026-06-14 duplicate happened. Same creation_id retries are idempotent.
-    let containerId = it.ig_container_id ?? null
+    // ...but only a container built from THIS payload. If the item changed since the
+    // container was made, reusing it would publish the old post under the new approval.
+    const payload = digestOf(it, accountOverride, event)
+    let containerId = it.ig_container_id && it.ig_container_digest === payload ? it.ig_container_id : null
     if (containerId) {
       const status = await api(`${containerId}`, { fields: 'status_code' }, 'GET')
         .then((r) => r.status_code).catch(() => null)
@@ -256,7 +265,7 @@ for (const it of batch) {
     }
     if (!containerId) {
       containerId = await buildContainer(ig, it)
-      it.ig_container_id = containerId; save()
+      it.ig_container_id = containerId; it.ig_container_digest = payload; save()
     }
     await waitFinished(containerId)
     const { id: mediaId } = await publishWithRetry(ig, containerId)
