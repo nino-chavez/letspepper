@@ -3,7 +3,14 @@
  *
  *   node scripts/social-publish/post-now.mjs \
  *     --account letspepper --file /path/to/media.jpg \
- *     --caption "..." [--story] [--collab user,user] [--tag user,user] [--dry-run]
+ *     --caption "..." --graph-route "<Nino's words>" \
+ *     [--story] [--collab user,user] [--tag user,user] [--dry-run]
+ *
+ * --graph-route is REQUIRED. An ad hoc post to one of Nino's accounts goes out
+ * by hand (native Instagram or Meta Business Suite — the `meta-publish` skill
+ * owns the choice) unless he named the Graph API for it. Pass what he said; it
+ * is recorded on the ledger item. Without it this script refuses before it
+ * writes the queue, uploads to R2, or calls Meta (route-gate.mjs, exit code 3).
  *
  * Media type is inferred from the file extension (.jpg/.png → IMAGE,
  * .mp4/.mov → REELS); --story posts it as a Story instead (bare media —
@@ -25,6 +32,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assertRouteBeforeBuild } from './route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'adhoc'
@@ -48,7 +56,7 @@ const bucket = typeof args.bucket === 'string' ? args.bucket : 'flickday-social'
 const publicBase = typeof args['public-base'] === 'string' ? args['public-base'] : 'https://pub-068210f3c0834d56a2eef0f10bf15e2d.r2.dev'
 
 if (!account || !file) {
-  console.error('Required: --account <slug> --file <path> [--caption "..."] [--story] [--collab u,u] [--tag u,u] [--dry-run]')
+  console.error('Required: --account <slug> --file <path> --graph-route "<Nino\'s words>" [--caption "..."] [--story] [--collab u,u] [--tag u,u] [--dry-run]')
   process.exit(1)
 }
 const registry = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
@@ -84,9 +92,16 @@ const item = {
   status: 'pending',
 }
 
+// Every post-now item is a one-off, so each needs its own route. Checked before
+// the queue write and the R2 upload — the first two side effects — and on
+// --dry-run as well. The receipt itself is written by post-reels.mjs, which gets
+// the reason passed through and records it only once it is about to publish.
+assertRouteBeforeBuild({ event: EVENT, account, reasonFlag: args['graph-route'], script: 'post-now.mjs' })
+
 if (dryRun) {
   console.log(`[dry-run] would upload + publish to @${registry[account].handle}:\n`)
   console.log(JSON.stringify(item, null, 2))
+  console.log(`\nroute: one-off, "${args['graph-route']}" — recorded on the item by post-reels.mjs when it publishes`)
   process.exit(0)
 }
 
@@ -109,5 +124,5 @@ const token = process.env.IG_ACCESS_TOKEN ||
   execFileSync('op', ['read', 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
 
 console.log('')
-execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id],
+execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id, '--graph-route', args['graph-route']],
   { stdio: 'inherit', env: { ...process.env, IG_ACCESS_TOKEN: token } })

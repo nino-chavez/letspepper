@@ -23,13 +23,16 @@
  *   --site <url>                  gallery base. Default: https://ninochavez.co/photography.
  *   --bucket <name>              R2 bucket. Default: flickday-social.
  *   --public-base <url>          R2 public base. Default: the flickday-social r2.dev URL.
- *   --post                        publish immediately after queuing.
+ *   --post                        publish immediately after queuing (needs an approved
+ *                                 Graph route: --graph-route "<Nino's words>" or the
+ *                                 event listed in graph-routes.json — see route-gate.mjs).
  */
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
+import { assertRouteBeforeBuild } from './route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const CF_HASH = 'wg34HB28-JkySWVm5fW4kA' // Cloudflare Images account hash (public)
@@ -49,6 +52,10 @@ const metric = args.metric === 'all_time' ? 'all_time' : 'trending'
 const count = Math.min(IG_CAROUSEL_MAX, Number(args.count ?? 10))
 const account = typeof args.account === 'string' ? args.account : 'ninophoto'
 const event = typeof args.event === 'string' ? args.event : 'top-shots'
+// --post publishes through the Graph API, so it needs an approved route — checked
+// here, before the gallery is read or anything reaches R2. Building and staging
+// without --post is ungated; post-reels.mjs gates the publish either way.
+if (args.post) assertRouteBeforeBuild({ event, account, reasonFlag: args['graph-route'], script: 'build-top-shots.mjs --post' })
 const site = (typeof args.site === 'string' ? args.site : 'https://ninochavez.co/photography').replace(/\/$/, '')
 const bucket = typeof args.bucket === 'string' ? args.bucket : 'flickday-social'
 const publicBase = (typeof args['public-base'] === 'string' ? args['public-base'] : 'https://pub-068210f3c0834d56a2eef0f10bf15e2d.r2.dev').replace(/\/$/, '')
@@ -144,14 +151,16 @@ try {
   console.log(`Contact sheet: ${sheet}`)
 } catch { /* montage optional */ }
 
-console.log('\nNext — publish it:')
+console.log('\nStaged, not published. One carousel is an ad hoc post: it goes out by hand (native Instagram for a Collab)')
+console.log('unless Nino named the Graph API for it. The `meta-publish` skill owns that choice. If he did:')
 console.log(`  IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \\`)
-console.log(`    node ${join(HERE, 'post-reels.mjs')} --event ${event} --account ${account} --count 1`)
+console.log(`    node ${join(HERE, 'post-reels.mjs')} --event ${event} --account ${account} --count 1 --graph-route "<his words>"`)
 
 // Optional one-shot publish.
 if (args.post) {
   console.log('\n--post: publishing now...')
   const token = execFileSync('op', ['read', 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
-  execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', event, '--account', account, '--count', '1'],
+  const route = typeof args['graph-route'] === 'string' ? ['--graph-route', args['graph-route']] : []
+  execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', event, '--account', account, '--count', '1', ...route],
     { stdio: 'inherit', env: { ...process.env, IG_ACCESS_TOKEN: token } })
 }

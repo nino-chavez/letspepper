@@ -1,6 +1,8 @@
 # Owned Instagram + Facebook Page publishing platform
 
-API-first, fully controlled, no third-party SaaS. Multi-account scheduled publishing over Instagram's [Content Publishing API](https://developers.facebook.com/docs/instagram-platform/content-publishing), Facebook's [Pages API](https://developers.facebook.com/docs/pages-api/posts/), and the [Facebook Reels Publishing API](https://developers.facebook.com/docs/video-api/guides/reels-publishing/) (Graph API v25.0). The project browser profile is the fallback for event creation, groups, Story stickers, and other surfaces the APIs do not expose.
+**Which surface a post goes out on is not decided here.** Posts to Nino's accounts go out by hand — native Instagram for a Collab or a sticker-bearing Story, Meta Business Suite for an ordinary Instagram + Facebook Page crosspost — unless he has approved the Graph API for that post or campaign. The `meta-publish` skill owns that routing table and the preflight manifest; load it before publishing anything. This document covers one route: the owned Graph publisher, which is for scheduled, batch, drip and queue-owned campaigns. That it can also publish a Collab carousel is a capability, not an approval — see [Route gate](#route-gate).
+
+Fully controlled, no third-party SaaS. Multi-account scheduled publishing over Instagram's [Content Publishing API](https://developers.facebook.com/docs/instagram-platform/content-publishing), Facebook's [Pages API](https://developers.facebook.com/docs/pages-api/posts/), and the [Facebook Reels Publishing API](https://developers.facebook.com/docs/video-api/guides/reels-publishing/) (Graph API v25.0). The project browser profile is the fallback for event creation, groups, Story stickers, and other surfaces the APIs do not expose.
 
 ```
 accounts.json            registry: account slug → ig_user_id (+ handle, page_id)
@@ -8,6 +10,8 @@ build-queue.mjs          folder of media → queue/<event>.json (per-account, sc
 build-album-carousel.mjs gallery album → R2-hosted CAROUSEL queue/<event>.json
 upload-r2.mjs            push media to a public R2 bucket, write URLs into the queue
 post-reels.mjs           local Instagram publisher (reels / image / carousel)
+route-gate.mjs           refuses any local publish that has no approved Graph route
+graph-routes.json        tracked list of campaigns approved to publish through the API
 worker/src/index.js      scheduled Instagram + Facebook Page publisher
 ```
 
@@ -16,6 +20,23 @@ worker/src/index.js      scheduled Instagram + Facebook Page publisher
 - **Two Meta apps, two isolated System Users, separate tokens.** Meta exposes the Instagram-content and Page-management use cases separately in the current app flow. `Lets Pepper Publisher` owns the Instagram credential; the employee-level `Pepper Page Publisher` owns the Facebook Page credential. This keeps a Page-token rotation from revoking the working Instagram token. Validate granted scopes and asset tasks live before enabling a destination. Use Meta's current 60-day System User token option and refresh it before expiry.
 - Host is **`graph.facebook.com`** (Business path) — each account addressed by its numeric `ig_user_id`. (`graph.instagram.com` is the single-account Instagram-Login path; not used here.)
 - Hard API limits to design around: **Business accounts only** (Creator rejected); **can't tag private collaborators**; **Stories can't have collaborators** (→ Playwright fallback). Limit: 100 published posts / 24h / account.
+
+---
+
+## Route gate
+
+Every local publish passes through `route-gate.mjs` before the copy audit, the R2 upload and the first Graph call. It refuses (exit code `3`) unless one of these holds:
+
+- **Standing route.** The event is listed in `graph-routes.json` with a reason, an approval date and the `accounts` it covers (enforced, including against `--account`; optional `expires`). For a scheduled, batch or drip campaign Nino has approved to run through the API. The file is tracked, so the approval is a diff he can review. It starts empty.
+- **One-off route.** The command is run with `--graph-route "<Nino's words>"`, and the words have to name the Graph API as the way this post goes out — "publish this now" is not that. The reason is recorded on the queue item as `route` — the route receipt — once the run is past its token check and copy audit, and it stays in the ledger. `post-now.mjs` always needs one, because every ad hoc post is a one-off. A one-off is **one post, and the one Nino named**: without a standing route a run publishes exactly one item, picked with `--id` whenever more than one is due. So a reason given for one post cannot be stretched over a backlog with `--force --count 80`, and `--count 1` cannot land his words on whichever item happens to be oldest. A receipt goes stale after 24 hours — approval for an ad hoc post means "now" — and it is bound to the post it approved: change the account, caption, media, tags or collaborators and the item needs a new yes.
+
+`--dry-run` is refused the same way, so a dry run cannot pass where the live run would stop. Gated entry points: `post-reels.mjs`, `post-now.mjs`, and `--post` on `build-album-carousel.mjs` and `build-top-shots.mjs`. Not gated: `build-fb-album.mjs`, a bulk fill the Facebook composer cannot do. **Known gap:** the scheduled Worker reads its own KV queue and checks no route, so an item written to KV under an active event publishes on the next tick. Seeding KV is a deliberate remote write, but it is not an approval. Closing it means route metadata in KV and a Worker deploy.
+
+Why it exists: on 2026-09-21 an agent asked to publish an ad hoc Collab carousel found this publisher, confirmed it supported the job, and published. Nino's correction — the post should have gone out by hand — arrived 26 seconds after it went live. The instructions that would have stopped it were written down and were not read. The gate does not depend on anything being read.
+
+```bash
+pnpm test:social   # 24 tests, including a replay of that incident: exit 3, zero Graph requests
+```
 
 ---
 
@@ -122,6 +143,10 @@ FB_NINOPHOTO_ACCESS_TOKEN
 EVENT=bell-pepper-2026
 DIR="/Users/nino/Workspace/create/export/videos/Bell Pepper 2026"
 
+# 0. a campaign needs a standing route before it can publish from this machine:
+#    add "$EVENT" to scripts/social-publish/graph-routes.json with Nino's approval
+#    ({ "reason", "approved": "YYYY-MM-DD", "scope" }) and commit it.
+
 # 1. build the queue for the letspepper account — 2/day at noon & 7pm
 node scripts/social-publish/build-queue.mjs \
   --dir "$DIR" --event $EVENT --account letspepper \
@@ -142,7 +167,7 @@ node scripts/social-publish/post-reels.mjs --event $EVENT --dry-run
 node scripts/social-publish/post-reels.mjs --event $EVENT --count 2
 ```
 
-Daily cron drips the queue (only *due* items post):
+Campaigns are scheduled through the Worker (`worker/wrangler.jsonc` carries the hourly cron; whether the deployed copy is armed is a Cloudflare fact, so check there). No cron or launchd job on this machine publishes (checked 2026-09-21). A local cron would look like this, and needs the event's standing route in `graph-routes.json` or every run is refused:
 ```
 5 12 * * *  cd /Users/nino/Workspace/dev/apps/letspepper && \
   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \
@@ -163,9 +188,12 @@ the same `post-reels.mjs` publishes it. Reads the album from the public gallery 
 node scripts/social-publish/build-album-carousel.mjs \
   --album saturday-triples-the-raiders-open-rdrsVB --count 10
 
-# 2. publish (or add --post to step 1 to chain it)
+# 2. publish (or add --post to step 1 to chain it). An album carousel is a single
+#    post, so it needs a one-off route: pass what Nino said. Without it, this is
+#    refused — an ad hoc Collab goes out through native Instagram by default.
 IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \
-  node scripts/social-publish/post-reels.mjs --event rdrsVB --account flickday --count 1
+  node scripts/social-publish/post-reels.mjs --event rdrsVB --account flickday --count 1 \
+  --graph-route "<Nino's words>"
 ```
 
 Why R2 and not the gallery's `imagedelivery.net` URLs: Cloudflare Images negotiates
@@ -273,14 +301,19 @@ where Instagram needs a public URL.
 
 ## Ad-hoc one-shot post (no event, no schedule)
 
+An ad hoc post goes out by hand unless Nino named the Graph API for it (the
+`meta-publish` skill owns that choice). When he did, `--graph-route` carries his
+words and is required — without it `post-now.mjs` refuses before it writes the
+ledger, uploads, or calls Meta.
+
 ```bash
 # feed post (IMAGE from .jpg/.png, REELS from .mp4/.mov — inferred):
 node scripts/social-publish/post-now.mjs --account letspepper \
-  --file /path/to/graphic.jpg --caption "..."
+  --file /path/to/graphic.jpg --caption "..." --graph-route "<Nino's words>"
 
 # story (bare media — API stories take no caption/stickers/tags):
 node scripts/social-publish/post-now.mjs --account letspepper \
-  --file /path/to/story.jpg --story
+  --file /path/to/story.jpg --story --graph-route "<Nino's words>"
 
 # preview without touching anything:
 node scripts/social-publish/post-now.mjs ... --dry-run
@@ -296,7 +329,7 @@ that item via `post-reels.mjs --id`. Reads the token from 1Password itself if
 - **Facebook Pages:** Worker items with `"channels":["instagram","facebook"]` publish an image or Reel to the paired Page and preserve independent destination state.
 - **Facebook Reel collaborators:** matching owned collaborator handles become Page collaborator invitations; invitation errors are recorded without rewriting a successful Reel receipt.
 - **User tags:** item `user_tags: ["flickday.media"]` → `user_tags=[{username}]` on the post.
-- **Collab:** item `collaborators: ["flickday.media"]` → co-author invite (reels/image/carousel; not Stories; public accounts only). `collaborators` is community-confirmed but not in Meta's main doc — first live call verifies it; on rejection the item is marked `error` with the API message, not silently dropped.
+- **Collab:** item `collaborators: ["flickday.media"]` → co-author invite (reels/image/carousel; not Stories; public accounts only). `collaborators` is community-confirmed but not in Meta's main doc — first live call verifies it; on rejection the item is marked `error` with the API message, not silently dropped. Verified working on a five-image carousel 2026-09-21. **Supported is not approved:** an ad hoc Collab goes out through native Instagram unless Nino named the API for it — the route gate refuses it otherwise.
 - **Media types:** `media_type` = `REELS` (default) | `IMAGE` (`image_url`) | `STORIES` (`image_url` or `video_url`; bare media) | `CAROUSEL` (`children: [{media_type,image_url|video_url}]`).
 - **Stories:** published via the API since 2026-07-12 (Business accounts; `media_type=STORIES`). Bare media only — sticker/link/tag decoration is NOT in the API (see STORIES-SPEC.md for the decorated-firehose design). Accidental story? `DELETE /{ig-media-id}` works (verified live) — feed-media delete is unverified.
 

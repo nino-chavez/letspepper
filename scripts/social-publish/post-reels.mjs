@@ -29,6 +29,16 @@
  *
  * Flags: --count N (default 2) · --account slug (override) · --id <item-id>
  *        (publish only that queue item) · --force · --dry-run
+ *        --graph-route "<Nino's words>"  one-off approval to use this publisher
+ *
+ * ROUTE GATE (route-gate.mjs): nothing here runs — not the copy audit, not a
+ * Graph call, not on --dry-run either — until the batch has an approved Graph
+ * route: the event listed in graph-routes.json (a campaign), or a one-off
+ * `route` receipt — and a one-off run publishes exactly ONE item, picked with
+ * --id whenever more than one is due, so a reason given for one post cannot be
+ * stretched over a backlog or land on a different post. Posts to Nino's
+ * accounts go out by hand unless he approved the API for them; the
+ * `meta-publish` skill owns that decision. Exit code 3 on refusal.
  *
  * Flow (Graph API v25.0):
  *   POST /{ig}/media  (build container; carousel = children first) → creation_id
@@ -47,6 +57,7 @@ import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { assertGraphRoute, digestOf } from './route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -69,7 +80,6 @@ const idFilter = typeof args.id === 'string' ? args.id : null
 
 const TOKEN = process.env.IG_ACCESS_TOKEN
 if (!event) { console.error('Required: --event <slug>'); process.exit(1) }
-if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token — see SETUP.md).'); process.exit(1) }
 
 const registry = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
 const queuePath = join(HERE, 'queue', `${event}.json`)
@@ -77,18 +87,18 @@ if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath}`); process.e
 const q = JSON.parse(readFileSync(queuePath, 'utf8'))
 const save = () => writeFileSync(queuePath, JSON.stringify(q, null, 2))
 
-// Refuse to publish when the current caption queue breaks its reader contract.
-// This runs before the first Graph API call and audits only JSON caption fields.
-execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
-  `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
-  { stdio: 'inherit' })
-
 function igIdFor(item) {
   const slug = accountOverride || item.account
   const acct = registry[slug]
   if (!acct) throw new Error(`unknown account "${slug}" (not in accounts.json)`)
   if (!acct.ig_user_id) throw new Error(`accounts.json: ${slug}.ig_user_id is null — resolve it (SETUP.md)`)
   return acct.ig_user_id
+}
+
+// Every item needs its own id: --id selects by it, and a route receipt is bound to it.
+const ids = q.items.map((it) => it.id)
+if (ids.some((id) => typeof id !== 'string' || !id.trim()) || new Set(ids).size !== ids.length) {
+  console.error(`Queue ${event}: every item needs a unique, non-empty id. Fix the queue file before publishing.`); process.exit(1)
 }
 
 const now = Date.now()
@@ -106,6 +116,25 @@ if (!due.length) {
   else console.log(`Nothing due. Next: ${remaining[0].id} at ${remaining[0].scheduledAt}`)
   process.exit(0)
 }
+
+const batch = due.slice(0, count)
+
+// Route first. It comes before the token check on purpose: an agent that is
+// refused for a missing token goes and fetches one, and only then learns the
+// post should not be going through this publisher at all.
+assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs', named: !!idFilter, candidates: due.length, account: accountOverride })
+
+if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token — see SETUP.md).'); process.exit(1) }
+
+// Refuse to publish when the current caption queue breaks its reader contract.
+// This runs before the first Graph API call and audits only JSON caption fields.
+execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
+  `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
+  { stdio: 'inherit' })
+
+// Past every pre-flight check: now the one-off receipt goes on the ledger, before
+// the first Graph call. A run that stopped at the token or the audit leaves none.
+if (!dryRun) save()
 
 async function api(path, params, method = 'POST') {
   const url = new URL(`${GRAPH}/${path}`)
@@ -202,7 +231,6 @@ async function buildContainer(ig, it) {
   return id
 }
 
-const batch = due.slice(0, count)
 console.log(`${dryRun ? '[dry-run] ' : ''}Publishing ${batch.length} of ${due.length} due items...\n`)
 
 let ok = 0
@@ -220,21 +248,27 @@ for (const it of batch) {
     // Reuse a prior failed run's container — a "failed" media_publish can still
     // land on Meta's side, and rebuilding a fresh container is how the Worker's
     // 2026-06-14 duplicate happened. Same creation_id retries are idempotent.
+    // ...but only a container built from THIS payload. If the item changed since the
+    // container was made, reusing it would publish the old post under the new approval.
+    // ALWAYS ask about a saved container first, even one built from an older payload:
+    // if its publish landed, this item is already live and a rebuild would post it twice.
+    const payload = digestOf(it, accountOverride, event)
     let containerId = it.ig_container_id ?? null
     if (containerId) {
       const status = await api(`${containerId}`, { fields: 'status_code' }, 'GET')
         .then((r) => r.status_code).catch(() => null)
-      if (status === 'PUBLISHED') {
+      if (status !== 'PUBLISHED' && it.ig_container_digest !== payload) containerId = null // built from another payload — rebuild
+      else if (status === 'PUBLISHED') {
         it.status = 'posted'; it.posted_at = new Date().toISOString()
         it.error = 'published by a prior run — ig_media_id unknown, reconcile via GET /{ig}/media'
         save(); console.log('already published by a prior run — marked posted'); ok++
         continue
       }
-      if (status !== 'FINISHED' && status !== 'IN_PROGRESS') containerId = null // expired/errored — rebuild
+      else if (status !== 'FINISHED' && status !== 'IN_PROGRESS') containerId = null // expired/errored — rebuild
     }
     if (!containerId) {
       containerId = await buildContainer(ig, it)
-      it.ig_container_id = containerId; save()
+      it.ig_container_id = containerId; it.ig_container_digest = payload; save()
     }
     await waitFinished(containerId)
     const { id: mediaId } = await publishWithRetry(ig, containerId)
