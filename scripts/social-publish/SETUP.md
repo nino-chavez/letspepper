@@ -28,14 +28,14 @@ worker/src/index.js      scheduled Instagram + Facebook Page publisher
 Every local publish passes through `route-gate.mjs` before the copy audit, the R2 upload and the first Graph call. It refuses (exit code `3`) unless one of these holds:
 
 - **Standing route.** The event is listed in `graph-routes.json`. For a scheduled, batch or drip campaign Nino has approved to run through the API. The file is tracked, so the approval is a diff he can review. It starts empty.
-- **One-off route.** The command is run with `--graph-route "<Nino's words>"`. The reason is recorded on the queue item as `route` — the route receipt — and stays in the ledger. `post-now.mjs` always needs one, because every ad hoc post is a one-off.
+- **One-off route.** The command is run with `--graph-route "<Nino's words>"`. The reason is recorded on the queue item as `route` — the route receipt — once the run is past its token check and copy audit, and it stays in the ledger. `post-now.mjs` always needs one, because every ad hoc post is a one-off. A one-off is **one post**: without a standing route a run publishes exactly one item (use `--id`), so a reason given for one post cannot be stretched over a backlog with `--force --count 80`. A receipt goes stale after 24 hours — approval for an ad hoc post means "now".
 
 `--dry-run` is refused the same way, so a dry run cannot pass where the live run would stop. Gated entry points: `post-reels.mjs`, `post-now.mjs`, and `--post` on `build-album-carousel.mjs` and `build-top-shots.mjs`. Not gated, on purpose: the scheduled Worker, which reads its own KV queue (seeding KV is already a deliberate remote write), and `build-fb-album.mjs`, a bulk fill the Facebook composer cannot do.
 
 Why it exists: on 2026-09-21 an agent asked to publish an ad hoc Collab carousel found this publisher, confirmed it supported the job, and published live 53 seconds before Nino said the post should have gone out by hand. The instructions that would have stopped it were written down and were not read. The gate does not depend on anything being read.
 
 ```bash
-pnpm test:social   # includes a replay of that incident: exit 3, zero Graph requests
+pnpm test:social   # 16 tests, including a replay of that incident: exit 3, zero Graph requests
 ```
 
 ---
@@ -167,7 +167,7 @@ node scripts/social-publish/post-reels.mjs --event $EVENT --dry-run
 node scripts/social-publish/post-reels.mjs --event $EVENT --count 2
 ```
 
-The scheduled Worker is what runs campaigns today; no cron or launchd job on this machine publishes (checked 2026-09-21). A local cron would look like this, and needs the event's standing route in `graph-routes.json` or every run is refused:
+Campaigns are scheduled through the Worker (`worker/wrangler.jsonc` carries the hourly cron; whether the deployed copy is armed is a Cloudflare fact, so check there). No cron or launchd job on this machine publishes (checked 2026-09-21). A local cron would look like this, and needs the event's standing route in `graph-routes.json` or every run is refused:
 ```
 5 12 * * *  cd /Users/nino/Workspace/dev/apps/letspepper && \
   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \

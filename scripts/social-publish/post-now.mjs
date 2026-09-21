@@ -32,7 +32,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertGraphRoute } from './route-gate.mjs'
+import { assertRouteBeforeBuild } from './route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'adhoc'
@@ -94,12 +94,14 @@ const item = {
 
 // Every post-now item is a one-off, so each needs its own route. Checked before
 // the queue write and the R2 upload — the first two side effects — and on
-// --dry-run as well. Stamps item.route from --graph-route when it passes.
-assertGraphRoute({ event: EVENT, items: [item], reasonFlag: args['graph-route'], script: 'post-now.mjs' })
+// --dry-run as well. The receipt itself is written by post-reels.mjs, which gets
+// the reason passed through and records it only once it is about to publish.
+assertRouteBeforeBuild({ event: EVENT, reasonFlag: args['graph-route'], script: 'post-now.mjs' })
 
 if (dryRun) {
   console.log(`[dry-run] would upload + publish to @${registry[account].handle}:\n`)
   console.log(JSON.stringify(item, null, 2))
+  console.log(`\nroute: one-off, "${args['graph-route']}" — recorded on the item by post-reels.mjs when it publishes`)
   process.exit(0)
 }
 
@@ -122,5 +124,5 @@ const token = process.env.IG_ACCESS_TOKEN ||
   execFileSync('op', ['read', 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
 
 console.log('')
-execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id],
+execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id, '--graph-route', args['graph-route']],
   { stdio: 'inherit', env: { ...process.env, IG_ACCESS_TOKEN: token } })

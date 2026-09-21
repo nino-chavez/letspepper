@@ -24,7 +24,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  checkRoute, hasStandingRoute, hasReceipt, cleanReason, makeReceipt, refusal, REFUSED,
+  checkRoute, hasStandingRoute, hasReceipt, cleanReason, makeReceipt, refusal, REFUSED, RECEIPT_TTL_HOURS,
 } from '../route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -48,6 +48,13 @@ const incidentQueue = () => ({
     status: 'pending',
   }],
 })
+
+// The incident item plus n-1 siblings, all due: the shape of a backlog.
+const backlog = (n, route) => {
+  const q = incidentQueue(); const [first] = q.items
+  q.items = Array.from({ length: n }, (_, i) => ({ ...first, id: `${EVENT}-${i + 1}`, ...(route ? { route } : {}) }))
+  return q
+}
 
 function sandbox({ routes = { events: {} }, queue = incidentQueue() } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'route-gate-'))
@@ -77,11 +84,12 @@ async function graphStub() {
   return { seen, base: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((r) => server.close(r)) }
 }
 
-function run(script, args, { cwd, base }) {
+function run(script, args, { cwd, base, token = 'test-token-not-a-credential' }) {
   return new Promise((resolve, reject) => {
+    const env = { ...process.env, GRAPH_BASE: base }
+    if (token) env.IG_ACCESS_TOKEN = token; else delete env.IG_ACCESS_TOKEN
     const child = spawn(process.execPath, [script, ...args], {
-      cwd, stdio: ['ignore', 'pipe', 'pipe'], // stdin closed: never inherit the runner's
-      env: { ...process.env, GRAPH_BASE: base, IG_ACCESS_TOKEN: 'test-token-not-a-credential' },
+      cwd, env, stdio: ['ignore', 'pipe', 'pipe'], // stdin closed: never inherit the runner's
     })
     let out = ''; let err = ''
     child.stdout.on('data', (d) => { out += d }); child.stderr.on('data', (d) => { err += d })
@@ -119,13 +127,9 @@ test('incident replay: the dry run is refused too, so it cannot pass where the l
 test('incident replay: the refusal comes before the token check, so nobody fetches a credential for a post that should go out by hand', async () => {
   const sb = sandbox(); const graph = await graphStub()
   try {
-    const child = await new Promise((resolve) => {
-      const env = { ...process.env, GRAPH_BASE: graph.base }; delete env.IG_ACCESS_TOKEN
-      const c = spawn(process.execPath, [join(sb.social, 'post-reels.mjs'), '--event', EVENT, '--count', '1'], { cwd: sb.root, env, stdio: ['ignore', 'pipe', 'pipe'] })
-      let err = ''; c.stderr.on('data', (d) => { err += d }); c.on('close', (code) => resolve({ code, err }))
-    })
-    assert.equal(child.code, REFUSED)
-    assert.doesNotMatch(child.err, /IG_ACCESS_TOKEN/)
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1'], { cwd: sb.root, base: graph.base, token: null })
+    assert.equal(r.code, REFUSED)
+    assert.doesNotMatch(r.err, /IG_ACCESS_TOKEN/)
   } finally { await graph.close(); sb.cleanup() }
 })
 
@@ -144,15 +148,71 @@ test('control: with a recorded one-off route the same item publishes, and the st
   } finally { await graph.close(); sb.cleanup() }
 })
 
-test('a standing route in graph-routes.json lets a campaign publish with no per-post reason', async () => {
+test('a standing route in graph-routes.json lets a campaign publish several items with no per-post reason', async () => {
   const routes = { events: { [EVENT]: { reason: 'test fixture: scheduled drip approved by Nino', approved: '2026-09-21', scope: 'fixture' } } }
-  const sb = sandbox({ routes }); const graph = await graphStub()
+  const sb = sandbox({ routes, queue: backlog(2) }); const graph = await graphStub()
   try {
-    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1'], { cwd: sb.root, base: graph.base })
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '2'], { cwd: sb.root, base: graph.base })
     assert.equal(r.code, 0, `${r.out}\n${r.err}`)
     assert.match(r.out, /standing route in graph-routes\.json/)
-    assert.ok(graph.seen.some((s) => s.endsWith('/media_publish')))
+    assert.equal(graph.seen.filter((s) => s.endsWith('/media_publish')).length, 2)
     assert.equal(JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0].route, undefined, 'a standing route needs no per-item receipt')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+// --- a one-off is one post ----------------------------------------------------
+
+test('one reason cannot be stretched over a backlog: --force --count 80 with a reason publishes nothing', async () => {
+  const sb = sandbox({ queue: backlog(80) }); const graph = await graphStub()
+  try {
+    const before = readFileSync(sb.queuePath(), 'utf8')
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--force', '--count', '80', '--graph-route', 'Nino asked for the API on this one'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED, `${r.out}\n${r.err}`)
+    assert.deepEqual(graph.seen, [])
+    assert.equal(readFileSync(sb.queuePath(), 'utf8'), before, 'no receipt may be written by a refused run')
+    assert.match(r.err, /A one-off route covers ONE post, and this run would publish 80/)
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('the default --count 2 with a reason is refused too: the second item was never approved', async () => {
+  const sb = sandbox({ queue: backlog(2) }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--graph-route', 'Nino asked for the API on this one'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED)
+    assert.deepEqual(graph.seen, [])
+    assert.match(r.err, /--id <item-id>/)
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('a bare run cannot sweep up several receipted leftovers', async () => {
+  const fresh = makeReceipt('Nino asked for the API on this one', 'test')
+  const sb = sandbox({ queue: backlog(2, fresh) }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '2'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED)
+    assert.deepEqual(graph.seen, [])
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('a receipt goes stale: yesterday\'s yes does not publish today', async () => {
+  const old = makeReceipt('Nino asked for the API on this one', 'test', new Date(Date.now() - (RECEIPT_TTL_HOURS + 1) * 3600_000))
+  const sb = sandbox({ queue: backlog(1, old) }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED)
+    assert.deepEqual(graph.seen, [])
+    assert.match(r.err, /route receipt is older than 24h/)
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('a run that stops at the token check leaves no receipt behind', async () => {
+  const sb = sandbox(); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--graph-route', 'Nino asked for the API on this one'], { cwd: sb.root, base: graph.base, token: null })
+    assert.equal(r.code, 1, 'past the route gate, stopped by the missing token')
+    assert.match(r.err, /IG_ACCESS_TOKEN/)
+    assert.equal(JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0].route, undefined, 'an aborted run must not leave an approved-looking item on the ledger')
+    assert.deepEqual(graph.seen, [])
   } finally { await graph.close(); sb.cleanup() }
 })
 
@@ -188,7 +248,7 @@ test('post-now --dry-run with a reason shows the receipt it would record', async
     const media = join(sb.root, 'frame.jpg'); writeFileSync(media, 'not a real jpeg')
     const r = await run(join(sb.social, 'post-now.mjs'), ['--account', 'flickday', '--file', media, '--caption', 'x', '--graph-route', 'Nino asked for the API on this one', '--dry-run'], { cwd: sb.root, base: graph.base })
     assert.equal(r.code, 0, `${r.out}\n${r.err}`)
-    assert.match(r.out, /"surface": "graph"/)
+    assert.match(r.out, /route: one-off, "Nino asked for the API on this one"/)
     assert.equal(existsSync(sb.queuePath('adhoc')), false)
     assert.deepEqual(graph.seen, [])
   } finally { await graph.close(); sb.cleanup() }
@@ -205,9 +265,22 @@ test('checkRoute: the rules, without a subprocess', () => {
   const stamped = [{ ...items[0], route: makeReceipt('Nino named the API for this post', 'test') }]
   assert.equal(checkRoute({ event: EVENT, items: stamped, routes: none }).kind, 'one-off')
 
-  // a mixed batch is refused for the item that lacks a receipt, not waved through by the one that has it
+  // without a standing route a run is one post: two items are refused even when both hold a fresh receipt
   const mixed = [stamped[0], { ...items[0], id: 'second' }]
+  assert.equal(checkRoute({ event: EVENT, items: mixed, routes: none }).why, 'batch')
   assert.deepEqual(checkRoute({ event: EVENT, items: mixed, routes: none }).missing.map((i) => i.id), ['second'])
+  assert.equal(checkRoute({ event: EVENT, items: [stamped[0], stamped[0]], routes: none }).why, 'batch')
+  assert.equal(checkRoute({ event: EVENT, items: mixed, routes: none, reasonFlag: 'Nino asked for the API' }).ok, false)
+  // a reason stamps exactly the one item
+  assert.deepEqual(checkRoute({ event: EVENT, items, routes: none, reasonFlag: 'Nino asked for the API' }).stamp.map((i) => i.id), [ITEM_ID])
+
+  // freshness: a receipt is good for RECEIPT_TTL_HOURS, not before it was written, not after it lapsed
+  const at = new Date('2026-09-21T18:00:00Z')
+  const r = (hoursAgo) => ({ route: makeReceipt('Nino named the API for this post', 'test', new Date(at.getTime() - hoursAgo * 3600_000)) })
+  assert.equal(hasReceipt(r(1), at), true)
+  assert.equal(hasReceipt(r(RECEIPT_TTL_HOURS + 1), at), false)
+  assert.equal(hasReceipt(r(-1), at), false, 'a receipt dated in the future is not a receipt')
+  assert.equal(hasReceipt({ route: { surface: 'graph', reason: 'r', recorded_at: 'not a date' } }, at), false)
 
   // malformed receipts and entries do not count
   assert.equal(hasReceipt({ route: { surface: 'graph', reason: '' , recorded_at: 'x' } }), false)
@@ -227,7 +300,8 @@ test('checkRoute: the rules, without a subprocess', () => {
 })
 
 test('refusal text: says what happened, where the post should go, and what counts as approval', () => {
-  const text = refusal({ event: EVENT, missing: incidentQueue().items, script: 'post-reels.mjs' })
+  const items = incidentQueue().items
+  const text = refusal({ event: EVENT, items, missing: items, script: 'post-reels.mjs' })
   for (const needle of ['Nothing was queued, uploaded, or sent to Meta', 'native Instagram', 'Meta Business Suite', 'meta-publish', 'graph-routes.json', 'forges an approval'])
     assert.ok(text.includes(needle), `refusal is missing: ${needle}`)
 })

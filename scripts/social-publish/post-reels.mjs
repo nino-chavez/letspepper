@@ -33,9 +33,11 @@
  *
  * ROUTE GATE (route-gate.mjs): nothing here runs — not the copy audit, not a
  * Graph call, not on --dry-run either — until the batch has an approved Graph
- * route: the event listed in graph-routes.json, or a `route` receipt on each
- * item. Posts to Nino's accounts go out by hand unless he approved the API for
- * them; the `meta-publish` skill owns that decision. Exit code 3 on refusal.
+ * route: the event listed in graph-routes.json (a campaign), or a one-off
+ * `route` receipt — and a one-off run publishes exactly ONE item, so a reason
+ * given for one post cannot be stretched over a backlog. Posts to Nino's
+ * accounts go out by hand unless he approved the API for them; the
+ * `meta-publish` skill owns that decision. Exit code 3 on refusal.
  *
  * Flow (Graph API v25.0):
  *   POST /{ig}/media  (build container; carousel = children first) → creation_id
@@ -114,7 +116,6 @@ const batch = due.slice(0, count)
 // refused for a missing token goes and fetches one, and only then learns the
 // post should not be going through this publisher at all.
 assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs' })
-if (!dryRun) save() // keep a one-off receipt on the item before the first Graph call
 
 if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token — see SETUP.md).'); process.exit(1) }
 
@@ -123,6 +124,10 @@ if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token �
 execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
   `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
   { stdio: 'inherit' })
+
+// Past every pre-flight check: now the one-off receipt goes on the ledger, before
+// the first Graph call. A run that stopped at the token or the audit leaves none.
+if (!dryRun) save()
 
 async function api(path, params, method = 'POST') {
   const url = new URL(`${GRAPH}/${path}`)

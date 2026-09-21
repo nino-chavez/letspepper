@@ -20,6 +20,13 @@
  *                   --graph-route "<Nino's words>" to the publishing command.
  *                   The receipt stays on the item in the queue ledger.
  *
+ * A one-off is ONE post. Without a standing route a run may publish exactly one
+ * item, so one reason can never be stretched over a backlog (`--force --count 80`
+ * is refused), and a bare run cannot sweep up several receipted leftovers. A
+ * receipt also goes stale after RECEIPT_TTL_HOURS: approval for an ad hoc post
+ * means "now", and a post that failed and sat for a week gets asked about again
+ * rather than published on an old yes.
+ *
  * The check runs before the copy audit, the R2 upload and the first Graph
  * call, and it runs on --dry-run too: a dry run that passes where the live run
  * would refuse is a lie about what the live run will do.
@@ -41,6 +48,7 @@ const ROUTES_PATH = join(HERE, 'graph-routes.json')
 export const REFUSED = 3 // exit code, distinct from the generic 1
 const ADHOC = 'adhoc' // post-now's ledger: every item in it is a one-off by definition
 const MIN_REASON = 12 // long enough that "ok" / "yes" / "approved" do not pass
+export const RECEIPT_TTL_HOURS = 24
 
 export function loadRoutes(path = ROUTES_PATH) {
   if (!existsSync(path)) return { events: {} }
@@ -56,10 +64,17 @@ export function hasStandingRoute(event, routes) {
   return !!entry && typeof entry === 'object' && filled(entry.reason) && filled(entry.approved)
 }
 
-export function hasReceipt(item) {
+const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' && filled(r.reason) && filled(r.recorded_at)
+
+/** A receipt that is well formed AND still fresh. */
+export function hasReceipt(item, now = new Date()) {
   const r = item?.route
-  return !!r && typeof r === 'object' && r.surface === 'graph' && filled(r.reason) && filled(r.recorded_at)
+  if (!wellFormed(r)) return false
+  const age = now.getTime() - new Date(r.recorded_at).getTime()
+  return Number.isFinite(age) && age >= 0 && age <= RECEIPT_TTL_HOURS * 3600_000
 }
+
+const isStale = (item, now) => wellFormed(item?.route) && !hasReceipt(item, now)
 
 /** A usable --graph-route value, or null. A bare flag parses to `true`. */
 export function cleanReason(flag) {
@@ -74,28 +89,39 @@ export function makeReceipt(reason, via, now = new Date()) {
 
 /**
  * Pure decision. `reasonFlag` is the raw --graph-route value (string | true | undefined).
- * Returns { ok, kind, missing, stamp }: `stamp` lists the items that should be
- * given a receipt built from the reason; the caller decides whether to persist.
+ * Returns { ok, kind, why, missing, stale, stamp }. `stamp` holds the one item
+ * that should be given a receipt built from the reason; the caller decides when
+ * to persist it. `why` on a refusal: 'batch' (a one-off run of more than one
+ * item), 'reason' (an unusable --graph-route value), 'route' (nothing approved).
  */
-export function checkRoute({ event, items, routes, reasonFlag }) {
-  if (hasStandingRoute(event, routes)) return { ok: true, kind: 'standing', missing: [], stamp: [] }
-  const missing = items.filter((it) => !hasReceipt(it))
-  if (!missing.length) return { ok: true, kind: 'one-off', missing: [], stamp: [] }
+export function checkRoute({ event, items, routes, reasonFlag, now = new Date() }) {
+  if (hasStandingRoute(event, routes)) return { ok: true, kind: 'standing', missing: [], stale: [], stamp: [] }
+  const missing = items.filter((it) => !hasReceipt(it, now))
+  const stale = items.filter((it) => isStale(it, now))
+  const no = (why) => ({ ok: false, kind: null, why, missing, stale, stamp: [] })
+  if (items.length !== 1) return no('batch')
+  if (!missing.length) return { ok: true, kind: 'one-off', missing: [], stale: [], stamp: [] }
   const reason = cleanReason(reasonFlag)
-  if (reason) return { ok: true, kind: 'one-off', missing: [], stamp: missing, reason }
-  return { ok: false, kind: null, missing, stamp: [], badReason: reasonFlag !== undefined }
+  if (reason) return { ok: true, kind: 'one-off', missing: [], stale: [], stamp: missing, reason }
+  return no(reasonFlag !== undefined ? 'reason' : 'route')
 }
 
-export function refusal({ event, missing, script, badReason }) {
-  const ids = missing.map((it) => it.id).filter(Boolean)
-  const what = ids.length ? `${ids.length} item(s): ${ids.slice(0, 5).join(', ')}${ids.length > 5 ? ', …' : ''}` : 'this post'
+export function refusal({ event, items = [], missing = [], stale = [], script, why = 'route' }) {
+  const list = (arr) => `${arr.slice(0, 5).map((it) => it.id).filter(Boolean).join(', ')}${arr.length > 5 ? ', …' : ''}`
+  const what = why === 'batch' ? `${items.length} items in this run` : missing.length ? `item: ${list(missing)}` : 'this post'
   return [
     '',
     `REFUSED — no approved Graph route for event "${event}" (${what}).`,
     'Nothing was queued, uploaded, or sent to Meta.',
     '',
-    badReason
+    why === 'batch'
+      ? `A one-off route covers ONE post, and this run would publish ${items.length} (${list(items)}). Publish one item with --id <item-id>.\nSeveral posts on a schedule is a campaign, and a campaign needs a standing route from Nino — a reason given for one post does not stretch over a queue.\n`
+      : null,
+    why === 'reason'
       ? `--graph-route needs Nino's own words as its value (at least ${MIN_REASON} characters). A bare flag or "ok" is not a reason.\n`
+      : null,
+    stale.length
+      ? `${list(stale)}: the route receipt is older than ${RECEIPT_TTL_HOURS}h. Approval for an ad hoc post means "now" — ask again before publishing it.\n`
       : null,
     "Posts to Nino's accounts go out by hand unless he has approved the Graph API for them:",
     '  a Collab, or a Story with a sticker, link or mention  → native Instagram (Computer Use + iPhone Mirroring)',
@@ -115,24 +141,28 @@ export function refusal({ event, missing, script, badReason }) {
 
 /** For a builder that publishes at the end (--post): the same check, run before the batch exists. */
 export function assertRouteBeforeBuild({ event, reasonFlag, script, routes }) {
-  return assertGraphRoute({ event, items: [{ id: `${event}, not built yet` }], reasonFlag, script, routes })
+  return assertGraphRoute({ event, items: [{ id: `${event}, not built yet` }], reasonFlag, script, routes, beforeBuild: true })
 }
 
 /**
- * Enforce. Stamps one-off receipts onto `items` in place when a reason was
- * given; the caller persists them (and skips persisting on --dry-run). Exits
- * REFUSED before any side effect when no route holds.
+ * Enforce. Stamps the one-off receipt onto the item in place when a reason was
+ * given. The caller persists it, and does so only once the run is past its
+ * other pre-flight checks (token, copy audit), so a run that aborts there does
+ * not leave an approved-looking item behind. Exits REFUSED before any side
+ * effect when no route holds.
  */
-export function assertGraphRoute({ event, items, reasonFlag, script, routes = loadRoutes(), now = new Date() }) {
-  const verdict = checkRoute({ event, items, routes, reasonFlag })
+export function assertGraphRoute({ event, items, reasonFlag, script, routes = loadRoutes(), now = new Date(), beforeBuild = false }) {
+  const verdict = checkRoute({ event, items, routes, reasonFlag, now })
   if (!verdict.ok) {
-    console.error(refusal({ event, missing: verdict.missing, script, badReason: verdict.badReason }))
+    console.error(refusal({ event, items, missing: verdict.missing, stale: verdict.stale, script, why: verdict.why }))
     process.exit(REFUSED)
   }
   for (const it of verdict.stamp) it.route = makeReceipt(verdict.reason, `${script} --graph-route`, now)
   const how = verdict.kind === 'standing'
     ? `standing route in graph-routes.json`
-    : verdict.stamp.length ? `one-off, recorded: "${verdict.reason}"` : 'one-off receipt already on the item'
+    : !verdict.stamp.length ? 'one-off receipt already on the item'
+    : beforeBuild ? `one-off reason accepted: "${verdict.reason}" (post-reels.mjs records it when it publishes)`
+    : `one-off: "${verdict.reason}" (recorded on the item once the pre-flight checks pass)`
   console.log(`Graph route ok for "${event}" — ${how}`)
   return verdict
 }

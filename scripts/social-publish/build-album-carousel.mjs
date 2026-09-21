@@ -233,9 +233,10 @@ try {
 } catch { /* montage optional */ }
 
 console.log(`\nCollab: ${collaborators.join(', ') || '(none)'}`)
-console.log('\nNext — publish it:')
+console.log('\nStaged, not published. One carousel is an ad hoc post: it goes out by hand (native Instagram for a Collab)')
+console.log('unless Nino named the Graph API for it. The `meta-publish` skill owns that choice. If he did:')
 console.log(`  IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \\`)
-console.log(`    node ${join(HERE, 'post-reels.mjs')} --event ${event} --account ${account} --count 1`)
+console.log(`    node ${join(HERE, 'post-reels.mjs')} --event ${event} --account ${account} --count 1 --graph-route "<his words>"`)
 
 // 7. Optional one-shot publish.
 if (args.post) {
