@@ -81,6 +81,8 @@ async function graphStub() {
   const seen = []
   const server = http.createServer((req, res) => {
     seen.push(`${req.method} ${req.url.split('?')[0]}`)
+    if (req.url.includes('graph-is-down')) { res.writeHead(503, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"unavailable","code":2}}') }
+    if (req.url.includes('no-such-container')) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"Unsupported get request","code":100}}') }
     const body = req.url.includes('media_publish') ? { id: 'stub-media-1' }
       : req.method === 'GET' ? { status_code: req.url.includes('already-live') ? 'PUBLISHED' : 'FINISHED' }
       : { id: `stub-container-${seen.length}` }
@@ -314,6 +316,41 @@ test('a stale container whose publish already landed marks the item posted and n
     assert.deepEqual(graph.seen.filter((s) => s.startsWith('POST')), [], `something was built or published: ${graph.seen.join(', ')}`)
     assert.equal(JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0].status, 'posted')
   } finally { await graph.close(); sb.cleanup() }
+})
+
+test('when Graph cannot say whether a saved container published, nothing is rebuilt', async () => {
+  const q = incidentQueue(); q.items[0].ig_container_id = 'graph-is-down'; q.items[0].ig_container_digest = 'digest-of-the-old-payload'
+  const sb = sandbox({ queue: q }); const graph = await graphStub()
+  try {
+    await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', ITEM_ID, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    assert.deepEqual(graph.seen.filter((s) => s.startsWith('POST')), [], `rebuilt or published on an unknown status: ${graph.seen.join(', ')}`)
+    const item = JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0]
+    assert.equal(item.status, 'error'); assert.match(item.error, /could not confirm/); assert.equal(item.ig_container_id, 'graph-is-down')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('a container Graph says does not exist is rebuilt', async () => {
+  const q = incidentQueue(); q.items[0].ig_container_id = 'no-such-container'; q.items[0].ig_container_digest = 'digest-of-the-old-payload'
+  const sb = sandbox({ queue: q }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', ITEM_ID, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 0, `${r.out}\n${r.err}`)
+    assert.equal(JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0].status, 'posted')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('run-drip.sh hands the gate\'s refusal code to its caller, before any credential is read', async () => {
+  const sb = sandbox()
+  try {
+    cpSync(join(SOCIAL, 'run-drip.sh'), join(sb.social, 'run-drip.sh'))
+    const src = readFileSync(join(sb.social, 'run-drip.sh'), 'utf8')
+      .replace('REPO="/Users/nino/Workspace/dev/apps/letspepper"', `REPO="${sb.root}"`).replace('LOG="/tmp/lp-reels.log"', `LOG="${sb.root}/drip.log"`)
+      .replace(/op read [^)]*\)/, 'echo SHOULD-NOT-BE-REACHED >&2; echo tok)')
+    writeFileSync(join(sb.social, 'run-drip.sh'), src)
+    const r = await new Promise((resolve) => { const c = spawn('/bin/zsh', [join(sb.social, 'run-drip.sh'), EVENT], { cwd: sb.root, stdio: ['ignore', 'pipe', 'pipe'] }); let e = ''; c.stderr.on('data', (d) => { e += d }); c.on('close', (code) => resolve({ code, e })) })
+    assert.equal(r.code, REFUSED); assert.doesNotMatch(r.e, /SHOULD-NOT-BE-REACHED/)
+    assert.match(readFileSync(join(sb.root, 'drip.log'), 'utf8'), /exit 3/)
+  } finally { sb.cleanup() }
 })
 
 test('an unreadable approval list fails closed with the gate\'s exit code', async () => {

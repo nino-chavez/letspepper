@@ -147,7 +147,9 @@ async function api(path, params, method = 'POST') {
     // in error_user_msg. Surface both so a failure is diagnosable without a
     // manual curl round-trip.
     const { message, error_user_msg: userMsg } = json.error || {}
-    throw new Error([message, userMsg].filter(Boolean).join(' — ') || JSON.stringify(json))
+    const err = new Error([message, userMsg].filter(Boolean).join(' — ') || JSON.stringify(json))
+    err.http = res.status; err.code = json.error?.code ?? null
+    throw err
   }
   return json
 }
@@ -255,8 +257,17 @@ for (const it of batch) {
     const payload = digestOf(it, accountOverride, event)
     let containerId = it.ig_container_id ?? null
     if (containerId) {
+      // GONE only when Graph itself says the object does not exist (4xx). A timeout, 5xx or
+      // rate limit is UNKNOWN — the same weather that makes a landed publish look failed —
+      // and on UNKNOWN nothing is rebuilt: a second container is how a post goes out twice.
       const status = await api(`${containerId}`, { fields: 'status_code' }, 'GET')
-        .then((r) => r.status_code).catch(() => null)
+        .then((r) => r.status_code)
+        .catch((e) => (e.http >= 400 && e.http < 500 && e.http !== 429 ? 'GONE' : 'UNKNOWN'))
+      if (status === 'UNKNOWN') {
+        it.status = 'error'; it.error = `could not confirm whether container ${containerId} already published — not rebuilding; run again`
+        save(); console.error(`HELD: ${it.error}`)
+        continue
+      }
       if (status !== 'PUBLISHED' && it.ig_container_digest !== payload) containerId = null // built from another payload — rebuild
       else if (status === 'PUBLISHED') {
         it.status = 'posted'; it.posted_at = new Date().toISOString()
