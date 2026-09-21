@@ -42,4 +42,4 @@ for (const it of q.items) {
 writeFileSync(queuePath, JSON.stringify(q, null, 2))
 console.log(`Relinked ${linked}/${q.items.length} items to Stream download URLs.`)
 if (missing.length) console.log(`No map entry for ${missing.length}: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '…' : ''}`)
-console.log(`Next: re-seed KV — wrangler kv key put --namespace-id=… ${event} --path=${queuePath} --remote`)
+console.log(`Next: re-seed KV — node scripts/social-publish/seed-kv.mjs --event ${event} (copies the route from graph-routes.json)`)

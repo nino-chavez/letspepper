@@ -42,15 +42,17 @@
  * call, and it runs on --dry-run too: a dry run that passes where the live run
  * would refuse is a lie about what the live run will do.
  *
- * NOT GATED HERE, on purpose: worker/src/index.js (the scheduled publisher)
- * reads its own KV queue, and getting an item into KV is already a deliberate
- * remote write. build-fb-album.mjs bulk-fills an existing Facebook album, a
- * batch job the composer cannot do.
+ * The scheduled Worker (worker/src/index.js) is gated separately, on the same
+ * entry shape (route-shape.mjs): it publishes only items whose KV queue carries
+ * `meta.route`, a copy of this event's graph-routes.json entry that seed-kv.mjs
+ * writes. NOT GATED, on purpose: build-fb-album.mjs bulk-fills an existing
+ * Facebook album, a batch job the composer cannot do.
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { filled, standingEntry, entryCovers } from './route-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 // Fixed path, no env override: an override would be a way to point the
@@ -58,7 +60,6 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROUTES_PATH = join(HERE, 'graph-routes.json')
 
 export const REFUSED = 3 // exit code, distinct from the generic 1
-const ADHOC = 'adhoc' // post-now's ledger: every item in it is a one-off by definition
 const MIN_REASON = 12 // long enough that "ok" / "yes" / "approved" do not pass
 export const RECEIPT_TTL_HOURS = 24
 
@@ -73,19 +74,7 @@ export function loadRoutes(path = ROUTES_PATH) {
   return { events: parsed && typeof parsed.events === 'object' && parsed.events ? parsed.events : {} }
 }
 
-const filled = (v) => typeof v === 'string' && v.trim().length > 0
-
-const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v))
-
-/** A complete standing entry: a reason, a real approval date, and the accounts it covers. */
-export function standingEntry(event, routes) {
-  if (event === ADHOC) return null
-  const entry = Object.hasOwn(routes?.events || {}, event) ? routes.events[event] : null
-  const ok = !!entry && typeof entry === 'object' && filled(entry.reason) && isDate(entry.approved) &&
-    Array.isArray(entry.accounts) && entry.accounts.length > 0 && entry.accounts.every(filled) &&
-    (entry.expires === undefined || isDate(entry.expires))
-  return ok ? entry : null
-}
+export { standingEntry, entryCovers }
 
 /**
  * A standing route covers a run only for the accounts it names, and only until
@@ -93,10 +82,7 @@ export function standingEntry(event, routes) {
  * --account override — so an approved campaign cannot be pointed somewhere else.
  */
 export function hasStandingRoute(event, routes, accounts = [], now = new Date()) {
-  const entry = standingEntry(event, routes)
-  if (!entry) return false
-  if (entry.expires && now.getTime() > Date.parse(entry.expires) + 86_400_000) return false
-  return accounts.every((a) => entry.accounts.includes(a))
+  return entryCovers(standingEntry(event, routes), accounts, now)
 }
 
 const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' &&
