@@ -31,6 +31,13 @@
  * means "now", and a post that failed and sat for a week gets asked about again
  * rather than published on an old yes.
  *
+ * A receipt approves THAT post. It carries a digest of what Nino was shown —
+ * the publishing account, media type, caption, collaborators, tags and media
+ * URLs — and stops covering the item the moment any of them changes. Otherwise
+ * a post that failed could be "fixed" (new photos, a new caption, --account
+ * pointed somewhere else) and re-run inside the 24 hours on a yes that was given
+ * to something different.
+ *
  * The check runs before the copy audit, the R2 upload and the first Graph
  * call, and it runs on --dry-run too: a dry run that passes where the live run
  * would refuse is a lie about what the live run will do.
@@ -41,6 +48,7 @@
  * batch job the composer cannot do.
  */
 import { readFileSync, existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -68,17 +76,35 @@ export function hasStandingRoute(event, routes) {
   return !!entry && typeof entry === 'object' && filled(entry.reason) && filled(entry.approved)
 }
 
-const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' && filled(r.reason) && filled(r.recorded_at)
+const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' &&
+  filled(r.reason) && filled(r.recorded_at) && filled(r.digest)
 
-/** A receipt that is well formed AND still fresh. */
-export function hasReceipt(item, now = new Date()) {
-  const r = item?.route
-  if (!wellFormed(r)) return false
+/**
+ * What an approval is an approval OF. `account` is the account the run will
+ * actually publish to, which --account can point away from item.account.
+ */
+export function digestOf(item, account) {
+  const media = item?.media_type === 'CAROUSEL'
+    ? (item.children || []).map((c) => c.video_url || c.image_url || null)
+    : [item?.video_url || item?.image_url || null]
+  const shown = [account || item?.account || null, item?.media_type || 'REELS', item?.caption || '',
+    item?.collaborators || [], item?.user_tags || [], media]
+  return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
+}
+
+const fresh = (r, now) => {
   const age = now.getTime() - new Date(r.recorded_at).getTime()
   return Number.isFinite(age) && age >= 0 && age <= RECEIPT_TTL_HOURS * 3600_000
 }
 
-const isStale = (item, now) => wellFormed(item?.route) && !hasReceipt(item, now)
+/** A receipt that is well formed, still fresh, and still describes this post. */
+export function hasReceipt(item, now = new Date(), account) {
+  const r = item?.route
+  return wellFormed(r) && fresh(r, now) && r.digest === digestOf(item, account)
+}
+
+const isExpired = (item, now) => wellFormed(item?.route) && !fresh(item.route, now)
+const isChanged = (item, now, account) => wellFormed(item?.route) && fresh(item.route, now) && item.route.digest !== digestOf(item, account)
 
 /** A usable --graph-route value, or null. A bare flag parses to `true`. */
 export function cleanReason(flag) {
@@ -87,8 +113,8 @@ export function cleanReason(flag) {
   return reason.length >= MIN_REASON ? reason : null
 }
 
-export function makeReceipt(reason, via, now = new Date()) {
-  return { surface: 'graph', reason, recorded_at: now.toISOString(), via }
+export function makeReceipt(reason, via, now = new Date(), digest = '') {
+  return { surface: 'graph', reason, recorded_at: now.toISOString(), via, digest }
 }
 
 /**
@@ -99,22 +125,25 @@ export function makeReceipt(reason, via, now = new Date()) {
  * item), 'unnamed' (one item, but chosen by queue order out of several rather
  * than by --id), 'reason' (an unusable --graph-route value), 'route' (nothing
  * approved). `named` is true when the caller picked the item with --id;
- * `candidates` is how many items were due before --count trimmed the batch.
+ * `candidates` is how many items were due before --count trimmed the batch;
+ * `account` is the --account override, when one was given. `stale` lists items
+ * whose receipt expired, `changed` those whose post no longer matches it.
  */
-export function checkRoute({ event, items, routes, reasonFlag, now = new Date(), named = true, candidates = items.length }) {
-  if (hasStandingRoute(event, routes)) return { ok: true, kind: 'standing', missing: [], stale: [], stamp: [] }
-  const missing = items.filter((it) => !hasReceipt(it, now))
-  const stale = items.filter((it) => isStale(it, now))
-  const no = (why) => ({ ok: false, kind: null, why, missing, stale, stamp: [] })
+export function checkRoute({ event, items, routes, reasonFlag, now = new Date(), named = true, candidates = items.length, account }) {
+  if (hasStandingRoute(event, routes)) return { ok: true, kind: 'standing', missing: [], stale: [], changed: [], stamp: [] }
+  const missing = items.filter((it) => !hasReceipt(it, now, account))
+  const stale = items.filter((it) => isExpired(it, now))
+  const changed = items.filter((it) => isChanged(it, now, account))
+  const no = (why) => ({ ok: false, kind: null, why, missing, stale, changed, stamp: [] })
   if (items.length !== 1) return no('batch')
   if (!named && candidates > 1) return no('unnamed')
-  if (!missing.length) return { ok: true, kind: 'one-off', missing: [], stale: [], stamp: [] }
+  if (!missing.length) return { ok: true, kind: 'one-off', missing: [], stale: [], changed: [], stamp: [] }
   const reason = cleanReason(reasonFlag)
-  if (reason) return { ok: true, kind: 'one-off', missing: [], stale: [], stamp: missing, reason }
+  if (reason) return { ok: true, kind: 'one-off', missing: [], stale: [], changed: [], stamp: missing, reason }
   return no(reasonFlag !== undefined ? 'reason' : 'route')
 }
 
-export function refusal({ event, items = [], missing = [], stale = [], script, why = 'route', candidates = items.length }) {
+export function refusal({ event, items = [], missing = [], stale = [], changed = [], script, why = 'route', candidates = items.length }) {
   const list = (arr) => `${arr.slice(0, 5).map((it) => it.id).filter(Boolean).join(', ')}${arr.length > 5 ? ', …' : ''}`
   const what = why === 'batch' ? `${items.length} items in this run` : missing.length ? `item: ${list(missing)}` : 'this post'
   return [
@@ -133,6 +162,9 @@ export function refusal({ event, items = [], missing = [], stale = [], script, w
       : null,
     stale.length
       ? `${list(stale)}: the route receipt is older than ${RECEIPT_TTL_HOURS}h. Approval for an ad hoc post means "now" — ask again before publishing it.\n`
+      : null,
+    changed.length
+      ? `${list(changed)}: the post has changed since its route was approved — account, caption, media, tags or collaborators. The yes was for what Nino was shown then. Show him this version and ask again.\n`
       : null,
     "Posts to Nino's accounts go out by hand unless he has approved the Graph API for them:",
     '  a Collab, or a Story with a sticker, link or mention  → native Instagram (Computer Use + iPhone Mirroring)',
@@ -162,13 +194,13 @@ export function assertRouteBeforeBuild({ event, reasonFlag, script, routes }) {
  * not leave an approved-looking item behind. Exits REFUSED before any side
  * effect when no route holds.
  */
-export function assertGraphRoute({ event, items, reasonFlag, script, routes = loadRoutes(), now = new Date(), beforeBuild = false, named = true, candidates = items.length }) {
-  const verdict = checkRoute({ event, items, routes, reasonFlag, now, named, candidates })
+export function assertGraphRoute({ event, items, reasonFlag, script, routes = loadRoutes(), now = new Date(), beforeBuild = false, named = true, candidates = items.length, account }) {
+  const verdict = checkRoute({ event, items, routes, reasonFlag, now, named, candidates, account })
   if (!verdict.ok) {
-    console.error(refusal({ event, items, missing: verdict.missing, stale: verdict.stale, script, why: verdict.why, candidates }))
+    console.error(refusal({ event, items, missing: verdict.missing, stale: verdict.stale, changed: verdict.changed, script, why: verdict.why, candidates }))
     process.exit(REFUSED)
   }
-  for (const it of verdict.stamp) it.route = makeReceipt(verdict.reason, `${script} --graph-route`, now)
+  for (const it of verdict.stamp) it.route = makeReceipt(verdict.reason, `${script} --graph-route`, now, digestOf(it, account))
   const how = verdict.kind === 'standing'
     ? `standing route in graph-routes.json`
     : !verdict.stamp.length ? 'one-off receipt already on the item'

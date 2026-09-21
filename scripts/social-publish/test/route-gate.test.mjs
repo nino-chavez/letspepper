@@ -24,7 +24,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  checkRoute, hasStandingRoute, hasReceipt, cleanReason, makeReceipt, refusal, REFUSED, RECEIPT_TTL_HOURS,
+  checkRoute, hasStandingRoute, hasReceipt, cleanReason, makeReceipt, digestOf, refusal, REFUSED, RECEIPT_TTL_HOURS,
 } from '../route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -50,9 +50,15 @@ const incidentQueue = () => ({
 })
 
 // The incident item plus n-1 siblings, all due: the shape of a backlog.
-const backlog = (n, route) => {
+// `receiptAt`: give every item a valid receipt recorded at that time, bound to the item as it stands.
+const REASON = 'Nino asked for the API on this one'
+const receiptFor = (item, at = new Date(), account) => makeReceipt(REASON, 'test', at, digestOf(item, account))
+const backlog = (n, receiptAt) => {
   const q = incidentQueue(); const [first] = q.items
-  q.items = Array.from({ length: n }, (_, i) => ({ ...first, id: `${EVENT}-${i + 1}`, ...(route ? { route } : {}) }))
+  q.items = Array.from({ length: n }, (_, i) => {
+    const item = { ...first, id: `${EVENT}-${i + 1}` }
+    return receiptAt ? { ...item, route: receiptFor(item, receiptAt) } : item
+  })
   return q
 }
 
@@ -206,8 +212,7 @@ test('--count 1 with a reason does not publish whichever item is oldest: the pos
 })
 
 test('a bare run cannot sweep up several receipted leftovers', async () => {
-  const fresh = makeReceipt('Nino asked for the API on this one', 'test')
-  const sb = sandbox({ queue: backlog(2, fresh) }); const graph = await graphStub()
+  const sb = sandbox({ queue: backlog(2, new Date()) }); const graph = await graphStub()
   try {
     const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '2'], { cwd: sb.root, base: graph.base })
     assert.equal(r.code, REFUSED)
@@ -216,13 +221,47 @@ test('a bare run cannot sweep up several receipted leftovers', async () => {
 })
 
 test('a receipt goes stale: yesterday\'s yes does not publish today', async () => {
-  const old = makeReceipt('Nino asked for the API on this one', 'test', new Date(Date.now() - (RECEIPT_TTL_HOURS + 1) * 3600_000))
-  const sb = sandbox({ queue: backlog(1, old) }); const graph = await graphStub()
+  const sb = sandbox({ queue: backlog(1, new Date(Date.now() - (RECEIPT_TTL_HOURS + 1) * 3600_000)) }); const graph = await graphStub()
   try {
     const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1'], { cwd: sb.root, base: graph.base })
     assert.equal(r.code, REFUSED)
     assert.deepEqual(graph.seen, [])
     assert.match(r.err, /route receipt is older than 24h/)
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('a fresh receipt lets the SAME post retry with no new reason', async () => {
+  const sb = sandbox({ queue: backlog(1, new Date()) }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 0, `${r.out}\n${r.err}`)
+    assert.match(r.out, /one-off receipt already on the item/)
+    assert.ok(graph.seen.some((s) => s.endsWith('/media_publish')))
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('a receipt approves THAT post: a new caption, new photos or another account needs a new yes', async () => {
+  const edits = {
+    caption: (it) => { it.caption = 'A different caption Nino never saw.' },
+    photos: (it) => { it.children = it.children.slice(0, 3) },
+    collaborators: (it) => { it.collaborators = ['letspepper.open'] },
+  }
+  for (const [what, edit] of Object.entries(edits)) {
+    const queue = backlog(1, new Date()); edit(queue.items[0]) // edited AFTER the receipt was recorded
+    const sb = sandbox({ queue }); const graph = await graphStub()
+    try {
+      const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1'], { cwd: sb.root, base: graph.base })
+      assert.equal(r.code, REFUSED, `${what}: ${r.out}\n${r.err}`)
+      assert.deepEqual(graph.seen, [], what)
+      assert.match(r.err, /has changed since its route was approved/, what)
+    } finally { await graph.close(); sb.cleanup() }
+  }
+  // same item, untouched, but pointed at another account with --account
+  const sb = sandbox({ queue: backlog(1, new Date()) }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--account', 'ninophoto'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED, `${r.out}\n${r.err}`)
+    assert.deepEqual(graph.seen, [])
   } finally { await graph.close(); sb.cleanup() }
 })
 
@@ -283,7 +322,7 @@ test('checkRoute: the rules, without a subprocess', () => {
   assert.equal(checkRoute({ event: EVENT, items, routes: none }).ok, false)
   assert.deepEqual(checkRoute({ event: EVENT, items, routes: none }).missing.map((i) => i.id), [ITEM_ID])
 
-  const stamped = [{ ...items[0], route: makeReceipt('Nino named the API for this post', 'test') }]
+  const stamped = [{ ...items[0], route: receiptFor(items[0]) }]
   assert.equal(checkRoute({ event: EVENT, items: stamped, routes: none }).kind, 'one-off')
 
   // without a standing route a run is one post: two items are refused even when both hold a fresh receipt
@@ -301,13 +340,17 @@ test('checkRoute: the rules, without a subprocess', () => {
 
   // freshness: a receipt is good for RECEIPT_TTL_HOURS, not before it was written, not after it lapsed
   const at = new Date('2026-09-21T18:00:00Z')
-  const r = (hoursAgo) => ({ route: makeReceipt('Nino named the API for this post', 'test', new Date(at.getTime() - hoursAgo * 3600_000)) })
+  const r = (hoursAgo) => ({ ...items[0], route: receiptFor(items[0], new Date(at.getTime() - hoursAgo * 3600_000)) })
   assert.equal(hasReceipt(r(1), at), true)
   assert.equal(hasReceipt(r(RECEIPT_TTL_HOURS + 1), at), false)
   assert.equal(hasReceipt(r(-1), at), false, 'a receipt dated in the future is not a receipt')
-  assert.equal(hasReceipt({ route: { surface: 'graph', reason: 'r', recorded_at: 'not a date' } }, at), false)
+  assert.equal(hasReceipt({ ...items[0], route: { ...receiptFor(items[0]), recorded_at: 'not a date' } }, at), false)
 
   // malformed receipts and entries do not count
+  assert.equal(hasReceipt({ ...items[0], route: makeReceipt('Nino named the API for this post', 'test') }), false, 'a receipt with no digest approves nothing')
+  assert.equal(hasReceipt({ ...items[0], caption: 'edited', route: receiptFor(items[0]) }), false, 'the digest binds the caption')
+  assert.equal(hasReceipt({ ...items[0], route: receiptFor(items[0]) }, new Date(), 'ninophoto'), false, 'and the account the run will publish to')
+  assert.equal(hasReceipt({ ...items[0], route: receiptFor(items[0], new Date(), 'ninophoto') }, new Date(), 'ninophoto'), true)
   assert.equal(hasReceipt({ route: { surface: 'graph', reason: '' , recorded_at: 'x' } }), false)
   assert.equal(hasReceipt({ route: { surface: 'suite', reason: 'r', recorded_at: 'x' } }), false)
   assert.equal(hasReceipt({ route: true }), false)

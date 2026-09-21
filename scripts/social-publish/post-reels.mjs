@@ -116,7 +116,7 @@ const batch = due.slice(0, count)
 // Route first. It comes before the token check on purpose: an agent that is
 // refused for a missing token goes and fetches one, and only then learns the
 // post should not be going through this publisher at all.
-assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs', named: !!idFilter, candidates: due.length })
+assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs', named: !!idFilter, candidates: due.length, account: accountOverride })
 
 if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token — see SETUP.md).'); process.exit(1) }
 
