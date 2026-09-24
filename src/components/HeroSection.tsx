@@ -175,12 +175,20 @@ export function HeroSection() {
             animate={{ opacity: 1, scale: 1, x: 0 }}
             transition={{ delay: 0.5, duration: 1, ease: MOTION.ease.outExpo }}
           >
-            {/* Hero Photo - Grass Launch 2025 */}
+            {/* Hero Photo - Grass Launch 2025.
+                unoptimized: matches every other remote (SmugMug) Image in this repo
+                (Header, TournamentSeries, Footer, standings, about, flavors). The
+                site deploys via @cloudflare/next-on-pages, which does not run
+                Next's built-in image-optimization endpoint — a remote <Image>
+                without `unoptimized` 404s there even though it renders fine in
+                local dev, leaving only this box's decorative corner brackets
+                visible with no photo inside. */}
             <Image
               src="https://photos.smugmug.com/Sports/Volleyball/Grass/LPO/Bell-Pepper-Open-20250719/i-kTh9bRS/0/LTtD3WCXjvSmKKVqJ3bzwJG7Cvb6MvDLdhwRk4GHn/XL/lpo-green-pepper-2025-231-XL.jpg"
               alt="Bell Pepper Open 2025 - grass volleyball tournament action"
               fill
               priority
+              unoptimized
               className="object-cover object-center"
               sizes="(max-width: 1024px) 100vw, 50vw"
             />
