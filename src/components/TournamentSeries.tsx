@@ -56,7 +56,11 @@ const tournaments: Tournament[] = Object.values(canonicalTournaments)
     rhqSlug: t.rhqSlug,
     mascot: cardArt[t.slug]?.mascot ?? '',
     tagline: t.tagline,
-    description: cardArt[t.slug]?.blurb ?? t.description,
+    // A cancelled event drops its promo blurb and falls back to the canonical
+    // description — cardArt's copy is written to sell the event, and doing that
+    // next to the CANCELLED badge is exactly the "two records, one update" bug
+    // this file's own header comment describes.
+    description: !isCancelled(t) && cardArt[t.slug]?.blurb ? cardArt[t.slug].blurb : t.description,
     date: t.startsAt.slice(0, 10),
     displayDate: t.date.split(',').slice(1).join(',').trim(),
     features: t.features,
