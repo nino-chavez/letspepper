@@ -171,7 +171,13 @@ export function Marquee({
           type="button"
           onClick={togglePause}
           className={cn(
-            'absolute right-4 top-1/2 -translate-y-1/2 z-20',
+            // This box is 110% width with -5%/-5% margins (see the wrapping div's
+            // inline style below), so its own right edge sits ~5% of viewport
+            // width beyond the visible edge. `right-4` (16px) doesn't clear that
+            // 5% on narrow screens (~19.5px at 390px wide), so the button's own
+            // right edge fell past the viewport edge and got clipped. `right-[7%]`
+            // scales with the same unit the overflow is defined in.
+            'absolute right-[7%] sm:right-4 top-1/2 -translate-y-1/2 z-20',
             'w-8 h-8 rounded-full flex items-center justify-center',
             'transition-all duration-200 cursor-pointer',
             styles.buttonBg,
