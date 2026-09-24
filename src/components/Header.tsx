@@ -6,14 +6,31 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { MOTION } from '@/lib/motion'
+import { nextOpenEvent } from '@/lib/tournaments'
 
-const navLinks = [
+const baseNavLinks: { href: string; label: string; highlight?: boolean }[] = [
   { href: '/#series', label: 'The Series' },
   { href: '/about', label: 'About' },
   { href: '/standings', label: 'Standings' },
   { href: '/gallery', label: 'Gallery' },
-  { href: '/signup', label: 'Sign Up', highlight: true },
 ]
+
+/**
+ * The Sign Up link is the nav's one orange, primary-looking item, so it must not
+ * read as an active-season CTA once nothing is open — /signup itself already
+ * swaps to "Registration Is Closed" in that state (SignupClient.tsx); the nav
+ * link now agrees with the page it points to instead of contradicting it.
+ */
+function getNavLinks(registrationOpen: boolean) {
+  return [
+    ...baseNavLinks,
+    {
+      href: '/signup',
+      label: registrationOpen ? 'Sign Up' : 'Registration Closed',
+      highlight: registrationOpen,
+    },
+  ]
+}
 
 const communityLinks = [
   { href: '/rankings', label: 'Rankings' },
@@ -29,6 +46,8 @@ export function Header() {
   const [communityOpen, setCommunityOpen] = useState(false)
   const [mobileCommunityOpen, setMobileCommunityOpen] = useState(false)
   const dropdownRef = useRef<HTMLLIElement>(null)
+  const registrationOpen = Boolean(nextOpenEvent(new Date().toISOString().split('T')[0]))
+  const navLinks = getNavLinks(registrationOpen)
 
   // Close desktop dropdown on outside click
   useEffect(() => {
