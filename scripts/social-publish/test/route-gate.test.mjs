@@ -518,12 +518,15 @@ test('checkRoute: the rules, without a subprocess', () => {
   assert.equal(cleanReason(' Nino asked for the API '), 'Nino asked for the API')
 })
 
-test('the tracked route gate accepts gallery-announce for both its accounts, and still refuses adhoc', () => {
+test('the tracked route gate accepts gallery-announce for its three publishing accounts, and still refuses adhoc', () => {
   const tracked = JSON.parse(readFileSync(join(SOCIAL, 'graph-routes.json'), 'utf8'))
   assert.equal(hasStandingRoute('gallery-announce', tracked, ['letspepper']), true)
   assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto']), true)
   assert.equal(hasStandingRoute('gallery-announce', tracked, ['letspepper', 'ninophoto']), true)
-  assert.equal(hasStandingRoute('gallery-announce', tracked, ['flickday']), false, 'flickday.media is a collaborator, not one of the accounts this route publishes to')
+  // Amended 2026-09-26 (Nino: "yes" to posting the Millikin album from flickday.media):
+  // flickday publishes too, because a Collab invited FROM nino.chavez.photo attached nothing.
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['flickday']), true)
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['someone-else']), false)
   // adhoc can never hold a standing route, tracked file or not — standingEntry() special-cases it.
   assert.equal(hasStandingRoute('adhoc', tracked, ['letspepper']), false)
   assert.equal(checkRoute({ event: 'adhoc', items: incidentQueue().items, routes: tracked }).ok, false)
