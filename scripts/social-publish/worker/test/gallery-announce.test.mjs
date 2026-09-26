@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict'
 import test, { beforeEach } from 'node:test'
 import worker, { _resetPageTokenCacheForTests } from '../src/index.js'
-import { appendPayload } from '../../seed-kv.mjs'
+import { appendPayload, veto } from '../../seed-kv.mjs'
 
 // A resolved Page token is cached module-wide (a real Worker instance reuses it
 // across requests); reset it before each test so tests targeting the SAME
@@ -258,4 +258,46 @@ test('appendPayload: nothing new to add when every local id is already live', ()
   const { queue, added } = appendPayload(live, local)
   assert.deepEqual(added, [])
   assert.deepEqual(queue.items, live.items)
+})
+
+// ------------------------------------------------------------- seed-kv veto
+
+test('seed-kv veto(): sets status/facebook_status to vetoed on the live item, leaves other items alone', () => {
+  const live = { meta: { route: { reason: 'r', approved: '2026-09-25', accounts: ['flickday'] } },
+    items: [
+      { id: 'album-1-gallery-announce', status: 'held', facebook_status: 'held', holdUntil: '2026-09-30T00:00:00Z' },
+      { id: 'album-2-gallery-announce', status: 'pending', facebook_status: 'pending' },
+    ] }
+  const { queue } = veto(live, ['album-1-gallery-announce'], 'wrong series')
+  const it = queue.items.find((i) => i.id === 'album-1-gallery-announce')
+  assert.equal(it.status, 'vetoed')
+  assert.equal(it.facebook_status, 'vetoed')
+  assert.equal(it.veto_reason, 'wrong series')
+  assert.equal(queue.items[1].status, 'pending', 'the other item is untouched')
+  assert.equal(live.items[0].status, 'held', 'the input queue is not mutated')
+})
+
+test('seed-kv veto(): refuses an unknown id or an already-posted item', () => {
+  const live = { items: [
+    { id: 'album-1-gallery-announce', status: 'posted' },
+  ] }
+  assert.match(veto(live, ['album-1-gallery-announce']).refused, /already posted/)
+  assert.match(veto(live, ['nope']).refused, /unknown id/)
+})
+
+test('seed-kv veto(): defaults the reason when none is given', () => {
+  const live = { items: [{ id: 'x', status: 'held' }] }
+  const { queue } = veto(live, ['x'])
+  assert.equal(queue.items[0].veto_reason, 'vetoed by operator')
+})
+
+test('a vetoed item then runs through the Worker\'s own gate and posts to neither destination', async () => {
+  const queue = carouselQueue()
+  const { queue: vetoed } = veto(queue, ['gallery-announce-re7kho'], 'test fixture')
+  const calls = []
+  const fetchImpl = async (input) => { calls.push(String(input)); throw new Error('should not be called') }
+  const result = await runQueue(vetoed, fetchImpl)
+  assert.deepEqual(calls, [])
+  assert.equal(result.items[0].status, 'vetoed')
+  assert.equal(result.items[0].facebook_status, 'vetoed')
 })

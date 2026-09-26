@@ -6,6 +6,7 @@
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --replace --put  # push changed local content (new items, relinked media)
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --append --put   # merge NEW local items into the live queue, none touched
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --revive a,b --put  # re-open items the Worker refused for want of a route
+ *   node scripts/social-publish/seed-kv.mjs --event <slug> --veto a,b [--reason "..."] --put  # kill live items (status -> "vetoed", both destinations)
  *
  * The Worker publishes an item only when its queue carries `meta.route`. This
  * script is the one thing that writes that block, and it copies it from the
@@ -106,6 +107,30 @@ export function revive(queue, ids) {
   return { queue: next }
 }
 
+/**
+ * Kill one or more LIVE queue items: sets status/facebook_status to "vetoed" on
+ * both destinations. hold-shape.mjs's holdBlock() then refuses both, in both
+ * publishers, permanently — same shape as revive() above, and pushed through
+ * the same tick-window + re-read guard `main()`'s --put path already enforces,
+ * so a veto on a KV-seeded item doesn't need veto-announce.mjs's hand-edit
+ * instructions. Refuses (does not silently no-op) on an unknown id or one
+ * that's already `posted` — a live post is not un-published by this.
+ */
+export function veto(queue, ids, reason) {
+  const next = structuredClone(queue)
+  const notEligible = ids.filter((id) => {
+    const it = next.items.find((i) => i.id === id)
+    return !it || it.status === 'posted'
+  })
+  if (notEligible.length) return { refused: `not eligible for veto (unknown id, or already posted): ${notEligible.join(', ')}.` }
+  for (const it of next.items.filter((i) => ids.includes(i.id))) {
+    it.status = 'vetoed'
+    if ('facebook_status' in it) it.facebook_status = 'vetoed'
+    it.veto_reason = reason || 'vetoed by operator'
+  }
+  return { queue: next }
+}
+
 function wrangler(args, opts = {}) {
   return execFileSync('npx', ['wrangler', 'kv', 'key', ...args, '--binding=QUEUE', `--config=${WRANGLER_CONFIG}`, '--remote'],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts })
@@ -129,10 +154,16 @@ function main() {
   const value = (flag) => { const i = argv.indexOf(flag); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : undefined }
   const event = value('--event')
   const reviveIds = argv.includes('--revive') ? (value('--revive') || '').split(',').map((s) => s.trim()).filter(Boolean) : null
+  const vetoIds = argv.includes('--veto') ? (value('--veto') || '').split(',').map((s) => s.trim()).filter(Boolean) : null
+  const vetoReason = value('--reason')
   const append = argv.includes('--append')
-  if (!event || (reviveIds && !reviveIds.length)) { console.error('Required: --event <slug> [--replace | --append | --revive <id,id>] [--put]'); process.exit(1) }
+  if (!event || (reviveIds && !reviveIds.length) || (vetoIds && !vetoIds.length)) {
+    console.error('Required: --event <slug> [--replace | --append | --revive <id,id> | --veto <id,id> [--reason "..."]] [--put]')
+    process.exit(1)
+  }
   if (reviveIds && argv.includes('--replace')) { console.error('--revive works on the live queue; --replace pushes the local one. Pick one.'); process.exit(1) }
-  if (append && (reviveIds || argv.includes('--replace'))) { console.error('--append only merges new local items into the live queue; pick one of --append / --replace / --revive.'); process.exit(1) }
+  if (append && (reviveIds || vetoIds || argv.includes('--replace'))) { console.error('--append only merges new local items into the live queue; pick one of --append / --replace / --revive / --veto.'); process.exit(1) }
+  if (vetoIds && (reviveIds || argv.includes('--replace'))) { console.error('--veto works on the live queue alone; pick one of --revive / --replace / --veto.'); process.exit(1) }
 
   const routes = loadRoutes()
   // The approval is checked before anything is read from Cloudflare; seedPayload re-checks it against the queue's accounts.
@@ -140,7 +171,12 @@ function main() {
   const live = readLive(event)
   let queue
   let addedIds = null
-  if (reviveIds) {
+  if (vetoIds) {
+    if (!live) refuse(`KV has no key "${event}" to veto items in — nothing has been seeded yet.`)
+    const r = veto(live, vetoIds, vetoReason)
+    if (r.refused) refuse(r.refused)
+    queue = r.queue
+  } else if (reviveIds) {
     if (!live) refuse(`KV has no key "${event}" to revive items in.`)
     const r = revive(live, reviveIds)
     if (r.refused) refuse(r.refused)
@@ -171,7 +207,8 @@ function main() {
   mkdirSync(join(HERE, 'queue'), { recursive: true })
   const outPath = join(HERE, 'queue', `${event}.kv.json`)
   writeFileSync(outPath, JSON.stringify(verdict.payload, null, 2))
-  const source = reviveIds ? `live queue, revived ${reviveIds.join(', ')}`
+  const source = vetoIds ? `live queue, vetoed ${vetoIds.join(', ')}`
+    : reviveIds ? `live queue, revived ${reviveIds.join(', ')}`
     : addedIds ? `live queue, appended ${addedIds.join(', ')}`
     : queue === live ? 'live queue, route restamped' : `local queue/${event}.json`
   console.log(`Wrote ${outPath} from the ${source} (${verdict.payload.items.length} items, route approved ${verdict.payload.meta.route.approved}).`)

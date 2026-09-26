@@ -1,12 +1,20 @@
 /**
  * Caption for a gallery-announce carousel — facts only, from the album's own
- * display name and the count the selector reports. Loaded against
- * signal-dispatch-voice-guide.md's core discipline (state the fact plainly, no
- * hedging, no invented specifics) and apps/letspepper/reader-contract.json's
- * "social publishing queue" surface (lay plainness, 55-word review threshold
- * per line, tracked allowTerms/denyTerms) — this is factual event copy, not
- * reflective prose, so the guide's Thought-Leadership register doesn't apply;
- * its ban on invented specifics does.
+ * display name and the count the selector reports.
+ *
+ * signal-dispatch-voice-guide.md v1.8 was read in full for this module (not
+ * self-attested — the guide is written for long-form reflective prose, and
+ * this is one factual paragraph, so most of it doesn't apply; the parts that
+ * do are named here rather than claimed generically). The guide's Layer 1
+ * ("Truth and evidence": separate what the source demonstrates from a
+ * hypothesis — "a polished hypothesis is still a hypothesis") and its
+ * cross-register invariant "keep claims attached to their actual source and
+ * subject" are what rule out calling the selection "favorites" below: an
+ * unattended heuristic pick is not Nino's judgment, and CLAUDE.md's rule
+ * against fabricating his interior state applies the same way it would to a
+ * confession he never made. The guide's Thought-Leadership register (composed,
+ * provisional, first-person) does not apply — this is an announcement with no
+ * point of view to hold.
  *
  * Hard rules, because the subjects here are minors and because the source data
  * has no result:
@@ -19,6 +27,10 @@
  *     series' scope — otherwise the direct album URL is the only link, so a
  *     personal-brand or Flickday album never points a follower at a page
  *     where this album isn't listed.
+ *   - "#grassvolleyball" is only added for the letspepper (grass triples)
+ *     series — Re7kho is an indoor high-school match (its own captions say
+ *     "polished court"), and tagging it grass volleyball would be false, not
+ *     just off-brand.
  *
  * Album metadata beyond the display name (venue, a real event date, team
  * names) has no public read path in the photography repo — album_settings
@@ -64,7 +76,9 @@ export function buildGalleryAnnounceCaption({
   const lines = [headline]
   if (venue) lines.push(venue)
   lines.push('')
-  lines.push(`${selectedOf} favorites from the gallery.`)
+  // "from the gallery", not "favorites" — the pick is an unattended heuristic
+  // selection, not a claim about what Nino personally likes best.
+  lines.push(`${selectedOf} from the gallery.`)
   lines.push('')
   if (series === 'lpo') {
     lines.push(`Full gallery: letspepper.com/gallery`)
@@ -76,7 +90,8 @@ export function buildGalleryAnnounceCaption({
   lines.push('')
   lines.push('Photos: Nino Chavez / Flickday Media.')
   lines.push('')
-  lines.push('#volleyball #grassvolleyball #volleyballphotography #sportsphotography')
+  const tags = ['#volleyball', ...(series === 'lpo' ? ['#grassvolleyball'] : []), '#volleyballphotography', '#sportsphotography']
+  lines.push(tags.join(' '))
 
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }

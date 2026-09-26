@@ -95,23 +95,27 @@ const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' 
 export function digestOf(item, account, event = '') {
   // Mirror post-reels.mjs / worker buildContainer(): hash the fields that are
   // actually sent, per media type. alt_text rides along with its image (Meta
-  // supports it on a single image or an image carousel child, never video).
+  // supports it on a single image or an image carousel child, never video) —
+  // but ONLY when present: a legacy item with no alt_text and no Facebook
+  // destination must hash EXACTLY as it did before alt_text/Facebook existed,
+  // or every live one-off receipt reads as "changed" the moment this ships and
+  // post-reels.mjs rebuilds every saved container on its next run for nothing.
   const type = item?.media_type || 'REELS'
+  const imageTuple = (url, alt) => (alt ? ['IMAGE', url ?? null, alt] : ['IMAGE', url ?? null])
   const media = type === 'CAROUSEL'
-    ? (item.children || []).map((c) => (c.media_type === 'VIDEO'
-        ? ['VIDEO', c.video_url || null]
-        : ['IMAGE', c.image_url || null, c.alt_text || null]))
-    : type === 'IMAGE' ? [['IMAGE', item?.image_url || null, item?.alt_text || null]]
+    ? (item.children || []).map((c) => (c.media_type === 'VIDEO' ? ['VIDEO', c.video_url || null] : imageTuple(c.image_url, c.alt_text)))
+    : type === 'IMAGE' ? [imageTuple(item?.image_url, item?.alt_text)]
     : type === 'STORIES' ? [item?.video_url ? ['VIDEO', item.video_url] : ['IMAGE', item?.image_url || null]]
     : [['VIDEO', item?.video_url || null]]
   // Stories are bare media: caption, tags and collaborators are not sent, so they are not part of what was approved.
   const words = type === 'STORIES' ? [] : [item?.caption || '', item?.collaborators || [], item?.user_tags || []]
   // channels/facebook_* only matter when this item also crosses to a Facebook Page —
-  // included so a one-off approval binds to that destination's content too.
+  // included so a one-off approval binds to that destination's content too. Omitted
+  // entirely (not even as a null slot) for anything that isn't a Facebook crosspost.
   const facebook = Array.isArray(item?.channels) && item.channels.includes('facebook')
     ? [item?.facebook_caption || null, item?.facebook_alt_text || null]
     : null
-  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, facebook]
+  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, ...(facebook ? [facebook] : [])]
   return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
 }
 

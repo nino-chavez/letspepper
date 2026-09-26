@@ -18,6 +18,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import http from 'node:http'
+import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { mkdtempSync, mkdirSync, cpSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -416,6 +417,40 @@ test('post-now --dry-run with a reason shows the receipt it would record', async
 })
 
 // --- the decision itself ----------------------------------------------------
+
+test('digestOf: a legacy item with no alt_text and no Facebook destination hashes exactly as the pre-alt_text/pre-Facebook formula did', () => {
+  // Reconstructs digestOf()'s formula as it stood before alt_text/Facebook were added
+  // (the two-element image tuple, and no trailing facebook slot at all) and asserts the
+  // CURRENT function still produces the identical hash for a legacy-shaped item. If this
+  // ever diverges, every live one-off receipt on an ordinary (no alt_text, IG-only) item
+  // reads as "changed" the moment this ships, and post-reels.mjs rebuilds every saved
+  // container on its next run for no reason.
+  const legacyDigestOf = (item, account, event = '') => {
+    const type = item?.media_type || 'REELS'
+    const media = type === 'CAROUSEL'
+      ? (item.children || []).map((c) => (c.media_type === 'VIDEO' ? ['VIDEO', c.video_url || null] : ['IMAGE', c.image_url || null]))
+      : type === 'IMAGE' ? [['IMAGE', item?.image_url || null]]
+      : type === 'STORIES' ? [item?.video_url ? ['VIDEO', item.video_url] : ['IMAGE', item?.image_url || null]]
+      : [['VIDEO', item?.video_url || null]]
+    const words = type === 'STORIES' ? [] : [item?.caption || '', item?.collaborators || [], item?.user_tags || []]
+    const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media]
+    return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
+  }
+  for (const item of [
+    incidentQueue().items[0], // CAROUSEL, no alt_text, no channels
+    { id: 'img-1', account: 'flickday', media_type: 'IMAGE', image_url: 'https://x/1.jpg', caption: 'c', collaborators: [], user_tags: [] },
+    { id: 'reel-1', account: 'flickday', media_type: 'REELS', video_url: 'https://x/1.mp4', caption: 'c', collaborators: [], user_tags: [] },
+    { id: 'story-1', account: 'flickday', media_type: 'STORIES', image_url: 'https://x/1.jpg' },
+  ]) {
+    assert.equal(digestOf(item, undefined, EVENT), legacyDigestOf(item, undefined, EVENT), item.id)
+  }
+})
+
+test('digestOf: alt_text and a Facebook destination DO change the digest (they are new content that was not approved before)', () => {
+  const base = { id: 'img-1', account: 'flickday', media_type: 'IMAGE', image_url: 'https://x/1.jpg', caption: 'c', collaborators: [], user_tags: [] }
+  assert.notEqual(digestOf(base, undefined, EVENT), digestOf({ ...base, alt_text: 'a photo' }, undefined, EVENT))
+  assert.notEqual(digestOf(base, undefined, EVENT), digestOf({ ...base, channels: ['instagram', 'facebook'], facebook_caption: 'fb' }, undefined, EVENT))
+})
 
 test('checkRoute: the rules, without a subprocess', () => {
   const items = incidentQueue().items

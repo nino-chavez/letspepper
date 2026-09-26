@@ -27,6 +27,21 @@ test('parseAlbumName: never throws on an unfamiliar shape, returns nulls instead
   assert.equal(r.title, 'Some Random Album Title')
 })
 
+test('caption: never claims the selection is Nino\'s "favorites" — it is an unattended heuristic pick, not his judgment', () => {
+  const caption = buildGalleryAnnounceCaption({
+    albumName: RE7KHO_ALBUM_NAME, galleryUrl: 'https://ninochavez.co/photography/albums/x', selectedOf: '8 of 120', series: 'other',
+  })
+  assert.doesNotMatch(caption, /favorites/i)
+  assert.match(caption, /8 of 120 from the gallery/)
+})
+
+test('caption: "#grassvolleyball" only appears for the letspepper (grass triples) series — Re7kho is an indoor match', () => {
+  const other = buildGalleryAnnounceCaption({ albumName: RE7KHO_ALBUM_NAME, selectedOf: '8 of 120', series: 'other' })
+  assert.doesNotMatch(other, /#grassvolleyball/)
+  const lpo = buildGalleryAnnounceCaption({ albumName: 'Bell Pepper Open - A at B - 09-22-2026', selectedOf: '8 of 40', series: 'lpo' })
+  assert.match(lpo, /#grassvolleyball/)
+})
+
 test('caption: never contains a player name, a score, or "tag yourselves"', () => {
   const caption = buildGalleryAnnounceCaption({
     albumName: RE7KHO_ALBUM_NAME, galleryUrl: 'https://ninochavez.co/photography/albums/hs-girls-vb-jca-at-acc-09-22-2026-Re7kho',

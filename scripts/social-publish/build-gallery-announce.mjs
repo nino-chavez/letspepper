@@ -35,6 +35,8 @@
  *   --series <lpo|other>  required. Routes the publishing account.
  *   --dry-run             produce a manifest under .temp/, touch nothing else:
  *                          no R2 upload, no queue write, no wrangler call.
+ *   --out <path>           dry-run only: write the manifest here instead of
+ *                          .temp/gallery-announce-<key>.dry-run.json.
  *   --count <N>            max carousel slides. Default 10.
  *   --hold-hours <N>       hold window before the item is publishable. Default 12.
  *   --strategy <path>      override select-gallery-photos.mjs with another
@@ -259,9 +261,13 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   if (dryRun) {
-    const outDir = join(HERE, '..', '..', '.temp')
+    // --out lets a test (or an operator comparing two runs) point the manifest
+    // somewhere other than the repo's real .temp/ — otherwise a test run's
+    // --count 3 silently overwrites a real --count 10 manifest sitting there,
+    // because both write the exact same filename.
+    const outDir = typeof args.out === 'string' ? dirname(args.out) : join(HERE, '..', '..', '.temp')
     mkdirSync(outDir, { recursive: true })
-    const outPath = join(outDir, `gallery-announce-${albumKey}.dry-run.json`)
+    const outPath = typeof args.out === 'string' ? args.out : join(outDir, `gallery-announce-${albumKey}.dry-run.json`)
     writeFileSync(outPath, JSON.stringify(manifest, null, 2))
     console.log(`\n[dry-run] Wrote manifest: ${outPath}`)
     console.log('[dry-run] No R2 upload, no queue write, no Graph call, no wrangler call.')

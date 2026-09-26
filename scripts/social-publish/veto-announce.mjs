@@ -8,14 +8,12 @@
  *   node scripts/social-publish/veto-announce.mjs --album-key Re7kho --reason "wrong gallery scope"
  *   node scripts/social-publish/veto-announce.mjs --album-key Re7kho --dry-run
  *
- * Local-only: this edits queue/gallery-announce.json, never KV. If the item
- * was already seeded to the Worker (seed-kv.mjs --append --put), the same veto
- * has to reach KV too — re-run seed-kv.mjs --append --put after this, which
- * copies the vetoed status across because it is a NEW field on an item KV
- * hasn't seen yet... except an item KV already has is left untouched by
- * --append. So a veto on an item already live needs a direct kill: this script
- * intentionally does not touch KV. Print the live-state warning below and leave
- * the KV write to the orchestrator (see SETUP.md § gallery-announce).
+ * Local-only: this edits queue/gallery-announce.json, never KV. --append never
+ * touches an item KV already has, so vetoing an item already seeded to the
+ * Worker needs a second step against the LIVE queue: seed-kv.mjs's own
+ * `--veto <id,id>` mode, which goes through the same tick-window + re-read
+ * guard as every other `--put`. This script tells the operator to run it
+ * rather than hand-editing KV.
  */
 import { readFileSync, writeFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -80,9 +78,9 @@ function main() {
   writeFileSync(queuePath, JSON.stringify(result.queue, null, 2))
   console.log(`Wrote ${queuePath}.`)
   console.log('This is LOCAL only. If this item was already seeded to the Worker (seed-kv.mjs --put), it is still live in KV')
-  console.log('and neither --append nor a plain re-seed will touch an item KV already has. Kill it there directly, e.g.:')
-  console.log(`  npx wrangler kv key get ${EVENT} --binding=QUEUE --config=${join(HERE, 'worker', 'wrangler.jsonc')} --remote`)
-  console.log('  # hand-edit the matching item to status/facebook_status "vetoed", then --put it back.')
+  console.log('and neither --append nor a plain re-seed touches an item KV already has. Kill it there too, through the same')
+  console.log('tick-window + re-read guard every other --put uses (no hand-edit needed):')
+  console.log(`  node ${join(HERE, 'seed-kv.mjs')} --event ${EVENT} --veto ${result.vetoed.join(',')} --reason "${reason || 'vetoed by operator'}" --put`)
 }
 
 // realpathSync before comparing: on macOS, node's own module resolution canonicalizes
