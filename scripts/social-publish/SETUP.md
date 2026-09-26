@@ -273,13 +273,33 @@ This only edits the LOCAL queue file. If the item was already seeded to KV
 KV — `--append` never touches an item KV already has — the script prints the
 `wrangler kv key get` / hand-edit / `--put` steps when this applies.
 
-**Photo selection** (select-gallery-photos.mjs) ranks by the album's AI quality
-sub-scores only when they show real spread (`qualitySpread()`, default
-threshold: composition_score needs at least 4 distinct values across the album)
-— on Re7kho they don't (3 distinct values across 120 photos; sharpness is 7 or 8
-on 112/120), so it falls back to build-album-carousel.mjs's caption heuristic. A
-model evaluation that may replace the scorer is running now; when it lands, only
-select-gallery-photos.mjs (or a `--strategy` override) needs to change.
+**Photo selection** (select-gallery-photos.mjs, rewritten 2026-09-25). The
+model's own quality sub-scores are unusable — on Re7kho, composition_score has
+only 3 distinct values across 120 photos, and model "sharpness" correlates
+with pixel-measured focus at Spearman 0.10. The default strategy no longer
+reads them at all:
+1. Downloads each photo's CF `medium` variant and hard-filters on image data:
+   keeps only the album's majority orientation (Instagram crops every
+   carousel slide to slide 1's aspect ratio, so a mixed set gets cropped
+   badly — reports how many were dropped), then drops the bottom third by a
+   deterministic sharpness score (variance of a 3×3 Laplacian on a downscaled
+   grayscale). The alcohol/smoking hard block is unchanged.
+2. Builds a ~24-photo shortlist spread across `play_type` and across time in
+   the match (`created_at`, which — verified against Re7kho — already IS
+   `photo_date` when the DB has one; see the module header for the exact gap
+   in the site's own API this works around), with a few celebration slots
+   reserved and burst near-duplicates collapsed.
+3. Sends a numbered contact sheet of the shortlist to a vision model
+   (OpenRouter, default `google/gemini-2.5-flash`) and asks for the final N in
+   posting order plus a one-line reason each. Falls back to shortlist order
+   (by sharpness) on any failure — bad JSON, an out-of-range index, a wrong
+   count — and says so in the manifest. Cost on Re7kho: **$0.0012** (well
+   under the $0.05/album target), from OpenRouter's own reported `usage.cost`.
+
+The pre-rewrite strategy (quality-score-if-usable, else the caption
+action/emotion heuristic) is kept, unmodified, as `selectGalleryPhotosByCaption`
+— pass `--strategy caption` to build-gallery-announce.mjs to use it instead.
+`--strategy vision` (the default) or a path to another module both still work.
 
 **Alt text** (alt-text.mjs) is derived from the album's existing AI caption, not
 written fresh, with jersey numbers and any quoted on-scene signage

@@ -39,8 +39,10 @@
  *                          .temp/gallery-announce-<key>.dry-run.json.
  *   --count <N>            max carousel slides. Default 10.
  *   --hold-hours <N>       hold window before the item is publishable. Default 12.
- *   --strategy <path>      override select-gallery-photos.mjs with another
- *                          module exporting the same selectGalleryPhotos(photos, opts) shape.
+ *   --strategy <name|path> "vision" (default) or "caption" — selects a named export of
+ *                          select-gallery-photos.mjs — or a path to another module exporting
+ *                          the same selectGalleryPhotos(photos, opts) shape.
+ *   --model <id>            vision strategy only: OpenRouter model id. Default google/gemini-2.5-flash.
  *   --venue / --teams / --event-date   override the caption's parsed album-name facts.
  *   --name <string>        override the resolved album display name.
  *   --site <url>           gallery base. Default https://ninochavez.co/photography.
@@ -52,7 +54,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
-import selectGalleryPhotosDefault from './select-gallery-photos.mjs'
+import selectGalleryPhotosDefault, { selectGalleryPhotosByCaption } from './select-gallery-photos.mjs'
 import { altTextFromCaption } from './alt-text.mjs'
 import { buildGalleryAnnounceCaption } from './gallery-announce-caption.mjs'
 
@@ -145,12 +147,26 @@ async function assertAlbumIsPublic(site, slugOrKey) {
   if (!res.ok) throw new Error(`could not confirm "${slugOrKey}" is public: album page returned ${res.status}`)
 }
 
-async function loadStrategy(strategyPath) {
-  if (!strategyPath) return selectGalleryPhotosDefault
-  const mod = await import(pathToFileUrl(strategyPath))
+/** `--strategy` takes the default `vision` strategy, the name `caption` (the pre-2026-09-25
+ * default, kept available by name — see select-gallery-photos.mjs's module header), or a
+ * path to another module exporting the same selectGalleryPhotos(photos, opts) shape. */
+async function loadStrategy(strategyArg) {
+  if (!strategyArg || strategyArg === 'vision') return selectGalleryPhotosDefault
+  if (strategyArg === 'caption') return selectGalleryPhotosByCaption
+  const mod = await import(pathToFileUrl(strategyArg))
   return mod.selectGalleryPhotos || mod.default
 }
 function pathToFileUrl(p) { return p.startsWith('file://') ? p : new URL(p, `file://${process.cwd()}/`).href }
+
+/** The vision strategy needs an OpenRouter key; read it from the env first (tests/CI can set
+ * it), else from 1Password directly — same pattern post-reels.mjs uses for IG_ACCESS_TOKEN. */
+function resolveOpenRouterKey() {
+  if (process.env.OPENROUTER_API_KEY) return process.env.OPENROUTER_API_KEY
+  try {
+    return execFileSync('op', ['read', 'op://Developer Secrets/OpenRouter photography/credential'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim()
+  } catch { return undefined }
+}
 
 /** Re-hosts one photo on R2 as jpeg (Instagram rejects webp) — same approach as
  * build-album-carousel.mjs. NEVER called in --dry-run. */
@@ -186,11 +202,19 @@ export async function main(argv = process.argv.slice(2)) {
   if (!photos.length) throw new Error(`No photos for album "${albumKey}" at ${site}`)
 
   const albumName = await resolveAlbumName(site, albumKey, args.name)
-  const selectPhotos = await loadStrategy(typeof args.strategy === 'string' ? args.strategy : null)
-  const selection = selectPhotos(photos, { count })
+  const strategyArg = typeof args.strategy === 'string' ? args.strategy : null
+  const selectPhotos = await loadStrategy(strategyArg)
+  const usingVision = selectPhotos === selectGalleryPhotosDefault
+  const selection = await selectPhotos(photos, {
+    count,
+    ...(usingVision ? { apiKey: resolveOpenRouterKey(), model: typeof args.model === 'string' ? args.model : undefined } : {}),
+  })
   if (!selection.picks.length) throw new Error('No images selected (all hard-blocked, or none had a cf_image_id).')
 
-  console.log(`Album ${albumKey}: ${selection.selectedOf} selected` + (selection.usedQuality ? ' (ranked by quality score)' : ' (quality score flat/unusable — ranked by caption heuristic)'))
+  console.log(`Album ${albumKey}: ${selection.selectedOf} selected` +
+    (selection.strategy === 'vision'
+      ? ` (vision model pick${selection.fallbackUsed ? `, FELL BACK: ${selection.fallbackReason}` : ` — cost $${(selection.costUsd ?? 0).toFixed(4)}`})`
+      : selection.usedQuality ? ' (ranked by quality score)' : ' (quality score flat/unusable — ranked by caption heuristic)'))
 
   const account = accountForSeries(series)
   const slug = createAlbumSlug(albumName, albumKey)
@@ -240,6 +264,9 @@ export async function main(argv = process.argv.slice(2)) {
     error: null,
   }
 
+  // perPhoto (vision strategy only) is already in final picking order — same order as `children`.
+  const perPhotoByKey = new Map((selection.perPhoto || []).map((p) => [p.image_key, p]))
+
   const manifest = {
     authority: 'Nino, 2026-09-25 (chat): "Standing auto-post" — a standing gallery-announcements route, by series, ' +
       'collab with flickday, all galleries eligible. See graph-routes.json "gallery-announce".',
@@ -247,7 +274,13 @@ export async function main(argv = process.argv.slice(2)) {
     collaborators: item.collaborators,
     content: 'carousel',
     assets: selection.selectedOf,
-    selected: children.map((c, i) => ({ order: i + 1, image_key: c._image_key, url: c.image_url, source: c._source, alt_text: c.alt_text })),
+    selected: children.map((c, i) => {
+      const p = perPhotoByKey.get(c._image_key)
+      return {
+        order: i + 1, image_key: c._image_key, url: c.image_url, source: c._source, alt_text: c.alt_text,
+        ...(p ? { why_kept: p.why_kept, sharpness: p.sharpness, orientation: p.orientation, model_reason: p.reason } : {}),
+      }
+    }),
     caption,
     alt_text: children.map((c) => c.alt_text),
     surface: 'Graph publisher standing route gallery-announce',
@@ -257,6 +290,24 @@ export async function main(argv = process.argv.slice(2)) {
     album_key: albumKey,
     album_name: albumName,
     gallery_url: galleryUrl,
+    selection_strategy: selection.strategy || 'caption',
+    ...(selection.strategy === 'vision' ? {
+      selection_totals: {
+        selected_of: selection.selectedOf,
+        majority_orientation: selection.majorityOrientation,
+        orientation_counts: selection.orientationCounts,
+        dropped_by_orientation: selection.droppedByOrientation,
+        dropped_by_sharpness: selection.droppedBySharpness,
+        sharpness_threshold: selection.sharpnessThreshold,
+        shortlist_size: selection.shortlistSize,
+        analysis_errors: selection.analysisErrors,
+      },
+      model: selection.model,
+      cost_usd: selection.costUsd,
+      cost_method: selection.costMethod,
+      fallback_used: selection.fallbackUsed,
+      fallback_reason: selection.fallbackReason,
+    } : {}),
     usedQuality: selection.usedQuality,
   }
 

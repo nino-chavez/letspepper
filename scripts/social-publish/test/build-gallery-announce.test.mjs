@@ -91,7 +91,7 @@ test('main(): --dry-run produces a manifest at --out and touches nothing else', 
   const dir = mkdtempSync(join(tmpdir(), 'gallery-announce-build-test-'))
   const out = join(dir, 'manifest.json')
   try {
-    const result = await main(['--album-key', 'Re7kho', '--series', 'other', '--dry-run', '--count', '3', '--out', out])
+    const result = await main(['--album-key', 'Re7kho', '--series', 'other', '--dry-run', '--count', '3', '--out', out, '--strategy', 'caption'])
     assert.equal(result.outPath, out)
     assert.equal(JSON.parse(readFileSync(out, 'utf8')).account, 'ninophoto')
     assert.equal(result.manifest.account, 'ninophoto')

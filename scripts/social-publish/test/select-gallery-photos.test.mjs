@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { selectGalleryPhotos, qualitySpread, captionScore, isHardBlocked } from '../select-gallery-photos.mjs'
+import { selectGalleryPhotosByCaption as selectGalleryPhotos, qualitySpread, captionScore, isHardBlocked } from '../select-gallery-photos.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 // A real, unmodified pull of album Re7kho (HS Girls VB - JCA at ACC - 09-22-2026,
