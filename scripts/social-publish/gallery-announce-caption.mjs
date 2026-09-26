@@ -2,19 +2,24 @@
  * Caption for a gallery-announce carousel — facts only, from the album's own
  * display name and the count the selector reports.
  *
- * signal-dispatch-voice-guide.md v1.8 was read in full for this module (not
- * self-attested — the guide is written for long-form reflective prose, and
- * this is one factual paragraph, so most of it doesn't apply; the parts that
- * do are named here rather than claimed generically). The guide's Layer 1
- * ("Truth and evidence": separate what the source demonstrates from a
- * hypothesis — "a polished hypothesis is still a hypothesis") and its
- * cross-register invariant "keep claims attached to their actual source and
- * subject" are what rule out calling the selection "favorites" below: an
- * unattended heuristic pick is not Nino's judgment, and CLAUDE.md's rule
- * against fabricating his interior state applies the same way it would to a
- * confession he never made. The guide's Thought-Leadership register (composed,
- * provisional, first-person) does not apply — this is an announcement with no
- * point of view to hold.
+ * What was actually read in signal-dispatch-voice-guide.md v1.8 for this
+ * module: the full table of contents, Layer 1 ("Truth and evidence" — separate
+ * what the source demonstrates from a hypothesis; "a polished hypothesis is
+ * still a hypothesis"), the cross-register invariants ("keep claims attached
+ * to their actual source and subject"), Layer 6 (surface mechanics — a
+ * caption is its own surface; the guide's post-specific mechanics, e.g.
+ * Opening Patterns, Post Structure Templates, do NOT transfer to it), and §1b
+ * "Relocated claims" in full (grep'd for "caption", "hashtag", "1b" first —
+ * there is no dedicated Captions section; §1b is the closest thing and is
+ * about derived copy specifically). §1b's rule — a draft keeps the subject the
+ * source assigns a claim, neither narrower (attributing a general fact to
+ * Nino) nor wider (attributing his system's behavior to everyone) — is the
+ * literal rule "favorites" broke below: an unattended heuristic pick is not
+ * Nino's personal judgment, and calling it that narrows a mechanical fact onto
+ * a person who didn't make the choice. Not read: the Post Structure Templates,
+ * Tonal Elements, and Sentence-Level Mechanics sections in full — they govern
+ * long-form blog prose (openings, rhythm, section breaks) that a one-paragraph
+ * factual caption has no analogue for.
  *
  * Hard rules, because the subjects here are minors and because the source data
  * has no result:

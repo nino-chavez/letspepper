@@ -114,8 +114,12 @@ test('main(): refuses an unlisted/private album (album page 404) rather than ann
 })
 
 // One live check, against the real site, that the endpoints and the derived
-// slug/URL are real — not a mock's opinion of them.
-test('live: the real album page for the derived Re7kho slug actually resolves (200, not 404)', { timeout: 15_000 }, async () => {
-  const res = await fetch(`${SITE}/albums/${createAlbumSlug(RE7KHO_ALBUM_NAME, 'Re7kho')}`)
-  assert.equal(res.status, 200)
-})
+// slug/URL are real — not a mock's opinion of them. Gated behind an env var so
+// `pnpm test:social` stays fully offline by default (that's the point of the
+// stub above); set LIVE_NETWORK=1 to actually hit the real site.
+test('live: the real album page for the derived Re7kho slug actually resolves (200, not 404)',
+  { timeout: 15_000, skip: !process.env.LIVE_NETWORK && 'set LIVE_NETWORK=1 to run this against the real site' },
+  async () => {
+    const res = await fetch(`${SITE}/albums/${createAlbumSlug(RE7KHO_ALBUM_NAME, 'Re7kho')}`)
+    assert.equal(res.status, 200)
+  })

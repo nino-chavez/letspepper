@@ -45,6 +45,7 @@ test('strips a quoted banner/signage transcription — measured live on Re7kho: 
   assert.doesNotMatch(out, /CENTRAL CATHOLIC TIGERS/)
   assert.doesNotMatch(out, /"/)
   assert.match(out, /celebrate on the court/)
+  assert.match(out, /\.$/, 'stripping the whole final sentence must not leave alt text without an ending period')
 })
 
 test('stripQuotedSignage removes any quoted span and its "X reads" lead-in clause', () => {

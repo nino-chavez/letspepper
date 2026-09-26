@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict'
 import test, { beforeEach } from 'node:test'
 import worker, { _resetPageTokenCacheForTests } from '../src/index.js'
-import { appendPayload, veto } from '../../seed-kv.mjs'
+import { appendPayload, veto, lostState } from '../../seed-kv.mjs'
 
 // A resolved Page token is cached module-wide (a real Worker instance reuses it
 // across requests); reset it before each test so tests targeting the SAME
@@ -300,4 +300,16 @@ test('a vetoed item then runs through the Worker\'s own gate and posts to neithe
   assert.deepEqual(calls, [])
   assert.equal(result.items[0].status, 'vetoed')
   assert.equal(result.items[0].facebook_status, 'vetoed')
+})
+
+test('lostState: a vetoed live item counts as started — --replace cannot silently un-veto it back to held', () => {
+  const live = { items: [{ id: 'x', status: 'vetoed', facebook_status: 'vetoed', veto_reason: 'r' }] }
+  const localStillHeld = { items: [{ id: 'x', status: 'held', facebook_status: 'held', holdUntil: '2026-09-30T00:00:00Z' }] }
+  assert.deepEqual(lostState(live, localStillHeld), ['x'], 'a local copy that forgot the veto must be refused by --replace')
+})
+
+test('lostState: the reverse (local newly vetoed, live still held) is NOT blocked — --replace can push a fresh veto to KV', () => {
+  const live = { items: [{ id: 'x', status: 'held', facebook_status: 'held', holdUntil: '2026-09-30T00:00:00Z' }] }
+  const localNowVetoed = { items: [{ id: 'x', status: 'vetoed', facebook_status: 'vetoed', veto_reason: 'r' }] }
+  assert.deepEqual(lostState(live, localNowVetoed), [], 'held (not started) has nothing to lose, so pushing a new veto through is allowed')
 })

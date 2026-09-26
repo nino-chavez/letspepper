@@ -302,6 +302,21 @@ failing opaquely partway through when only the System User token resolves.
 collaborator invitations on Reels (`inviteFacebookCollaborators`) — a carousel
 crosspost posts with no Facebook-side collaborator at all.
 
+**Unverified against Cloudflare's actual limits for this account's plan — check
+before relying on this at 10 slides.** Cloudflare's published limits (fetched
+2026-09-25, not this account's dashboard): KV writes to the SAME key are capped
+at 1/second on every plan; Workers subrequests are capped at 50 per invocation
+on Free, up to 10,000+ on Paid. One gallery-announce tick's worst case is
+roughly 10 IG child containers + 1 parent + up to 15 status polls + up to 4
+publish retries (~30) plus 1-2 Page-token lookups + 10 unpublished Facebook
+photos + 1 feed post (~13) — around 43 subrequests, close to the Free-plan cap
+before counting any retry. `uploadFacebookCarouselPhotos` also calls
+`persistQueue` (one KV `put` to the event's key) after every photo — up to 10
+same-key writes in one tick, against that 1/second cap. Whether Graph's own
+per-call latency naturally spaces those out past a second each is unverified;
+if it doesn't, a `put` can 429 and the Facebook half goes terminal on an
+account-plan detail this file cannot see.
+
 **Collaborators, confirmed from Meta's current docs (2026-09-25):** up to 3
 Instagram usernames as `collaborators` on an ig media create, not supported for
 Stories — matches what this file already documented as "community-confirmed."

@@ -60,7 +60,12 @@ export function seedPayload(queue, event, routes, now = new Date()) {
 // The fields the Worker writes as it publishes. Only KV holds them.
 const PUBLISH_STATE = ['status', 'ig_container_id', 'ig_media_id', 'facebook_status', 'facebook_video_id',
   'facebook_uploaded', 'facebook_post_id', 'facebook_photo_ids']
-const STARTED = new Set(['posted', 'building', 'error'])
+// "vetoed" counts as started even though nothing was ever built or published: without
+// it, --replace from a local file where the item is still "held" would silently flip a
+// live vetoed item back to held, and once holdUntil passes the Worker publishes the
+// exact post the veto existed to stop. veto()'s own tick-window-guarded --put is the
+// intended way to kill a live item; this closes the OTHER path to the same mistake.
+const STARTED = new Set(['posted', 'building', 'error', 'vetoed'])
 const started = (it) => STARTED.has(it.status) || STARTED.has(it.facebook_status) || !!it.ig_container_id ||
   !!it.facebook_video_id || (Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0)
 

@@ -88,13 +88,18 @@ export function stripLikelyNames(text) {
 }
 
 function tidy(text) {
-  return text
+  const cleaned = text
     .replace(/\s+/g, ' ')
     .replace(/\s+([,.])/g, '$1')
     .replace(/,\s*,/g, ',')
     .replace(/,\s*\./g, '.')
     .replace(/\(\s*\)/g, '')
+    .replace(/,\s*$/, '') // a trailing comma left by a stripped clause is not a sentence end
     .trim()
+  // stripQuotedSignage can remove the sentence that carried the final period (e.g. 'X. A
+  // banner reads "Y."' loses its whole second sentence, period included) — restore one so
+  // alt text doesn't read as cut off mid-thought.
+  return cleaned && !/[.!?]$/.test(cleaned) ? `${cleaned}.` : cleaned
 }
 
 const IG_ALT_TEXT_MAX = 1000
