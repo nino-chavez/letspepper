@@ -45,10 +45,11 @@
  *                          the same selectGalleryPhotos(photos, opts) shape.
  *   --model <id>            vision strategy only: OpenRouter model id. Default google/gemini-2.5-flash.
  *   --venue / --teams / --event-date   override the caption's parsed album-name facts.
- *   --refresh-caption      rebuild ONLY the caption of this album's item already in the local
- *                          queue, keeping its photos, alt text and schedule. Refused unless the
- *                          item is still held on both channels. Push it with
- *                          seed-kv.mjs --event gallery-announce --replace --put.
+ *   --refresh-caption      rebuild ONLY the caption of this album's item in the LIVE queue (KV),
+ *                          keeping its photos, alt text and schedule. --series is taken from the
+ *                          item's account (and refused if a passed --series disagrees). Writes the
+ *                          caption to queue/<id>.caption.txt; seed-kv.mjs --recaption pushes it,
+ *                          refusing unless the live item is still held on both channels.
  *
  * A college album's caption also states the match result, looked up on The Rotation
  * (rotation-result.mjs); any other album, or any failed lookup, states none.
@@ -66,6 +67,7 @@ import selectGalleryPhotosDefault, { selectGalleryPhotosByCaption } from './sele
 import { altTextFromCaption } from './alt-text.mjs'
 import { buildGalleryAnnounceCaption, shortAlbumName } from './gallery-announce-caption.mjs'
 import { lookupCollegeResult } from './rotation-result.mjs'
+import { readLive } from './seed-kv.mjs'
 import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor } from './notify.mjs'
 import { loadRoutes, standingEntry } from './route-gate.mjs'
 
@@ -105,6 +107,10 @@ export function cfLarge(id) { return `https://imagedelivery.net/${CF_HASH}/${id}
 /** Account slug for the item, from Nino's "by series and collab with flickday" answer. */
 export function accountForSeries(series) { return series === 'lpo' ? 'letspepper' : 'ninophoto' }
 
+/** Inverse of accountForSeries, for rebuilding a queued item's caption: the account the
+ * item already posts from decides its series, so a refreshed caption cannot drift from it. */
+export function seriesForAccount(account) { return account === 'letspepper' ? 'lpo' : 'other' }
+
 /**
  * Append `item` to `queue` without touching any existing item — the growing-
  * queue contract this campaign needs (compatible with seed-kv.mjs's own
@@ -118,22 +124,6 @@ export function appendGalleryAnnounceItem(queue, item) {
     return { refused: `an item with id "${item.id}" is already in queue/${EVENT}.json — not appending a duplicate.` }
   }
   return { queue: { event: EVENT, ...queue, items: [...items, item] } }
-}
-
-/**
- * Replace the caption of an item that has not published anywhere yet. Pure, so the
- * refusal rules are testable: the item must exist and be "held" on BOTH channels — a
- * caption change after either channel posted would make the two posts disagree.
- */
-export function refreshHeldCaption(queue, id, caption) {
-  const items = queue?.items || []
-  const item = items.find((it) => it.id === id)
-  if (!item) return { refused: `no item with id "${id}" in queue/${EVENT}.json — nothing to refresh.` }
-  if (item.status !== 'held' || item.facebook_status !== 'held') {
-    return { refused: `item "${id}" is ${item.status}/${item.facebook_status}, not held/held — its caption can no longer change.` }
-  }
-  const updated = { ...item, caption, facebook_caption: caption }
-  return { queue: { ...queue, items: items.map((it) => (it.id === id ? updated : it)) }, before: item.caption, after: caption }
 }
 
 async function getJson(url) {
@@ -264,11 +254,48 @@ async function r2Put({ bucket, publicBase, event, cfId, key }) {
   return `${publicBase}/${objectKey}`
 }
 
+/**
+ * --refresh-caption: rebuild the caption of this album's LIVE queue item. KV, not the local
+ * queue file, is the record of what the Worker has published, so both the item's facts
+ * (photo count, account) and the held check come from KV. The push itself stays with
+ * seed-kv.mjs --recaption, the one writer of the live queue.
+ */
+async function refreshCaption(args, albumKey, seriesArg) {
+  const site = (typeof args.site === 'string' ? args.site : 'https://ninochavez.co/photography').replace(/\/$/, '')
+  const id = `${albumKey}-${EVENT}`
+  const item = (readLive(EVENT)?.items || []).find((it) => it.id === id)
+  if (!item) throw new Error(`no live item "${id}" in KV key "${EVENT}" — nothing to refresh.`)
+  if (item.status !== 'held' || item.facebook_status !== 'held') {
+    throw new Error(`live item "${id}" is ${item.status}/${item.facebook_status}, not held/held — its caption can no longer change.`)
+  }
+  const series = seriesForAccount(item.account)
+  if (seriesArg && seriesArg !== series) {
+    throw new Error(`--series ${seriesArg} disagrees with the queued item, which posts from ${item.account} (series ${series}).`)
+  }
+  const photos = await fetchAllPhotos(site, albumKey)
+  if (!photos.length) throw new Error(`No photos for album "${albumKey}" at ${site}`)
+  const albumName = await resolveAlbumName(site, albumKey, args.name)
+  const { result, reason } = await lookupCollegeResult(albumName)
+  console.log(result ? `Result (The Rotation): ${result.line}` : `No result line: ${reason}`)
+  const caption = buildGalleryAnnounceCaption({
+    albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
+    galleryUrl: `${site}/albums/${createAlbumSlug(albumName, albumKey)}`,
+    selectedOf: `${item.children.length} of ${photos.length}`, series, result,
+  })
+  const captionPath = join(HERE, 'queue', `${id}.caption.txt`)
+  mkdirSync(dirname(captionPath), { recursive: true })
+  writeFileSync(captionPath, `${caption}\n`)
+  console.log(`Caption of ${id} changes from:\n${item.caption}\n\nto:\n${caption}\n`)
+  console.log(`Wrote ${captionPath}. Next: seed-kv.mjs --event ${EVENT} --recaption ${id} --caption-file ${captionPath} --put`)
+  return { before: item.caption, after: caption, captionPath }
+}
+
 export async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv)
   const albumKey = typeof args['album-key'] === 'string' ? args['album-key'] : null
   const series = args.series === 'lpo' ? 'lpo' : args.series === 'other' ? 'other' : null
   if (!albumKey) throw new Error('Required: --album-key <key> --series <lpo|other>')
+  if (args['refresh-caption']) return refreshCaption(args, albumKey, series)
   if (!series) throw new Error('Required: --series <lpo|other> — there is no public read path to an album\'s gallery_scope, so this is not defaulted. Many albums in this scope are high-school girls\' volleyball; guess wrong and the wrong owned account announces it.')
 
   const dryRun = !!args['dry-run']
@@ -286,29 +313,6 @@ export async function main(argv = process.argv.slice(2)) {
   const albumName = await resolveAlbumName(site, albumKey, args.name)
   const { result: matchResult, reason: resultReason } = await lookupCollegeResult(albumName)
   console.log(matchResult ? `Result (The Rotation): ${matchResult.line}` : `No result line: ${resultReason}`)
-
-  if (args['refresh-caption']) {
-    const queuePath = join(HERE, 'queue', `${EVENT}.json`)
-    if (!existsSync(queuePath)) throw new Error(`${queuePath} does not exist — nothing to refresh.`)
-    const queue = JSON.parse(readFileSync(queuePath, 'utf8'))
-    const id = `${albumKey}-${EVENT}`
-    const held = (queue.items || []).find((it) => it.id === id)
-    const caption = buildGalleryAnnounceCaption({
-      albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
-      galleryUrl: `${site}/albums/${createAlbumSlug(albumName, albumKey)}`,
-      selectedOf: `${held?.children?.length ?? 0} of ${photos.length}`, series, result: matchResult,
-    })
-    const refreshed = refreshHeldCaption(queue, id, caption)
-    if (refreshed.refused) { console.error(`REFUSED — ${refreshed.refused}`); process.exitCode = 1; return { refused: refreshed.refused } }
-    if (dryRun) {
-      console.log(`[dry-run] caption for ${id} would change from:\n${refreshed.before}\n\nto:\n${refreshed.after}`)
-      return { before: refreshed.before, after: refreshed.after }
-    }
-    writeFileSync(queuePath, JSON.stringify(refreshed.queue, null, 2))
-    console.log(`Refreshed caption of ${id} in ${queuePath}:\n${refreshed.after}`)
-    console.log('Next: seed-kv.mjs --event gallery-announce --replace --put')
-    return { before: refreshed.before, after: refreshed.after, queuePath }
-  }
 
   const strategyArg = typeof args.strategy === 'string' ? args.strategy : null
   const selectPhotos = await loadStrategy(strategyArg)

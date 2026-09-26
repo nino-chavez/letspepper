@@ -4,7 +4,8 @@ import {
   isCollegeAlbum, rotationDataUrl, normalizeTeamName, parseMatchup, findRotationResult, lookupCollegeResult,
 } from '../rotation-result.mjs'
 import { buildGalleryAnnounceCaption } from '../gallery-announce-caption.mjs'
-import { refreshHeldCaption } from '../build-gallery-announce.mjs'
+import { recaption } from '../recaption-shape.mjs'
+import { seriesForAccount, accountForSeries } from '../build-gallery-announce.mjs'
 
 const DWDCET = "College Women's VB - Millikin at North Central - 09-23-2026"
 const COLS = ['id', 'div', 'date', 'epoch', 'home', 'away', 'tv', 'state', 'score', 'tier', 'pts', 'why', 'neutral', 'venue', 'loc', 'wurl', 'tourn', 'kind']
@@ -91,19 +92,27 @@ test('caption: a high-school album never states a result, even if a caller passe
   assert.doesNotMatch(caption, /won/)
 })
 
-test('refreshHeldCaption: replaces both captions on a held item and leaves every other field alone', () => {
+test('recaption: replaces both captions on a held live item and leaves everything else alone', () => {
   const item = { id: 'DWdCET-gallery-announce', status: 'held', facebook_status: 'held', caption: 'old', facebook_caption: 'old', children: [1, 2] }
   const other = { id: 'Re7kho-gallery-announce', status: 'posted', facebook_status: 'posted', caption: 'keep' }
-  const r = refreshHeldCaption({ event: 'gallery-announce', items: [other, item] }, item.id, 'new')
+  const live = { event: 'gallery-announce', meta: { route: { approved: '2026-09-25' } }, items: [other, item] }
+  const r = recaption(live, item.id, 'new')
   assert.equal(r.before, 'old')
   assert.deepEqual(r.queue.items[1], { ...item, caption: 'new', facebook_caption: 'new' })
   assert.deepEqual(r.queue.items[0], other)
+  assert.deepEqual(r.queue.meta, live.meta)
+  assert.equal(live.items[1].caption, 'old', 'the input queue is not mutated')
 })
 
-test('refreshHeldCaption: refuses a missing item and any item past held on either channel', () => {
+test('recaption: refuses a missing item, an empty caption, and any item past held on either channel', () => {
   const q = (status, facebook_status) => ({ items: [{ id: 'x', status, facebook_status, caption: 'c' }] })
-  assert.match(refreshHeldCaption(q('held', 'held'), 'y', 'n').refused, /no item/)
-  assert.match(refreshHeldCaption(q('posted', 'held'), 'x', 'n').refused, /not held\/held/)
-  assert.match(refreshHeldCaption(q('held', 'posted'), 'x', 'n').refused, /not held\/held/)
-  assert.match(refreshHeldCaption(q('vetoed', 'vetoed'), 'x', 'n').refused, /not held\/held/)
+  assert.match(recaption(q('held', 'held'), 'y', 'n').refused, /no item/)
+  assert.match(recaption(q('held', 'held'), 'x', '  ').refused, /empty/)
+  for (const [a, b] of [['posted', 'held'], ['held', 'posted'], ['building', 'held'], ['vetoed', 'vetoed'], ['error', 'held']]) {
+    assert.match(recaption(q(a, b), 'x', 'n').refused, /not held\/held/)
+  }
+})
+
+test('seriesForAccount inverts accountForSeries, so a refreshed caption follows the posting account', () => {
+  for (const series of ['lpo', 'other']) assert.equal(seriesForAccount(accountForSeries(series)), series)
 })

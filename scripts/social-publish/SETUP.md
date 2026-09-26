@@ -11,7 +11,9 @@ build-album-carousel.mjs gallery album → R2-hosted CAROUSEL queue/<event>.json
 build-gallery-announce.mjs  standing campaign: one album → held CAROUSEL, APPENDED to queue/gallery-announce.json
 select-gallery-photos.mjs   swappable photo-selection strategy for build-gallery-announce.mjs
 alt-text.mjs                derives Instagram/Facebook alt text from the site's own caption
-gallery-announce-caption.mjs   facts-only caption template for build-gallery-announce.mjs
+gallery-announce-caption.mjs   facts-only caption template for build-gallery-announce.mjs (a college album also states the result)
+rotation-result.mjs         looks up a college album's match result on therotation.tv (college only; a miss means no result line)
+recaption-shape.mjs         the recaption() function seed-kv.mjs --recaption applies to one live item still held on both channels
 notify.mjs               phone notifications (ntfy.sh) for HELD/POSTED/FAILED/VETOED — Worker-safe, no node: imports
 hold-shape.mjs           the held/vetoed check both publishers share (never opened by --force)
 veto-announce.mjs        kill one gallery-announce album locally before it publishes
@@ -252,7 +254,23 @@ node scripts/social-publish/build-gallery-announce.mjs --album-key Re7kho --seri
 #    already started on (--replace is refused the moment anything has posted; this
 #    merges only the ids KV doesn't have yet):
 node scripts/social-publish/seed-kv.mjs --event gallery-announce --append --put
+
+# Change the caption of an item already in KV, while it is still held on both channels
+# (e.g. to add a college result). Photos, alt text and schedule stay as queued; the
+# account the item posts from decides the series. The builder reads the LIVE item and
+# writes queue/<id>.caption.txt; seed-kv re-checks held/held on the live queue and
+# pushes with the same tick-window and re-read guards as --veto:
+node scripts/social-publish/build-gallery-announce.mjs --album-key DWdCET --refresh-caption \
+  --venue "Gregory Arena, Naperville"
+node scripts/social-publish/seed-kv.mjs --event gallery-announce \
+  --recaption DWdCET-gallery-announce --caption-file scripts/social-publish/queue/DWdCET-gallery-announce.caption.txt --put
 ```
+
+**College albums state the result (Nino, 2026-09-26):** "this is college so not minors.
+and the data can be sourced from therotation.tv which itself sourced from official
+sources". `rotation-result.mjs` finds the match on The Rotation by the album's date and
+both team names and adds one line, e.g. "North Central won 3-0." No set scores (The
+Rotation has none). High-school, middle-school and club albums never state a result.
 
 **`--series` is required, not defaulted — re-checked 2026-09-26, still true.** The
 routing field is `album_settings.gallery_scope` (confirmed the table/column: letspepper's
