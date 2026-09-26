@@ -10,6 +10,7 @@
 import assert from 'node:assert/strict'
 import test, { beforeEach } from 'node:test'
 import worker, { _resetPageTokenCacheForTests } from '../src/index.js'
+import { appendPayload } from '../../seed-kv.mjs'
 
 // A resolved Page token is cached module-wide (a real Worker instance reuses it
 // across requests); reset it before each test so tests targeting the SAME
@@ -222,4 +223,39 @@ test('a vetoed in-flight (building) item is not resumed', async () => {
   const result = await runQueue(queue, fetchImpl)
   assert.deepEqual(calls, [])
   assert.equal(result.items[0].ig_container_id, 'stray-container', 'left untouched, not rebuilt or published')
+})
+
+// ------------------------------------------------------------ seed-kv append
+
+test('appendPayload: a new local item is added; nothing about an existing live item changes', () => {
+  const live = {
+    event: 'gallery-announce', meta: { route: { reason: 'r', approved: '2026-09-25', accounts: ['flickday'] } },
+    items: [{ id: 'album-1', status: 'posted', ig_media_id: 'ig-media-1' }],
+  }
+  const local = { event: 'gallery-announce', items: [
+    { id: 'album-1', status: 'held', holdUntil: '2026-09-30T00:00:00Z' }, // stale local copy of an already-posted item
+    { id: 'album-2', status: 'held', holdUntil: '2026-09-30T00:00:00Z' }, // the new one
+  ] }
+  const { queue, added } = appendPayload(live, local)
+  assert.deepEqual(added, ['album-2'])
+  assert.deepEqual(queue.items.map((it) => it.id), ['album-1', 'album-2'])
+  assert.equal(queue.items[0].status, 'posted', 'the live item is untouched, not overwritten by the stale local held copy')
+  assert.equal(queue.items[0].ig_media_id, 'ig-media-1')
+  assert.equal(queue.items[1].status, 'held')
+  assert.equal(queue.meta.route.reason, 'r', 'meta.route is preserved from the live queue')
+})
+
+test('appendPayload: an empty live queue just adopts every local item', () => {
+  const local = { items: [{ id: 'album-1' }, { id: 'album-2' }] }
+  const { queue, added } = appendPayload({ items: [] }, local)
+  assert.deepEqual(added, ['album-1', 'album-2'])
+  assert.equal(queue.items.length, 2)
+})
+
+test('appendPayload: nothing new to add when every local id is already live', () => {
+  const live = { items: [{ id: 'album-1', status: 'posted' }] }
+  const local = { items: [{ id: 'album-1', status: 'held' }] }
+  const { queue, added } = appendPayload(live, local)
+  assert.deepEqual(added, [])
+  assert.deepEqual(queue.items, live.items)
 })
