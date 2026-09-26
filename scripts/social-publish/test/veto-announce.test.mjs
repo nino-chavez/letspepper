@@ -55,6 +55,7 @@ function sandbox() {
   cpSync(join(SOCIAL, 'veto-announce.mjs'), join(social, 'veto-announce.mjs'))
   cpSync(join(SOCIAL, 'notify.mjs'), join(social, 'notify.mjs'))
   cpSync(join(SOCIAL, 'gallery-announce-caption.mjs'), join(social, 'gallery-announce-caption.mjs'))
+  cpSync(join(SOCIAL, 'rotation-result.mjs'), join(social, 'rotation-result.mjs')) // imported by gallery-announce-caption.mjs
   writeFileSync(join(social, 'queue', 'gallery-announce.json'), JSON.stringify(queueFixture(), null, 2))
   return { social, queuePath: join(social, 'queue', 'gallery-announce.json'), cleanup: () => rmSync(root, { recursive: true, force: true }) }
 }
