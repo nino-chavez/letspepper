@@ -4,7 +4,9 @@
  *   node scripts/social-publish/seed-kv.mjs --event <slug>                  # preview: write queue/<slug>.kv.json only
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --put            # and write it to production KV
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --replace --put  # push changed local content (new items, relinked media)
+ *   node scripts/social-publish/seed-kv.mjs --event <slug> --append --put   # merge NEW local items into the live queue, none touched
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --revive a,b --put  # re-open items the Worker refused for want of a route
+ *   node scripts/social-publish/seed-kv.mjs --event <slug> --veto a,b [--reason "..."] --put  # kill live items (status -> "vetoed", both destinations)
  *
  * The Worker publishes an item only when its queue carries `meta.route`. This
  * script is the one thing that writes that block, and it copies it from the
@@ -19,12 +21,17 @@
  * content instead, and is refused if that would drop any publish state the
  * Worker recorded (posted, building, error, a container or upload id): with a
  * valid route on it, a queue that forgot an item was posted would post it again.
+ * --append is for a standing campaign that grows one item at a time
+ * (build-gallery-announce.mjs appends locally as each new album publishes):
+ * every existing live item is kept exactly as the Worker recorded it, and only
+ * ids the live queue does not have yet are added — appendPayload() never needs
+ * lostState()'s refusal, because it never overwrites a Worker-recorded item.
  * KV has no compare-and-set, so --put also refuses within five minutes of the
  * hourly tick and re-reads the key just before writing. That narrows the race
  * with a Worker run (scheduled, or /run over HTTP) to milliseconds; it does not
  * close it.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, realpathSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -51,15 +58,47 @@ export function seedPayload(queue, event, routes, now = new Date()) {
 }
 
 // The fields the Worker writes as it publishes. Only KV holds them.
-const PUBLISH_STATE = ['status', 'ig_container_id', 'ig_media_id', 'facebook_status', 'facebook_video_id',
-  'facebook_uploaded', 'facebook_post_id']
-const STARTED = new Set(['posted', 'building', 'error'])
-const started = (it) => STARTED.has(it.status) || STARTED.has(it.facebook_status) || !!it.ig_container_id || !!it.facebook_video_id
+// ig_child_container_ids (added for the gallery-announce carousel's per-tick subrequest
+// budget): the Worker persists one IG carousel child container id as each is created, so a
+// tick that runs out of budget mid-build resumes from where it stopped instead of
+// re-creating children next tick. Without it here, --replace could drop that partial
+// progress from KV and the next tick would recreate every child from scratch.
+const PUBLISH_STATE = ['status', 'ig_container_id', 'ig_media_id', 'ig_child_container_ids', 'facebook_status',
+  'facebook_video_id', 'facebook_uploaded', 'facebook_post_id', 'facebook_photo_ids']
+// "vetoed" counts as started even though nothing was ever built or published: without
+// it, --replace from a local file where the item is still "held" would silently flip a
+// live vetoed item back to held, and once holdUntil passes the Worker publishes the
+// exact post the veto existed to stop. veto()'s own tick-window-guarded --put is the
+// intended way to kill a live item; this closes the OTHER path to the same mistake.
+const STARTED = new Set(['posted', 'building', 'error', 'vetoed'])
+const started = (it) => STARTED.has(it.status) || STARTED.has(it.facebook_status) || !!it.ig_container_id ||
+  !!it.facebook_video_id || (Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0) ||
+  (Array.isArray(it.ig_child_container_ids) && it.ig_child_container_ids.length > 0)
 
 /** Ids of live items the Worker has started on whose publish state `local` would drop or change. */
 export function lostState(live, local) {
   const byId = new Map((local.items || []).map((it) => [it.id, it]))
   return (live.items || []).filter((it) => started(it) && PUBLISH_STATE.some((k) => byId.get(it.id)?.[k] !== it[k])).map((it) => it.id)
+}
+
+/**
+ * Merge new local items into the live queue without touching a single field the
+ * Worker already recorded on an existing item. Built for a standing, growing
+ * campaign like gallery-announce: build-gallery-announce.mjs appends one item to
+ * the LOCAL file per album, and this is how those new items reach KV — the
+ * Worker's only record of what it has published — without the all-or-nothing
+ * choice `--replace` forces (which lostState() refuses the moment ANY item in
+ * the campaign has posted). Live items are returned untouched, in their
+ * existing order; new local items (ids not already live) are appended after
+ * them, in the order they appear locally. An id present in both is left as the
+ * live copy — this never overwrites a Worker-recorded item, so it never needs
+ * lostState()'s refusal.
+ */
+export function appendPayload(live, local) {
+  const liveItems = live?.items || []
+  const liveIds = new Set(liveItems.map((it) => it.id))
+  const added = (local?.items || []).filter((it) => !liveIds.has(it.id))
+  return { queue: { ...live, items: [...liveItems, ...added] }, added: added.map((it) => it.id) }
 }
 
 /**
@@ -75,6 +114,30 @@ export function revive(queue, ids) {
     if (it.status === 'error' && it.error === it.route_error) { it.status = 'pending'; it.error = null }
     if (it.facebook_status === 'error' && it.facebook_error === it.route_error) { it.facebook_status = 'pending'; it.facebook_error = null }
     delete it.route_error
+  }
+  return { queue: next }
+}
+
+/**
+ * Kill one or more LIVE queue items: sets status/facebook_status to "vetoed" on
+ * both destinations. hold-shape.mjs's holdBlock() then refuses both, in both
+ * publishers, permanently — same shape as revive() above, and pushed through
+ * the same tick-window + re-read guard `main()`'s --put path already enforces,
+ * so a veto on a KV-seeded item doesn't need veto-announce.mjs's hand-edit
+ * instructions. Refuses (does not silently no-op) on an unknown id or one
+ * that's already `posted` — a live post is not un-published by this.
+ */
+export function veto(queue, ids, reason) {
+  const next = structuredClone(queue)
+  const notEligible = ids.filter((id) => {
+    const it = next.items.find((i) => i.id === id)
+    return !it || it.status === 'posted'
+  })
+  if (notEligible.length) return { refused: `not eligible for veto (unknown id, or already posted): ${notEligible.join(', ')}.` }
+  for (const it of next.items.filter((i) => ids.includes(i.id))) {
+    it.status = 'vetoed'
+    if ('facebook_status' in it) it.facebook_status = 'vetoed'
+    it.veto_reason = reason || 'vetoed by operator'
   }
   return { queue: next }
 }
@@ -102,19 +165,43 @@ function main() {
   const value = (flag) => { const i = argv.indexOf(flag); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : undefined }
   const event = value('--event')
   const reviveIds = argv.includes('--revive') ? (value('--revive') || '').split(',').map((s) => s.trim()).filter(Boolean) : null
-  if (!event || (reviveIds && !reviveIds.length)) { console.error('Required: --event <slug> [--replace | --revive <id,id>] [--put]'); process.exit(1) }
+  const vetoIds = argv.includes('--veto') ? (value('--veto') || '').split(',').map((s) => s.trim()).filter(Boolean) : null
+  const vetoReason = value('--reason')
+  const append = argv.includes('--append')
+  if (!event || (reviveIds && !reviveIds.length) || (vetoIds && !vetoIds.length)) {
+    console.error('Required: --event <slug> [--replace | --append | --revive <id,id> | --veto <id,id> [--reason "..."]] [--put]')
+    process.exit(1)
+  }
   if (reviveIds && argv.includes('--replace')) { console.error('--revive works on the live queue; --replace pushes the local one. Pick one.'); process.exit(1) }
+  if (append && (reviveIds || vetoIds || argv.includes('--replace'))) { console.error('--append only merges new local items into the live queue; pick one of --append / --replace / --revive / --veto.'); process.exit(1) }
+  if (vetoIds && (reviveIds || argv.includes('--replace'))) { console.error('--veto works on the live queue alone; pick one of --revive / --replace / --veto.'); process.exit(1) }
 
   const routes = loadRoutes()
   // The approval is checked before anything is read from Cloudflare; seedPayload re-checks it against the queue's accounts.
   if (!standingEntry(event, routes)) refuse(seedPayload({ items: [] }, event, routes).refused)
   const live = readLive(event)
   let queue
-  if (reviveIds) {
+  let addedIds = null
+  if (vetoIds) {
+    if (!live) refuse(`KV has no key "${event}" to veto items in — nothing has been seeded yet.`)
+    const r = veto(live, vetoIds, vetoReason)
+    if (r.refused) refuse(r.refused)
+    queue = r.queue
+  } else if (reviveIds) {
     if (!live) refuse(`KV has no key "${event}" to revive items in.`)
     const r = revive(live, reviveIds)
     if (r.refused) refuse(r.refused)
     queue = r.queue
+  } else if (append) {
+    // For a standing campaign that grows one item at a time (build-gallery-announce.mjs
+    // appends locally), this is how a NEW item reaches KV without --replace's all-or-
+    // nothing choice: every existing live item, including its publish state, is kept
+    // exactly as the Worker wrote it; only ids the live queue does not have yet are added.
+    const local = existsSync(join(HERE, 'queue', `${event}.json`)) ? JSON.parse(readFileSync(join(HERE, 'queue', `${event}.json`), 'utf8')) : { items: [] }
+    const r = appendPayload(live || { items: [] }, local)
+    queue = r.queue
+    addedIds = r.added
+    if (!addedIds.length) { console.log(`Nothing new to append — every local item in queue/${event}.json is already in KV.`); return }
   } else if (live && !argv.includes('--replace')) {
     queue = live // restamp only: the Worker's items stay exactly as it recorded them
   } else {
@@ -131,7 +218,10 @@ function main() {
   mkdirSync(join(HERE, 'queue'), { recursive: true })
   const outPath = join(HERE, 'queue', `${event}.kv.json`)
   writeFileSync(outPath, JSON.stringify(verdict.payload, null, 2))
-  const source = reviveIds ? `live queue, revived ${reviveIds.join(', ')}` : queue === live ? 'live queue, route restamped' : `local queue/${event}.json`
+  const source = vetoIds ? `live queue, vetoed ${vetoIds.join(', ')}`
+    : reviveIds ? `live queue, revived ${reviveIds.join(', ')}`
+    : addedIds ? `live queue, appended ${addedIds.join(', ')}`
+    : queue === live ? 'live queue, route restamped' : `local queue/${event}.json`
   console.log(`Wrote ${outPath} from the ${source} (${verdict.payload.items.length} items, route approved ${verdict.payload.meta.route.approved}).`)
   if (!argv.includes('--put')) { console.log('Preview only. Re-run with --put to write it to production KV.'); return }
   // KV has no compare-and-set, so the put would revert anything the Worker wrote since the read — and with a
@@ -143,6 +233,12 @@ function main() {
   console.log(`Seeded KV key "${event}".`)
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+// realpathSync before comparing: node canonicalizes a symlinked module path (e.g. macOS's
+// /var -> /private/var under a mkdtemp'd test root) in import.meta.url, but process.argv[1]
+// is left exactly as supplied — an un-realpath'd comparison here silently never runs main()
+// when this script is spawned from such a path (found running veto-announce.mjs's own tests).
+let isEntryPoint = false
+try { isEntryPoint = import.meta.url === pathToFileURL(realpathSync(process.argv[1] || '')).href } catch { /* argv[1] unreadable — not the entry point */ }
+if (isEntryPoint) {
   try { main() } catch (e) { console.error(`REFUSED — ${e.message}`); process.exit(REFUSED) }
 }

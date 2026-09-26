@@ -18,6 +18,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import http from 'node:http'
+import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { mkdtempSync, mkdirSync, cpSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -25,6 +26,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   checkRoute, hasStandingRoute, hasReceipt, cleanReason, makeReceipt, digestOf, refusal, REFUSED, RECEIPT_TTL_HOURS,
+  standingEntry,
 } from '../route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -67,7 +69,7 @@ function sandbox({ routes = { events: {} }, queue = incidentQueue() } = {}) {
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
   mkdirSync(join(root, 'tools', 'lib'), { recursive: true })
-  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'post-reels.mjs', 'post-now.mjs', 'accounts.json', 'vary-captions.mjs'])
+  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'post-reels.mjs', 'post-now.mjs', 'accounts.json', 'vary-captions.mjs'])
     cpSync(join(SOCIAL, f), join(social, f))
   cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
   cpSync(join(REPO, 'reader-contract.json'), join(root, 'reader-contract.json'))
@@ -416,6 +418,40 @@ test('post-now --dry-run with a reason shows the receipt it would record', async
 
 // --- the decision itself ----------------------------------------------------
 
+test('digestOf: a legacy item with no alt_text and no Facebook destination hashes exactly as the pre-alt_text/pre-Facebook formula did', () => {
+  // Reconstructs digestOf()'s formula as it stood before alt_text/Facebook were added
+  // (the two-element image tuple, and no trailing facebook slot at all) and asserts the
+  // CURRENT function still produces the identical hash for a legacy-shaped item. If this
+  // ever diverges, every live one-off receipt on an ordinary (no alt_text, IG-only) item
+  // reads as "changed" the moment this ships, and post-reels.mjs rebuilds every saved
+  // container on its next run for no reason.
+  const legacyDigestOf = (item, account, event = '') => {
+    const type = item?.media_type || 'REELS'
+    const media = type === 'CAROUSEL'
+      ? (item.children || []).map((c) => (c.media_type === 'VIDEO' ? ['VIDEO', c.video_url || null] : ['IMAGE', c.image_url || null]))
+      : type === 'IMAGE' ? [['IMAGE', item?.image_url || null]]
+      : type === 'STORIES' ? [item?.video_url ? ['VIDEO', item.video_url] : ['IMAGE', item?.image_url || null]]
+      : [['VIDEO', item?.video_url || null]]
+    const words = type === 'STORIES' ? [] : [item?.caption || '', item?.collaborators || [], item?.user_tags || []]
+    const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media]
+    return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
+  }
+  for (const item of [
+    incidentQueue().items[0], // CAROUSEL, no alt_text, no channels
+    { id: 'img-1', account: 'flickday', media_type: 'IMAGE', image_url: 'https://x/1.jpg', caption: 'c', collaborators: [], user_tags: [] },
+    { id: 'reel-1', account: 'flickday', media_type: 'REELS', video_url: 'https://x/1.mp4', caption: 'c', collaborators: [], user_tags: [] },
+    { id: 'story-1', account: 'flickday', media_type: 'STORIES', image_url: 'https://x/1.jpg' },
+  ]) {
+    assert.equal(digestOf(item, undefined, EVENT), legacyDigestOf(item, undefined, EVENT), item.id)
+  }
+})
+
+test('digestOf: alt_text and a Facebook destination DO change the digest (they are new content that was not approved before)', () => {
+  const base = { id: 'img-1', account: 'flickday', media_type: 'IMAGE', image_url: 'https://x/1.jpg', caption: 'c', collaborators: [], user_tags: [] }
+  assert.notEqual(digestOf(base, undefined, EVENT), digestOf({ ...base, alt_text: 'a photo' }, undefined, EVENT))
+  assert.notEqual(digestOf(base, undefined, EVENT), digestOf({ ...base, channels: ['instagram', 'facebook'], facebook_caption: 'fb' }, undefined, EVENT))
+})
+
 test('checkRoute: the rules, without a subprocess', () => {
   const items = incidentQueue().items
   const none = { events: {} }
@@ -482,6 +518,17 @@ test('checkRoute: the rules, without a subprocess', () => {
   assert.equal(cleanReason(' Nino asked for the API '), 'Nino asked for the API')
 })
 
+test('the tracked route gate accepts gallery-announce for both its accounts, and still refuses adhoc', () => {
+  const tracked = JSON.parse(readFileSync(join(SOCIAL, 'graph-routes.json'), 'utf8'))
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['letspepper']), true)
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto']), true)
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['letspepper', 'ninophoto']), true)
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['flickday']), false, 'flickday.media is a collaborator, not one of the accounts this route publishes to')
+  // adhoc can never hold a standing route, tracked file or not — standingEntry() special-cases it.
+  assert.equal(hasStandingRoute('adhoc', tracked, ['letspepper']), false)
+  assert.equal(checkRoute({ event: 'adhoc', items: incidentQueue().items, routes: tracked }).ok, false)
+})
+
 test('refusal text: says what happened, where the post should go, and what counts as approval', () => {
   const items = incidentQueue().items
   const text = refusal({ event: EVENT, items, missing: items, script: 'post-reels.mjs' })
@@ -489,12 +536,23 @@ test('refusal text: says what happened, where the post should go, and what count
     assert.ok(text.includes(needle), `refusal is missing: ${needle}`)
 })
 
-test('every entry in the tracked approval list is a complete approval', () => {
+test('every entry in the tracked approval list is a complete approval, naming real accounts', () => {
   // A malformed entry does not approve anything, and fails silently at publish time. Catch it here.
+  // hasStandingRoute(event, tracked) alone isn't the right check for an entry with real
+  // accounts: entryCovers() requires accounts.length > 0 on the QUERY side, so calling it
+  // with the default empty [] always returns false regardless of the entry's own validity —
+  // that's what let an empty events:{} pass this test trivially before any entry existed.
   const tracked = JSON.parse(readFileSync(join(SOCIAL, 'graph-routes.json'), 'utf8'))
+  const registry = JSON.parse(readFileSync(join(SOCIAL, 'accounts.json'), 'utf8')).accounts
   assert.equal(typeof tracked.events, 'object')
   for (const event of Object.keys(tracked.events)) {
     assert.notEqual(event, 'adhoc', 'the ad hoc ledger cannot hold a standing route')
-    assert.ok(hasStandingRoute(event, tracked), `graph-routes.json: "${event}" needs a non-empty reason and approved date`)
+    const entry = standingEntry(event, tracked)
+    assert.ok(entry, `graph-routes.json: "${event}" needs a non-empty reason, an approved YYYY-MM-DD date, and a non-empty accounts[]`)
+    // hasStandingRoute still proves the entry actually covers the accounts it claims to.
+    assert.ok(hasStandingRoute(event, tracked, entry.accounts), `graph-routes.json: "${event}"'s own accounts[] does not pass its own entryCovers() check`)
+    for (const slug of entry.accounts) {
+      assert.ok(registry[slug], `graph-routes.json: "${event}" names account slug "${slug}", which is not in accounts.json — a route naming an unknown slug approves nothing a run will ever match`)
+    }
   }
 })

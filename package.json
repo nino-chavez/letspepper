@@ -10,7 +10,7 @@
     "reader:check": "node tools/lib/encounter-audit.mjs --root=. --strict",
     "reader:check:website": "node tools/lib/encounter-audit.mjs --root=. --surface=website --strict",
     "reader:check:social": "node tools/lib/encounter-audit.mjs --root=. --surface=\"social publishing queue\" --strict",
-    "social:worker:test": "node --experimental-default-type=module --test scripts/social-publish/worker/test/index.test.mjs",
+    "social:worker:test": "node --experimental-default-type=module --test scripts/social-publish/worker/test/*.test.mjs",
     "creative:copy": "node scripts/media-kit/lint-copy.mjs",
     "creative:render": "node scripts/media-kit/render-media-kit.mjs",
     "creative:build": "node scripts/media-kit/build-all.mjs",
@@ -19,7 +19,7 @@
     "creative:clip-plan:test": "node scripts/media-kit/test-clip-plan.mjs",
     "creative:clip-desk:test": "node scripts/media-kit/test-clip-desk.mjs",
     "creative:jpo-review:test": "node scripts/media-kit/test-jpo-review.mjs",
-    "test:social": "node --test scripts/social-publish/test/route-gate.test.mjs",
+    "test:social": "node --test scripts/social-publish/test/*.test.mjs",
     "check:rhq-drift": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-rhq-drift.mjs",
     "derive:mascots": "node scripts/site/derive-mascot-images.mjs"
   },
@@ -44,6 +44,7 @@
     "eslint-config-next": "^14.2.0",
     "playwright": "^1.59.1",
     "postcss": "^8.4.0",
+    "sharp": "^0.35.4",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.4.0"
   }
