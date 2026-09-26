@@ -135,6 +135,36 @@ test('laplacianVariance: a checkerboard (maximally textured) image scores far hi
   assert.ok(laplacianVariance(checker, w, h) > 0)
 })
 
+test('analyzeAlbum: when most majority-orientation downloads fail it throws the real cause, not a later null.toFixed', async () => {
+  // 2026-09-26: `sharp` was not installed, every portrait download failed, the landscape
+  // minority became the "majority", and the run died on null.toFixed with the cause hidden.
+  const photos = [
+    { image_key: 'p1', cf_image_id: 'p1', aspect_ratio: 0.667 },
+    { image_key: 'p2', cf_image_id: 'p2', aspect_ratio: 0.667 },
+    { image_key: 'p3', cf_image_id: 'p3', aspect_ratio: 0.667 },
+    { image_key: 'l1', cf_image_id: 'l1', aspect_ratio: 1.5 },
+  ]
+  const fetchImpl = async () => new Response('nope', { status: 503 })
+  await assert.rejects(
+    () => analyzeAlbum(photos, { fetchImpl, concurrency: 2 }),
+    (e) => /sharpness analysis failed for 3 of 3 portrait photos: 503/.test(e.message),
+  )
+})
+
+test('analyzeAlbum: the majority is decided before any download, so one failed download cannot flip it', async () => {
+  const buf = await sharp({ create: { width: 24, height: 40, channels: 3, background: { r: 90, g: 90, b: 90 } } }).jpeg().toBuffer()
+  const photos = [
+    { image_key: 'p1', cf_image_id: 'p1', aspect_ratio: 0.667 },
+    { image_key: 'p2', cf_image_id: 'p2', aspect_ratio: 0.667 },
+    { image_key: 'p3', cf_image_id: 'p3', aspect_ratio: 0.667 },
+    { image_key: 'l1', cf_image_id: 'l1', aspect_ratio: 1.5 },
+  ]
+  const fetchImpl = async (url) => (String(url).includes('/p3/') ? new Response('nope', { status: 503 }) : new Response(buf, { status: 200 }))
+  const { majority, errors } = await analyzeAlbum(photos, { fetchImpl, concurrency: 2 })
+  assert.equal(majority, 'portrait')
+  assert.equal(errors.length, 1)
+})
+
 // --- filterBySharpness --------------------------------------------------------
 
 test('filterBySharpness: drops the bottom third by sharpness, keeps the sharper two-thirds', () => {
@@ -143,6 +173,17 @@ test('filterBySharpness: drops the bottom third by sharpness, keeps the sharper 
   assert.equal(droppedCount, 2) // floor(6/3) = 2
   assert.equal(kept.length, 4)
   assert.ok(!kept.some((r) => r.sharpness === 1 || r.sharpness === 2))
+})
+
+test('filterBySharpness: a record with no sharpness is never kept and counts as dropped', () => {
+  const records = [
+    ...[1, 2, 3, 9, 8, 7].map((s, i) => rec({ key: `p${i}`, orientation: 'portrait', sharpness: s })),
+    rec({ key: 'unscored', orientation: 'portrait', sharpness: null }),
+  ]
+  const { kept, droppedCount } = filterBySharpness(records, { dropFraction: 1 / 3 })
+  assert.ok(!kept.some((r) => r.photo.image_key === 'unscored'))
+  assert.equal(kept.length, 4)
+  assert.equal(droppedCount, 3) // two by sharpness, one unscored
 })
 
 test('filterBySharpness: dropFraction 0 keeps everything', () => {

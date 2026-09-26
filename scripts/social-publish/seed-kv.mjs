@@ -124,23 +124,13 @@ export function revive(queue, ids) {
  * publishers, permanently — same shape as revive() above, and pushed through
  * the same tick-window + re-read guard `main()`'s --put path already enforces,
  * so a veto on a KV-seeded item doesn't need veto-announce.mjs's hand-edit
- * instructions. Refuses (does not silently no-op) on an unknown id or one
- * that's already `posted` — a live post is not un-published by this.
+ * instructions. Moved to veto-shape.mjs (2026-09-26): the Worker's own
+ * /review/cancel handler needs this exact function (one veto format, not two)
+ * without pulling this file's node: imports into the Worker bundle — see that
+ * file's header. Re-exported here so every existing caller/test that imports
+ * `veto` from seed-kv.mjs is unaffected.
  */
-export function veto(queue, ids, reason) {
-  const next = structuredClone(queue)
-  const notEligible = ids.filter((id) => {
-    const it = next.items.find((i) => i.id === id)
-    return !it || it.status === 'posted'
-  })
-  if (notEligible.length) return { refused: `not eligible for veto (unknown id, or already posted): ${notEligible.join(', ')}.` }
-  for (const it of next.items.filter((i) => ids.includes(i.id))) {
-    it.status = 'vetoed'
-    if ('facebook_status' in it) it.facebook_status = 'vetoed'
-    it.veto_reason = reason || 'vetoed by operator'
-  }
-  return { queue: next }
-}
+export { veto } from './veto-shape.mjs'
 
 function wrangler(args, opts = {}) {
   return execFileSync('npx', ['wrangler', 'kv', 'key', ...args, '--binding=QUEUE', `--config=${WRANGLER_CONFIG}`, '--remote'],

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  asciiHeaderValue, buildNtfyRequest, notify,
+  asciiHeaderValue, buildNtfyRequest, buildActionsHeader, notify,
+  chicagoLabel, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor,
   heldNotification, postedNotification, failedNotification, vetoedNotification,
 } from '../notify.mjs'
 
@@ -44,7 +45,64 @@ test('buildNtfyRequest: omits optional headers when not given', () => {
   assert.equal(req.headers['X-Title'], undefined)
   assert.equal(req.headers['X-Tags'], undefined)
   assert.equal(req.headers['X-Click'], undefined)
+  assert.equal(req.headers['X-Actions'], undefined)
   assert.equal(req.headers['X-Priority'], 'default') // default param
+})
+
+test('buildNtfyRequest: sets X-Actions from the actions array', () => {
+  const req = buildNtfyRequest({
+    topic: 't', message: 'm',
+    actions: [{ action: 'view', label: 'Review', url: 'https://example.test/review' }],
+  })
+  assert.equal(req.headers['X-Actions'], 'action=view, label=Review, url=https://example.test/review')
+})
+
+// --- buildActionsHeader: the explicit key=value form of the syntax docs.ntfy.sh/publish/
+// #action-buttons documents (fetched 2026-09-26, not guessed — see this function's own
+// comment for why the explicit form is used over the docs' positional shorthand) ---------
+
+test('buildActionsHeader: a view action, with and without clear', () => {
+  assert.equal(
+    buildActionsHeader([{ action: 'view', label: 'Review', url: 'https://x.test/review' }]),
+    'action=view, label=Review, url=https://x.test/review',
+  )
+  assert.equal(
+    buildActionsHeader([{ action: 'view', label: 'Review', url: 'https://x.test/review', clear: true }]),
+    'action=view, label=Review, url=https://x.test/review, clear=true',
+  )
+})
+
+test('buildActionsHeader: a URL query string (containing "=" and "&") passes through untouched', () => {
+  assert.equal(
+    buildActionsHeader([{ action: 'view', label: 'Review', url: 'https://x.test/review?key=abc&id=Re7kho-gallery-announce' }]),
+    'action=view, label=Review, url=https://x.test/review?key=abc&id=Re7kho-gallery-announce',
+  )
+})
+
+test('buildActionsHeader: an http action defaults to no explicit method (POST is ntfy\'s default)', () => {
+  assert.equal(
+    buildActionsHeader([{ action: 'http', label: 'Cancel post', url: 'https://x.test/cancel', clear: true }]),
+    'action=http, label=Cancel post, url=https://x.test/cancel, clear=true',
+  )
+})
+
+test('buildActionsHeader: joins multiple actions with "; "', () => {
+  const header = buildActionsHeader([
+    { action: 'view', label: 'Review', url: 'https://x.test/review' },
+    { action: 'http', label: 'Cancel post', url: 'https://x.test/cancel', clear: true },
+  ])
+  assert.equal(header, 'action=view, label=Review, url=https://x.test/review; action=http, label=Cancel post, url=https://x.test/cancel, clear=true')
+})
+
+test('buildActionsHeader: quotes a field that carries a comma or semicolon', () => {
+  assert.equal(
+    buildActionsHeader([{ action: 'view', label: 'Cancel, or not', url: 'https://x.test/a;b' }]),
+    'action=view, label="Cancel, or not", url="https://x.test/a;b"',
+  )
+})
+
+test('buildActionsHeader: refuses an action type it does not implement', () => {
+  assert.throws(() => buildActionsHeader([{ action: 'broadcast' }]), /unknown action type/)
 })
 
 // --- notify: never throws, never logs the topic/URL --------------------------
@@ -91,49 +149,138 @@ test('notify: console.error never prints the topic or the ntfy.sh URL on failure
   assert.ok(!lines.some((l) => l.includes('ntfy.sh/')), `a log line leaked the ntfy.sh URL: ${lines.join(' | ')}`)
 })
 
+// --- chicagoLabel / nextAllowedSlot / reviewUrlFor / reviewCancelUrlFor -------
+
+test('chicagoLabel: a plain "<weekday> <time> Central" label, never a timezone abbreviation', () => {
+  // 2026-09-27T03:08:00Z is 2026-09-26 10:08 PM in America/Chicago (CDT, UTC-5 in September).
+  assert.equal(chicagoLabel('2026-09-27T03:08:00.000Z'), 'Sat 10:08 PM Central')
+  assert.doesNotMatch(chicagoLabel('2026-09-27T03:08:00.000Z'), /CDT|CST/)
+})
+
+test('chicagoLabel: null for a missing or invalid input, never "Invalid Date"', () => {
+  assert.equal(chicagoLabel(undefined), null)
+  assert.equal(chicagoLabel('not a date'), null)
+})
+
+test('nextAllowedSlot: rolls forward to the next same-day slot', () => {
+  // 2026-09-26T15:00Z (10 AM Central) is before both 17 and 22 UTC — same-day 17:00Z slot.
+  assert.equal(nextAllowedSlot('2026-09-26T15:00:00.000Z', [17, 22]), '2026-09-26T17:00:00.000Z')
+})
+
+test('nextAllowedSlot: rolls to the next day\'s first slot once every slot for the (UTC) day has passed', () => {
+  // 2026-09-26T23:30Z is after both 17:00Z and 22:00Z on its own UTC day (the 26th).
+  assert.equal(nextAllowedSlot('2026-09-26T23:30:00.000Z', [17, 22]), '2026-09-27T17:00:00.000Z')
+})
+
+test('reviewUrlFor: the review page link, key and id both URL-encoded, id as the fragment', () => {
+  assert.equal(
+    reviewUrlFor('sek ret', 'Re7kho-gallery-announce'),
+    'https://letspepper-reels-worker.biq.workers.dev/review?key=sek%20ret#Re7kho-gallery-announce',
+  )
+})
+
+test('reviewUrlFor: undefined without a key or an id', () => {
+  assert.equal(reviewUrlFor(undefined, 'x'), undefined)
+  assert.equal(reviewUrlFor('k', undefined), undefined)
+})
+
+test('reviewCancelUrlFor: key and id both ride the query string (no form body)', () => {
+  assert.equal(
+    reviewCancelUrlFor('sek ret', 'Re7kho-gallery-announce'),
+    'https://letspepper-reels-worker.biq.workers.dev/review/cancel?key=sek%20ret&id=Re7kho-gallery-announce',
+  )
+})
+
 // --- event builders: pure, no network, no topic -------------------------------
+// Rewritten 2026-09-26: Nino read the live HELD alert and said "i'm confused on what i'm
+// supposed to do... hard to distinguish info from action." The rule now: outcome first, no
+// terminal commands in the body, the one action behind a button.
 
-test('heldNotification: carries both the local and the live veto command', () => {
+test('heldNotification: leads with when it posts and how many photos, no account/tags/commands', () => {
   const n = heldNotification({
-    albumKey: 'Re7kho', albumName: 'HS Girls VB - JCA at ACC', selectedOf: '10 of 120',
-    account: 'nino.chavez.photo', collaborator: 'flickday.media',
-    holdUntilChicago: '2026-09-26 8:00 AM', galleryUrl: 'https://ninochavez.co/photography/albums/x-Re7kho',
+    shortName: 'JCA at ACC', photoCount: 10,
+    holdUntilIso: '2026-09-27T03:08:00.000Z', // Sat 10:08 PM Central
+    nextSlotIso: '2026-09-27T17:00:00.000Z', // Sun 12:00 PM Central (first ALLOWED_HOURS_UTC slot at/after holdUntil)
+    reviewUrl: 'https://letspepper-reels-worker.biq.workers.dev/review?key=k#i',
+    reviewCancelUrl: 'https://letspepper-reels-worker.biq.workers.dev/review/cancel?key=k&id=i',
   })
-  assert.match(n.title, /Re7kho|HS Girls VB/)
-  assert.match(n.message, /veto-announce\.mjs --album-key Re7kho/)
-  assert.match(n.message, /seed-kv\.mjs --event gallery-announce --veto Re7kho-gallery-announce/)
-  assert.match(n.message, /10 of 120/)
-  assert.match(n.message, /flickday\.media/)
-  assert.equal(n.click, 'https://ninochavez.co/photography/albums/x-Re7kho')
-  assert.deepEqual(n.tags, ['gallery-announce', 'held'])
+  assert.equal(n.title, 'Posts Sun 12:00 PM Central: JCA at ACC (10 photos)')
+  assert.equal(n.message, "Nothing to do. Cancel before Sat 10:08 PM Central if you don't want it.")
+  assert.equal(n.click, 'https://letspepper-reels-worker.biq.workers.dev/review?key=k#i')
+  assert.equal(n.tags, undefined, 'HELD drops Tags entirely — they render as a visible "Tags: ..." line')
+  assert.deepEqual(n.actions, [
+    { action: 'view', label: 'Review', url: 'https://letspepper-reels-worker.biq.workers.dev/review?key=k#i' },
+    { action: 'http', label: 'Cancel post', url: 'https://letspepper-reels-worker.biq.workers.dev/review/cancel?key=k&id=i', clear: true },
+  ])
+  assert.doesNotMatch(n.message, /\.mjs|--/, 'no terminal command anywhere in the body')
 })
 
-test('postedNotification: click is the permalink', () => {
-  const n = postedNotification({ albumName: 'Re7kho', channel: 'instagram', permalink: 'https://instagram.com/p/abc' })
+test('heldNotification: no REVIEW_KEY -> no click, no actions, and a different one-liner (never a fallback command)', () => {
+  const n = heldNotification({
+    shortName: 'JCA at ACC', photoCount: 10,
+    holdUntilIso: '2026-09-27T03:08:00.000Z', nextSlotIso: '2026-09-27T17:00:00.000Z',
+  })
+  assert.equal(n.message, 'Nothing to do. It posts on its own.')
+  assert.equal(n.click, undefined)
+  assert.deepEqual(n.actions, [])
+  assert.doesNotMatch(n.message, /\.mjs|--/)
+})
+
+test('heldNotification: singular "photo" for a one-slide carousel', () => {
+  const n = heldNotification({ shortName: 'x', photoCount: 1, holdUntilIso: '2026-09-27T03:08:00.000Z', nextSlotIso: '2026-09-27T17:00:00.000Z' })
+  assert.match(n.title, /\(1 photo\)$/)
+})
+
+test('postedNotification: outcome-first title, a View-on-<channel> button, no account slug', () => {
+  const n = postedNotification({ albumName: 'JCA at ACC', channel: 'instagram', permalink: 'https://instagram.com/p/abc', collaborator: 'flickday.media' })
+  assert.equal(n.title, 'Posted: JCA at ACC')
   assert.equal(n.click, 'https://instagram.com/p/abc')
-  assert.match(n.title, /Posted to instagram/)
+  assert.deepEqual(n.actions, [{ action: 'view', label: 'View on Instagram', url: 'https://instagram.com/p/abc' }])
+  assert.match(n.message, /Collab/)
+  assert.match(n.message, /flickday\.media/)
+  assert.doesNotMatch(n.title, /ninophoto|letspepper\b/) // account slug, never shown
 })
 
-test('postedNotification: no permalink still produces a sendable notification', () => {
-  const n = postedNotification({ albumName: 'Re7kho', channel: 'facebook', permalink: null })
-  assert.equal(n.click, null)
-  assert.match(n.message, /no permalink/)
+test('postedNotification: no Collab reminder on the Facebook destination (no Collab there at all)', () => {
+  const n = postedNotification({ albumName: 'JCA at ACC', channel: 'facebook', permalink: 'https://facebook.com/123', collaborator: 'flickday.media' })
+  assert.doesNotMatch(n.message, /Collab/)
+  assert.deepEqual(n.actions, [{ action: 'view', label: 'View on Facebook', url: 'https://facebook.com/123' }])
 })
 
-test('failedNotification: high priority, names the channel and the error', () => {
-  const n = failedNotification({ albumName: 'Re7kho', channel: 'facebook', error: '(#200) some error' })
+test('postedNotification: no permalink still produces a sendable notification, with no dead button', () => {
+  const n = postedNotification({ albumName: 'JCA at ACC', channel: 'facebook', permalink: null })
+  assert.equal(n.click, undefined)
+  assert.deepEqual(n.actions, [])
+  assert.match(n.message, /no permalink/i)
+})
+
+test('failedNotification: outcome-first title, high priority, a Review button', () => {
+  const n = failedNotification({
+    albumName: 'JCA at ACC', channel: 'facebook', error: '(#200) some error',
+    reviewUrl: 'https://letspepper-reels-worker.biq.workers.dev/review?key=k#i',
+  })
+  assert.equal(n.title, "Didn't post: JCA at ACC")
   assert.equal(n.priority, 'high')
-  assert.match(n.message, /facebook: \(#200\) some error/)
+  assert.match(n.message, /Facebook.*\(#200\) some error/)
+  assert.deepEqual(n.actions, [{ action: 'view', label: 'Review', url: 'https://letspepper-reels-worker.biq.workers.dev/review?key=k#i' }])
 })
 
-test('vetoedNotification: says LOCAL ONLY when it has not reached the Worker', () => {
-  const n = vetoedNotification({ albumName: 'Re7kho', reason: 'wrong scope', localOnly: true })
+test('failedNotification: no Review button without a reviewUrl', () => {
+  const n = failedNotification({ albumName: 'x', channel: 'instagram', error: 'e' })
+  assert.deepEqual(n.actions, [])
+  assert.equal(n.click, undefined)
+})
+
+test('vetoedNotification: outcome-first title, says LOCAL ONLY when it has not reached the Worker', () => {
+  const n = vetoedNotification({ albumName: 'JCA at ACC', reason: 'wrong scope', localOnly: true })
+  assert.equal(n.title, 'Cancelled: JCA at ACC')
+  assert.match(n.message, /won't post/i)
   assert.match(n.message, /LOCAL ONLY/)
   assert.match(n.message, /wrong scope/)
 })
 
 test('vetoedNotification: does not claim LOCAL ONLY once it has reached the Worker', () => {
-  const n = vetoedNotification({ albumName: 'Re7kho', reason: 'wrong scope', localOnly: false })
+  const n = vetoedNotification({ albumName: 'JCA at ACC', reason: 'wrong scope', localOnly: false })
   assert.doesNotMatch(n.message, /LOCAL ONLY/)
 })
 
@@ -145,7 +292,6 @@ test('every tag used by the event builders is a plain word, not an emoji short c
     'heavy_check_mark', 'loudspeaker', '+1', '-1', 'facepalm', 'no_entry', 'no_entry_sign', 'cd', 'computer',
   ])
   const all = [
-    ...heldNotification({ albumKey: 'x', albumName: 'x', selectedOf: '1 of 1', account: 'a', holdUntilChicago: 'x', galleryUrl: 'x' }).tags,
     ...postedNotification({ albumName: 'x', channel: 'instagram', permalink: 'x' }).tags,
     ...postedNotification({ albumName: 'x', channel: 'facebook', permalink: 'x' }).tags,
     ...failedNotification({ albumName: 'x', channel: 'instagram', error: 'x' }).tags,

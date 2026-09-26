@@ -100,7 +100,8 @@ test('a successful Instagram publish sends a POSTED notification to ntfy.sh with
   assert.equal(ntfyCalls.length, 1)
   assert.equal(ntfyCalls[0].url, `https://ntfy.sh/${NTFY_TOPIC}`)
   assert.equal(ntfyCalls[0].headers['X-Click'], 'https://instagram.com/p/abc123/')
-  assert.match(ntfyCalls[0].headers['X-Title'], /Posted to instagram/)
+  assert.equal(ntfyCalls[0].headers['X-Title'], 'Posted: JCA at ACC')
+  assert.match(ntfyCalls[0].headers['X-Actions'], /^action=view, label=View on Instagram, url=https:\/\/instagram\.com\/p\/abc123\/$/)
 })
 
 test('a successful Facebook publish sends its own POSTED notification, independent of Instagram', async () => {
@@ -113,9 +114,12 @@ test('a successful Facebook publish sends its own POSTED notification, independe
   }
   const queue = await runQueue(imageQueue(), fetchImpl)
   assert.equal(queue.items[0].facebook_status, 'posted')
-  const fbNotif = ntfyCalls.find((c) => /Posted to facebook/.test(c.headers['X-Title']))
+  // Both destinations share the same "Posted: <album>" title now (2026-09-26 — the channel
+  // dropped out of the title), so a Facebook notification is picked out by its click target.
+  const fbNotif = ntfyCalls.find((c) => c.headers['X-Click'] === 'https://www.facebook.com/739564079232058_999')
   assert.ok(fbNotif, 'expected a Facebook POSTED notification')
-  assert.equal(fbNotif.headers['X-Click'], 'https://www.facebook.com/739564079232058_999')
+  assert.equal(fbNotif.headers['X-Title'], 'Posted: JCA at ACC')
+  assert.match(fbNotif.headers['X-Actions'], /^action=view, label=View on Facebook, url=https:\/\/www\.facebook\.com\/739564079232058_999$/)
 })
 
 test('a terminal Instagram error sends a high-priority FAILED notification instead of POSTED', async () => {
@@ -129,9 +133,9 @@ test('a terminal Instagram error sends a high-priority FAILED notification inste
   const queue = await runQueue(imageQueue({ channels: ['instagram'] }), fetchImpl)
   assert.equal(queue.items[0].status, 'error')
   assert.equal(ntfyCalls.length, 1)
-  assert.match(ntfyCalls[0].headers['X-Title'], /FAILED/)
+  assert.equal(ntfyCalls[0].headers['X-Title'], "Didn't post: JCA at ACC")
   assert.equal(ntfyCalls[0].headers['X-Priority'], 'high')
-  assert.match(ntfyCalls[0].body, /instagram: IG failure/)
+  assert.match(ntfyCalls[0].body, /Instagram didn't post: IG failure/)
 })
 
 test('a notify failure (ntfy.sh unreachable) never turns a successful publish into an error', async () => {

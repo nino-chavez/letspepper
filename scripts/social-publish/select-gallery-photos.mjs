@@ -336,6 +336,7 @@ export async function analyzeAlbum(photos, { concurrency = 8, ...rest } = {}) {
   const { majority } = computeMajorityOrientation(classified)
 
   const analyzed = []
+  const sharpnessErrors = []
   await Promise.all(classified.map((c) => limit(async () => {
     if (c.orientation !== majority) { analyzed.push(c); return } // never downloaded
     if (c.buffer) { analyzed.push(c); return } // already downloaded + sharpness computed in the fallback path
@@ -343,9 +344,19 @@ export async function analyzeAlbum(photos, { concurrency = 8, ...rest } = {}) {
       const buffer = await fetchImageBuffer(cfMediumUrl(c.photo.cf_image_id), rest.fetchImpl)
       const { sharpness } = await computeSharpnessAndDims(buffer)
       analyzed.push({ photo: c.photo, orientation: c.orientation, sharpness, buffer })
-    } catch (e) { errors.push({ photo: c.photo, error: e.message }) }
+    } catch (e) { sharpnessErrors.push({ photo: c.photo, error: e.message }) }
   })))
-  return { analyzed, errors }
+  // Fail loudly when most of the majority orientation could not be scored. On 2026-09-26 a
+  // checkout without `sharp` installed failed every download here; the survivors were the
+  // 29 never-downloaded landscape photos, the majority flipped from portrait to landscape, and
+  // the run died later on `null.toFixed` with the real cause (a missing package) hidden.
+  const majorityCount = classified.filter((c) => c.orientation === majority).length
+  if (majorityCount > 0 && sharpnessErrors.length > majorityCount / 2) {
+    throw new Error(`sharpness analysis failed for ${sharpnessErrors.length} of ${majorityCount} ${majority} photos: ${sharpnessErrors[0].error}`)
+  }
+  errors.push(...sharpnessErrors)
+  // `majority` is decided in phase 1, before any download, so a failed download can never flip it.
+  return { analyzed, errors, majority }
 }
 
 /** Majority orientation across analyzed records — the album gets cropped to slide 1's aspect
@@ -364,12 +375,14 @@ export function filterByOrientation(records, majority) {
 
 /** Drops the bottom `dropFraction` of records by sharpness (default: bottom third). */
 export function filterBySharpness(records, { dropFraction = 1 / 3 } = {}) {
-  const sorted = [...records].sort((a, b) => a.sharpness - b.sharpness)
+  // A record without a numeric sharpness was never scored; it cannot survive a sharpness filter.
+  const scored = records.filter((r) => typeof r.sharpness === 'number' && Number.isFinite(r.sharpness))
+  const sorted = [...scored].sort((a, b) => a.sharpness - b.sharpness)
   const dropCount = Math.floor(sorted.length * dropFraction)
   const droppedKeys = new Set(sorted.slice(0, dropCount).map((r) => r.photo.image_key))
-  const kept = records.filter((r) => !droppedKeys.has(r.photo.image_key))
+  const kept = scored.filter((r) => !droppedKeys.has(r.photo.image_key))
   const threshold = dropCount < sorted.length ? sorted[dropCount].sharpness : null
-  return { kept, droppedCount: dropCount, threshold }
+  return { kept, droppedCount: dropCount + (records.length - scored.length), threshold }
 }
 
 /** The vision strategy's capture-time field: `photo_date` when the album API provides it
@@ -600,9 +613,11 @@ export async function selectGalleryPhotosByVision(photos, {
   const withImage = (photos || []).filter((p) => p.cf_image_id)
   const clean = withImage.filter((p) => !isHardBlocked(p.caption))
 
-  const { analyzed, errors } = await analyzeAlbumFn(clean, { concurrency, fetchImpl })
+  const { analyzed, errors, majority: analyzedMajority } = await analyzeAlbumFn(clean, { concurrency, fetchImpl })
 
-  const { majority, counts } = computeMajorityOrientation(analyzed)
+  const computed = computeMajorityOrientation(analyzed)
+  const majority = analyzedMajority ?? computed.majority
+  const { counts } = computed
   const { kept: orientationKept, droppedCount: droppedByOrientation } = filterByOrientation(analyzed, majority)
   const { kept: sharpKept, droppedCount: droppedBySharpness, threshold } = filterBySharpness(orientationKept, { dropFraction })
 
