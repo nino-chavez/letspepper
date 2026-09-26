@@ -58,6 +58,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { assertGraphRoute, digestOf } from './route-gate.mjs'
+import { holdBlock } from './hold-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -104,8 +105,11 @@ if (ids.some((id) => typeof id !== 'string' || !id.trim()) || new Set(ids).size 
 const now = Date.now()
 const ready = (it) => it.status !== 'posted' &&
   (it.media_type === 'CAROUSEL' ? Array.isArray(it.children) && it.children.length : (it.video_url || it.image_url))
+// A hold or a veto blocks BOTH destinations and is never opened by --force: --force
+// exists to skip a future scheduledAt, not to skip a hold window nobody has cleared
+// or a post Nino killed.
 const due = q.items.filter((it) => ready(it) && (!idFilter || it.id === idFilter) &&
-  (force || new Date(it.scheduledAt).getTime() <= now))
+  (force || new Date(it.scheduledAt).getTime() <= now) && !holdBlock(it, new Date(now)))
 
 if (!due.length) {
   if (idFilter) { console.error(`No due item with id "${idFilter}" (missing, already posted, or not hosted).`); process.exit(1) }

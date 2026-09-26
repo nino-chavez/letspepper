@@ -19,7 +19,7 @@
     "creative:clip-plan:test": "node scripts/media-kit/test-clip-plan.mjs",
     "creative:clip-desk:test": "node scripts/media-kit/test-clip-desk.mjs",
     "creative:jpo-review:test": "node scripts/media-kit/test-jpo-review.mjs",
-    "test:social": "node --test scripts/social-publish/test/route-gate.test.mjs",
+    "test:social": "node --test scripts/social-publish/test/*.test.mjs",
     "check:rhq-drift": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-rhq-drift.mjs",
     "derive:mascots": "node scripts/site/derive-mascot-images.mjs"
   },

@@ -45,6 +45,7 @@
  */
 
 import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
+import { holdBlock } from '../../hold-shape.mjs'
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
@@ -175,8 +176,13 @@ const hasMedia = (it) => it.media_type === 'CAROUSEL'
 
 const wantsInstagram = (it) => !Array.isArray(it.channels) || it.channels.includes('instagram')
 const wantsFacebook = (it) => Array.isArray(it.channels) && it.channels.includes('facebook')
-const instagramPending = (it) => wantsInstagram(it) && (it.status === 'pending' || it.status === 'building')
-const facebookPending = (it) => wantsFacebook(it) &&
+// A hold or a veto blocks BOTH destinations, same as a route refusal, and for the
+// same reason: instagramPending/facebookPending decide what may reach the Graph
+// API next, and "pending" alone can't tell a held or vetoed item from an ordinary
+// one. Checked with `new Date()` at call time, never cached, so a hold clears the
+// moment holdUntil passes without needing anything to flip its status.
+const instagramPending = (it) => wantsInstagram(it) && !holdBlock(it) && (it.status === 'pending' || it.status === 'building')
+const facebookPending = (it) => wantsFacebook(it) && !holdBlock(it) &&
   ((it.facebook_status || 'pending') === 'pending' || it.facebook_status === 'building')
 
 async function persistQueue(env, ev, q) {
@@ -429,11 +435,13 @@ async function publishItem(env, ev, q, item) {
 }
 
 // Finish an in-flight container/upload for this event, if any. Returns result or null.
+// Same hold/veto check as postDuePending: a container built before a veto lands must
+// not be published just because it is already in flight.
 async function resumeIfBuilding(env, ev) {
   const q = await loadQueue(env, ev); if (!q) return null
-  const building = q.items.filter((it) =>
-    (wantsInstagram(it) && it.status === 'building' && it.ig_container_id) ||
-    (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id))
+  const building = q.items.filter((it) => !holdBlock(it) &&
+    ((wantsInstagram(it) && it.status === 'building' && it.ig_container_id) ||
+    (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id)))
   if (!building.length) return null
   const [item] = await routed(env, ev, q, building)
   if (!item) return null
