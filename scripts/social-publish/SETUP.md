@@ -456,7 +456,7 @@ the next tick, including an elapsed hold). Same split on the Facebook side.
 
 ## Arming gallery-announce
 
-Everything above this line is built and tested; nothing below has been run for real yet.
+Armed on 2026-09-26: steps 1 and 2 were run (Worker deployed, secrets set from 1Password) and step 3 is wired. Steps 5 and 6 recur per post and per phone.
 In order:
 
 1. **Deploy this branch's code first.** Cloudflare's own docs: `wrangler secret put`
@@ -479,16 +479,18 @@ In order:
    op read 'op://Developer Secrets/Meta Lets Pepper Page Publisher/credential'      | npx wrangler secret put FB_ACCESS_TOKEN
    op read 'op://Developer Secrets/ntfy gallery-announce/credential'                | npx wrangler secret put NTFY_TOPIC
    ```
-   (`TRIGGER_KEY` should already be set from an earlier campaign — `npx wrangler secret
-   list` shows names, never values, so check there before overwriting it.)
+   `TRIGGER_KEY` (guards `/status`, `/run` and `/run?force=1`) was reissued on 2026-09-26
+   and its value is kept in 1Password as `Cloudflare letspepper-reels-worker trigger-key`.
+   Before that it was rotated per use and never recorded, which left `/status` unreadable.
 
-3. **How a publish on the photo site reaches this build: it doesn't, yet.** Nothing in
-   the photography repo calls this builder, triggers a webhook, or otherwise knows this
-   pipeline exists (checked 2026-09-26 — no `webhook`/`gallery-announce`/dispatch
-   reference anywhere in that repo). "Publishing an album" there is really "an album
-   finishes ingest and its settings allow it to be listed" — there's no dedicated publish
-   action to hook. Until something is built to watch for that, run the builder by hand
-   per album:
+3. **How a publish on the photo site reaches this build.** The photography repo's
+   `scripts/publish-album.ts` runs it when an album goes from hidden to public (since
+   2026-09-26): it calls `build-gallery-announce.mjs --album-key <key> --series <lpo|other>`
+   with the series from that album's own `gallery_scope`, then `seed-kv.mjs --event
+   gallery-announce --append --put`. `--announce` there announces an already-public album,
+   `--no-announce` skips it, and `LETSPEPPER_SOCIAL_DIR` points it at this directory if it is
+   not at `~/Workspace/dev/apps/letspepper/scripts/social-publish`. By hand, the same two
+   steps are:
    ```bash
    node scripts/social-publish/build-gallery-announce.mjs --album-key <key> --series <lpo|other>
    node scripts/social-publish/seed-kv.mjs --event gallery-announce --append --put
