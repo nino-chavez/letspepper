@@ -91,10 +91,13 @@ portfolio:
    `CREATE_CONTENT` and `ANALYZE` Page tasks.
 3. Generate the Page token with only `pages_manage_posts`,
    `pages_show_list`, and `pages_read_engagement`.
-4. Use Meta's recommended 60-day expiration and refresh before expiry. Store
-   each token separately in 1Password. The current Instagram credential expires
-   `2026-09-24T21:27:37Z`; the current Page credential expires
-   `2026-09-24T20:30:17Z`.
+4. Store each token separately in 1Password. Both expired on 2026-09-24 and
+   were reissued on 2026-09-25 as non-expiring System User tokens (Meta's
+   `debug_token` reports `expires_at: 0`). A non-expiring token only stops
+   working when it is revoked, the System User loses an asset, or a scope is
+   removed, so check it with `debug_token` rather than a calendar date. After
+   reissuing one, confirm it reaches every account: the Instagram token reads
+   each `ig_user_id` in accounts.json, the Page token each `page_id`.
 
 The current Instagram credential is in `Developer Secrets` as
 `Meta Lets Pepper Instagram Publisher`; the revoked `Meta Almost-Flickday` item
