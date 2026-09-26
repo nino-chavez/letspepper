@@ -498,11 +498,15 @@ In order:
    the FIRST seed — there is no separate "first time" step; `--append` on an empty/missing
    KV key just adopts every local item (see `appendPayload`'s own header).
 
-5. **Collab acceptance.** After the first carousel with `collaborators: ['flickday.media']`
-   posts, open Instagram as `flickday.media` and accept the collaboration invite from
-   Activity/Notifications — this is the one step Meta gives no API for (see
-   "Collaborators" above); it has to happen by hand, in the app, every time a new
-   collaborator relationship needs accepting (once per pair of accounts, not per post).
+5. **Collab acceptance — every post, not once.** The invite status
+   (`Accepted`/`Pending`) is tracked per POST, via `GET /{ig-media-id}/collaborators` (see
+   "Collaborators" above), and Meta gives no API to accept one. So this is not a one-time
+   per-account-pair step: after EVERY gallery-announce carousel posts, open Instagram as
+   `flickday.media` and accept that post's invite from Activity/Notifications, or it sits
+   `Pending` forever and `flickday.media` never shows as co-author on it. The POSTED
+   notification only reports that the post published, not whether the Collab was
+   accepted — nothing here polls `GET /{ig-media-id}/collaborators` to catch a forgotten
+   one; check it by hand if a post looks like it's missing its collaborator.
 
 6. **Subscribing on iPhone.** Install the ntfy app (App Store), then Subscribe to topic →
    paste the value from `op read 'op://Developer Secrets/ntfy gallery-announce/credential'`
