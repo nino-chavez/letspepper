@@ -1,0 +1,82 @@
+/**
+ * Caption for a gallery-announce carousel — facts only, from the album's own
+ * display name and the count the selector reports. Loaded against
+ * signal-dispatch-voice-guide.md's core discipline (state the fact plainly, no
+ * hedging, no invented specifics) and apps/letspepper/reader-contract.json's
+ * "social publishing queue" surface (lay plainness, 55-word review threshold
+ * per line, tracked allowTerms/denyTerms) — this is factual event copy, not
+ * reflective prose, so the guide's Thought-Leadership register doesn't apply;
+ * its ban on invented specifics does.
+ *
+ * Hard rules, because the subjects here are minors and because the source data
+ * has no result:
+ *   - Never a player's name (nothing here is sourced anyway).
+ *   - Never a result or score (not sourced — this is an announcement, not a
+ *     recap; do not imply one exists).
+ *   - No "tag yourselves" or any other invitation to identify someone in the
+ *     photos.
+ *   - letspepper.com/gallery is only linked when the album is actually in that
+ *     series' scope — otherwise the direct album URL is the only link, so a
+ *     personal-brand or Flickday album never points a follower at a page
+ *     where this album isn't listed.
+ *
+ * Album metadata beyond the display name (venue, a real event date, team
+ * names) has no public read path in the photography repo — album_settings
+ * (which would carry gallery_scope) is read anon/server-side only, and no
+ * structured venue/teams field exists in the schema at all (checked
+ * 2026-09-25: only album_name and a photo date RANGE are queryable, no venue,
+ * no opponent fields). parseAlbumName() below is a best-effort parse of the
+ * three-part "<title> - <teams> - <MM-DD-YYYY>" shape this album (and
+ * apparently others in this scope) uses; --venue/--teams/--event-date on the
+ * builder override it when the parse is wrong or the shape differs.
+ */
+
+const MONTHS = ['Jan.', 'Feb.', 'March', 'April', 'May', 'June', 'July', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.']
+
+/** Best-effort parse of "<title> - <teams> - MM-DD-YYYY". Returns partial results; never throws. */
+export function parseAlbumName(albumName = '') {
+  const parts = albumName.split(' - ').map((s) => s.trim()).filter(Boolean)
+  const dateMatch = albumName.match(/(\d{2})-(\d{2})-(\d{4})\s*$/)
+  let eventDateLabel = null
+  if (dateMatch) {
+    const [, mm, dd, yyyy] = dateMatch
+    const mi = Number(mm) - 1
+    if (mi >= 0 && mi < 12) eventDateLabel = `${MONTHS[mi]} ${Number(dd)}, ${yyyy}`
+  }
+  const teamsPart = parts.find((p) => /\bat\b/i.test(p) && !/^\d/.test(p)) || null
+  const title = parts[0] || albumName
+  return { title, teams: teamsPart, eventDateLabel }
+}
+
+/**
+ * `series` is the routing decision already made upstream (build-gallery-announce.mjs's
+ * --series/gallery_scope check) — passed in rather than re-derived here, so this module
+ * has no account-routing logic of its own to get out of sync with the builder's.
+ */
+export function buildGalleryAnnounceCaption({
+  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series,
+}) {
+  const parsed = parseAlbumName(albumName)
+  const teamsLine = teams || parsed.teams
+  const dateLine = eventDateLabel || parsed.eventDateLabel
+  const headline = [teamsLine, dateLine].filter(Boolean).join(', ') || parsed.title
+
+  const lines = [headline]
+  if (venue) lines.push(venue)
+  lines.push('')
+  lines.push(`${selectedOf} favorites from the gallery.`)
+  lines.push('')
+  if (series === 'lpo') {
+    lines.push(`Full gallery: letspepper.com/gallery`)
+  } else if (galleryUrl) {
+    lines.push(`Full gallery: ${galleryUrl}`)
+  }
+  lines.push('')
+  lines.push('Motion. Emotion. Frame by Frame.')
+  lines.push('')
+  lines.push('Photos: Nino Chavez / Flickday Media.')
+  lines.push('')
+  lines.push('#volleyball #grassvolleyball #volleyballphotography #sportsphotography')
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
