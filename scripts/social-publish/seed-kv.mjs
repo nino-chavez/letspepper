@@ -78,10 +78,15 @@ const started = (it) => STARTED.has(it.status) || STARTED.has(it.facebook_status
   !!it.facebook_video_id || (Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0) ||
   (Array.isArray(it.ig_child_container_ids) && it.ig_child_container_ids.length > 0)
 
+// Compared by value: several publish-state fields are arrays (facebook_photo_ids,
+// ig_child_container_ids), and `!==` on two parsed copies of the same array is always true,
+// which made every posted carousel read as "dropped" and refused --replace for good.
+const sameValue = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+
 /** Ids of live items the Worker has started on whose publish state `local` would drop or change. */
 export function lostState(live, local) {
   const byId = new Map((local.items || []).map((it) => [it.id, it]))
-  return (live.items || []).filter((it) => started(it) && PUBLISH_STATE.some((k) => byId.get(it.id)?.[k] !== it[k])).map((it) => it.id)
+  return (live.items || []).filter((it) => started(it) && PUBLISH_STATE.some((k) => !sameValue(byId.get(it.id)?.[k], it[k]))).map((it) => it.id)
 }
 
 /**
