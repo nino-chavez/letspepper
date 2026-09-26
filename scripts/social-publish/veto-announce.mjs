@@ -20,6 +20,7 @@ import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { notify, vetoedNotification } from './notify.mjs'
+import { shortAlbumName } from './gallery-announce-caption.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
@@ -102,7 +103,7 @@ async function main() {
   const topic = resolveNtfyTopic()
   for (const id of result.vetoed) {
     const item = result.queue.items.find((it) => it.id === id)
-    await notify({ topic, ...vetoedNotification({ albumName: item?.album_name || item?.album_key || id, reason, localOnly: true }) })
+    await notify({ topic, ...vetoedNotification({ albumName: shortAlbumName(item?.album_name, item?.album_key || id), reason, localOnly: true }) })
   }
 }
 

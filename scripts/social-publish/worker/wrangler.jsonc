@@ -41,10 +41,16 @@
     //
     // gallery-announce (added 2026-09-25, source change only — this Worker has NOT
     // been deployed with it): Nino's standing "gallery announcements" route
-    // (see graph-routes.json). Every item carries scheduledAt = its holdUntil, so
-    // this listing is safe the moment items exist — they gate on that timestamp,
-    // any hour, never on ALLOWED_HOURS_UTC below — but nothing publishes from it
-    // yet: build-gallery-announce.mjs only appends to the LOCAL queue file, and
+    // (see graph-routes.json). Every item carries scheduledAt — since 2026-09-26,
+    // the first slot in THIS var (ALLOWED_HOURS_UTC) at or after the item's holdUntil,
+    // not holdUntil itself (a fix: it used to equal holdUntil, so a hold clearing at
+    // 2am would publish at 2am; the HELD phone alert now promises a specific slot, so
+    // the code has to actually honor it — see notify.mjs's nextAllowedSlot and
+    // build-gallery-announce.mjs's own comment). scheduledAt is still the ONLY gate —
+    // any hour, never ALLOWED_HOURS_UTC directly — this listing is safe the moment
+    // items exist because their scheduledAt is already computed FROM this var at
+    // build time. Changing ALLOWED_HOURS_UTC does not retroactively move an already-
+    // built item's scheduledAt — it only affects the NEXT album's build.
     // seed-kv.mjs --event gallery-announce --append --put has not been run, so
     // this Worker's KV holds no "gallery-announce" key at all. loadQueue() returns
     // null for a missing key and both postDuePending/resumeIfBuilding just skip it.
@@ -78,4 +84,9 @@
   // NTFY_TOPIC (added for gallery-announce phone notifications, 2026-09-26): the ntfy.sh
   // topic from 1Password (`ntfy gallery-announce`). Absent means the Worker silently skips
   // notifying — never a publish failure. See notify.mjs and SETUP.md "Arming gallery-announce".
+  // REVIEW_KEY (added for the /review page, 2026-09-26): view + cancel auth for GET /review
+  // and POST /review/cancel — a SEPARATE secret from TRIGGER_KEY, which /review can never
+  // reach (it has no access to /run). From 1Password (`Cloudflare letspepper-reels-worker
+  // review-key`). Absent means every /review* request 403s — never "any key matches". See
+  // SETUP.md "/review" and "Arming gallery-announce".
 }
