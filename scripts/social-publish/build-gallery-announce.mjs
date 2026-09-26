@@ -47,7 +47,8 @@
  *   --venue / --teams / --event-date   override the caption's parsed album-name facts.
  *   --refresh-caption      rebuild ONLY the caption of this album's item in the LIVE queue (KV),
  *                          keeping its photos, alt text and schedule. --series is taken from the
- *                          item's account (and refused if a passed --series disagrees). Writes the
+ *                          item's recorded series (or, for older items, its account), and refused
+ *                          if a passed --series disagrees. Writes the
  *                          caption to queue/<id>.caption.txt; seed-kv.mjs --recaption pushes it,
  *                          refusing unless the live item is still held on both channels.
  *
@@ -107,8 +108,9 @@ export function cfLarge(id) { return `https://imagedelivery.net/${CF_HASH}/${id}
 /** Account slug for the item, from Nino's "by series and collab with flickday" answer. */
 export function accountForSeries(series) { return series === 'lpo' ? 'letspepper' : 'ninophoto' }
 
-/** Inverse of accountForSeries, for rebuilding a queued item's caption: the account the
- * item already posts from decides its series, so a refreshed caption cannot drift from it. */
+/** Inverse of accountForSeries — the series of an item built before items carried their own
+ * `series` field (Re7kho, DWdCET). A reassigned item keeps its recorded series instead, because
+ * an album's series is a fact about the album, not about the account that posts it. */
 export function seriesForAccount(account) { return account === 'letspepper' ? 'lpo' : 'other' }
 
 /**
@@ -268,7 +270,7 @@ async function refreshCaption(args, albumKey, seriesArg) {
   if (item.status !== 'held' || item.facebook_status !== 'held') {
     throw new Error(`live item "${id}" is ${item.status}/${item.facebook_status}, not held/held — its caption can no longer change.`)
   }
-  const series = seriesForAccount(item.account)
+  const series = item.series ?? seriesForAccount(item.account)
   if (seriesArg && seriesArg !== series) {
     throw new Error(`--series ${seriesArg} disagrees with the queued item, which posts from ${item.account} (series ${series}).`)
   }
@@ -364,6 +366,7 @@ export async function main(argv = process.argv.slice(2)) {
     album_key: albumKey,
     album_name: albumName, // carried so the Worker can name the album in a POSTED/FAILED notification without an extra lookup
     account,
+    series, // the album's series, so --refresh-caption rebuilds series content even after --reassign
     media_type: 'CAROUSEL',
     channels: ['instagram', 'facebook'],
     caption,

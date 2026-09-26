@@ -165,7 +165,8 @@ function main() {
   const captionFile = value('--caption-file')
   const reassignId = argv.includes('--reassign') ? value('--reassign') : null
   const reassignAccount = value('--account')
-  const reassignCollaborators = argv.includes('--collaborators') ? (value('--collaborators') || '').split(',').map((s) => s.trim()).filter(Boolean) : []
+  // Absent --collaborators keeps the item's current ones; `--collaborators ""` clears them.
+  const reassignCollaborators = argv.includes('--collaborators') ? (value('--collaborators') || '').split(',').map((s) => s.trim()).filter(Boolean) : undefined
   if (!event || (reviveIds && !reviveIds.length) || (vetoIds && !vetoIds.length) || (argv.includes('--recaption') && (!recaptionId || !captionFile)) || (argv.includes('--reassign') && (!reassignId || !reassignAccount))) {
     console.error('Required: --event <slug> [--replace | --append | --revive <id,id> | --veto <id,id> [--reason "..."] | --recaption <id> --caption-file <path> | --reassign <id> --account <slug> [--collaborators a,b]] [--put]')
     process.exit(1)

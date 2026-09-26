@@ -46,3 +46,14 @@ test('reassign: refuses an unknown account, self-invite, more than 3 collaborato
   const posted = { items: [{ ...held(), status: 'posted' }] }
   assert.match(reassign(posted, held().id, { account: 'flickday', collaborators: [] }, ACCOUNTS).refused, /not held\/held/)
 })
+
+test('reassign: leaving collaborators out keeps the current ones; an empty list clears them', () => {
+  const q = { items: [held()] }
+  assert.deepEqual(reassign(q, held().id, { account: 'letspepper' }, ACCOUNTS).after.collaborators, ['flickday.media'])
+  assert.deepEqual(reassign(q, held().id, { account: 'letspepper', collaborators: [] }, ACCOUNTS).after.collaborators, [])
+})
+
+test('reassign: an item keeps its recorded series when it moves account', () => {
+  const q = { items: [{ ...held(), account: 'letspepper', series: 'lpo' }] }
+  assert.equal(reassign(q, held().id, { account: 'flickday', collaborators: [] }, ACCOUNTS).queue.items[0].series, 'lpo')
+})

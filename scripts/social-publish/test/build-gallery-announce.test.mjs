@@ -96,6 +96,7 @@ test('main(): --dry-run produces a manifest at --out and touches nothing else', 
     assert.equal(JSON.parse(readFileSync(out, 'utf8')).account, 'ninophoto')
     assert.equal(result.manifest.account, 'ninophoto')
     assert.equal(result.manifest.collaborators[0], 'flickday.media')
+    assert.equal(result.item.series, 'other', 'the item records its series so a later --refresh-caption survives --reassign')
     assert.equal(result.manifest.selected.length, 3)
     assert.match(result.manifest.assets, /^3 of \d+$/)
     assert.ok(result.manifest.selected.every((s) => /imagedelivery\.net/.test(s.url)), 'dry-run must use the unhosted imagedelivery.net URL, never R2')
