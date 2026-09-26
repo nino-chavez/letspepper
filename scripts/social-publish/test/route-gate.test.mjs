@@ -524,7 +524,7 @@ test('the tracked route gate accepts gallery-announce for its three publishing a
   assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto']), true)
   assert.equal(hasStandingRoute('gallery-announce', tracked, ['letspepper', 'ninophoto']), true)
   // Amended 2026-09-26 (Nino: "yes" to posting the Millikin album from flickday.media):
-  // flickday publishes too, because a Collab invited FROM nino.chavez.photo attached nothing.
+  // flickday is a publishing account too, for the Millikin album Nino moved to it.
   assert.equal(hasStandingRoute('gallery-announce', tracked, ['flickday']), true)
   assert.equal(hasStandingRoute('gallery-announce', tracked, ['someone-else']), false)
   // adhoc can never hold a standing route, tracked file or not — standingEntry() special-cases it.
