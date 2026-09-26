@@ -13,7 +13,7 @@ select-gallery-photos.mjs   swappable photo-selection strategy for build-gallery
 alt-text.mjs                derives Instagram/Facebook alt text from the site's own caption
 gallery-announce-caption.mjs   facts-only caption template for build-gallery-announce.mjs (a college album also states the result)
 rotation-result.mjs         looks up a college album's match result on therotation.tv (college only; a miss means no result line)
-recaption-shape.mjs         the recaption() function seed-kv.mjs --recaption applies to one live item still held on both channels
+held-item-shape.mjs         recaption() and reassign(): the edits seed-kv.mjs --recaption / --reassign make to one live item still held on both channels
 notify.mjs               phone notifications (ntfy.sh) for HELD/POSTED/FAILED/VETOED — Worker-safe, no node: imports
 hold-shape.mjs           the held/vetoed check both publishers share (never opened by --force)
 veto-announce.mjs        kill one gallery-announce album locally before it publishes
@@ -264,6 +264,12 @@ node scripts/social-publish/build-gallery-announce.mjs --album-key DWdCET --refr
   --venue "Gregory Arena, Naperville"
 node scripts/social-publish/seed-kv.mjs --event gallery-announce \
   --recaption DWdCET-gallery-announce --caption-file scripts/social-publish/queue/DWdCET-gallery-announce.caption.txt --put
+
+# Move a held item to another publishing account and set its Instagram collaborators
+# (at most 3; an account cannot invite itself). The new account must be listed in the
+# event's graph-routes.json entry, or the push is refused like any other:
+node scripts/social-publish/seed-kv.mjs --event gallery-announce \
+  --reassign DWdCET-gallery-announce --account flickday --collaborators nino.chavez.photo --put
 ```
 
 **College albums state the result (Nino, 2026-09-26):** "this is college so not minors.

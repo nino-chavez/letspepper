@@ -8,6 +8,7 @@
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --revive a,b --put  # re-open items the Worker refused for want of a route
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --veto a,b [--reason "..."] --put  # kill live items (status -> "vetoed", both destinations)
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --recaption <id> --caption-file <path> --put  # new caption on one live item still held on both channels
+ *   node scripts/social-publish/seed-kv.mjs --event <slug> --reassign <id> --account <slug> --collaborators a,b --put  # new publishing account + Instagram collaborators, same held rule
  *
  * The Worker publishes an item only when its queue carries `meta.route`. This
  * script is the one thing that writes that block, and it copies it from the
@@ -38,7 +39,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadRoutes, REFUSED } from './route-gate.mjs'
 import { standingEntry, inDate, entryCovers } from './route-shape.mjs'
-import { recaption } from './recaption-shape.mjs'
+import { recaption, reassign } from './held-item-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WRANGLER_CONFIG = join(HERE, 'worker', 'wrangler.jsonc')
@@ -162,14 +163,18 @@ function main() {
   const append = argv.includes('--append')
   const recaptionId = argv.includes('--recaption') ? value('--recaption') : null
   const captionFile = value('--caption-file')
-  if (!event || (reviveIds && !reviveIds.length) || (vetoIds && !vetoIds.length) || (argv.includes('--recaption') && (!recaptionId || !captionFile))) {
-    console.error('Required: --event <slug> [--replace | --append | --revive <id,id> | --veto <id,id> [--reason "..."] | --recaption <id> --caption-file <path>] [--put]')
+  const reassignId = argv.includes('--reassign') ? value('--reassign') : null
+  const reassignAccount = value('--account')
+  const reassignCollaborators = argv.includes('--collaborators') ? (value('--collaborators') || '').split(',').map((s) => s.trim()).filter(Boolean) : []
+  if (!event || (reviveIds && !reviveIds.length) || (vetoIds && !vetoIds.length) || (argv.includes('--recaption') && (!recaptionId || !captionFile)) || (argv.includes('--reassign') && (!reassignId || !reassignAccount))) {
+    console.error('Required: --event <slug> [--replace | --append | --revive <id,id> | --veto <id,id> [--reason "..."] | --recaption <id> --caption-file <path> | --reassign <id> --account <slug> [--collaborators a,b]] [--put]')
     process.exit(1)
   }
   if (reviveIds && argv.includes('--replace')) { console.error('--revive works on the live queue; --replace pushes the local one. Pick one.'); process.exit(1) }
   if (append && (reviveIds || vetoIds || argv.includes('--replace'))) { console.error('--append only merges new local items into the live queue; pick one of --append / --replace / --revive / --veto.'); process.exit(1) }
   if (vetoIds && (reviveIds || argv.includes('--replace'))) { console.error('--veto works on the live queue alone; pick one of --revive / --replace / --veto.'); process.exit(1) }
-  if (recaptionId && (vetoIds || reviveIds || append || argv.includes('--replace'))) { console.error('--recaption works on one live item alone; pick one of --append / --replace / --revive / --veto / --recaption.'); process.exit(1) }
+  const liveEdits = [vetoIds, reviveIds, append || null, argv.includes('--replace') || null, recaptionId, reassignId].filter(Boolean).length
+  if ((recaptionId || reassignId) && liveEdits > 1) { console.error('--recaption and --reassign each work on one live item alone; pick one of --append / --replace / --revive / --veto / --recaption / --reassign.'); process.exit(1) }
 
   const routes = loadRoutes()
   // The approval is checked before anything is read from Cloudflare; seedPayload re-checks it against the queue's accounts.
@@ -177,7 +182,14 @@ function main() {
   const live = readLive(event)
   let queue
   let addedIds = null
-  if (recaptionId) {
+  if (reassignId) {
+    if (!live) refuse(`KV has no key "${event}" — nothing has been seeded yet.`)
+    const accounts = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
+    const r = reassign(live, reassignId, { account: reassignAccount, collaborators: reassignCollaborators }, accounts)
+    if (r.refused) refuse(r.refused)
+    console.log(`${reassignId}: account ${r.before.account} -> ${r.after.account}; collaborators ${JSON.stringify(r.before.collaborators)} -> ${JSON.stringify(r.after.collaborators)}\n`)
+    queue = r.queue
+  } else if (recaptionId) {
     if (!live) refuse(`KV has no key "${event}" — nothing has been seeded yet.`)
     const r = recaption(live, recaptionId, readFileSync(captionFile, 'utf8').trim())
     if (r.refused) refuse(r.refused)
@@ -219,7 +231,8 @@ function main() {
   mkdirSync(join(HERE, 'queue'), { recursive: true })
   const outPath = join(HERE, 'queue', `${event}.kv.json`)
   writeFileSync(outPath, JSON.stringify(verdict.payload, null, 2))
-  const source = recaptionId ? `live queue, recaptioned ${recaptionId}`
+  const source = reassignId ? `live queue, reassigned ${reassignId} to ${reassignAccount}`
+    : recaptionId ? `live queue, recaptioned ${recaptionId}`
     : vetoIds ? `live queue, vetoed ${vetoIds.join(', ')}`
     : reviveIds ? `live queue, revived ${reviveIds.join(', ')}`
     : addedIds ? `live queue, appended ${addedIds.join(', ')}`
