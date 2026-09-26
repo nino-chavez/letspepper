@@ -38,7 +38,17 @@
     // Listing an event is not enough to publish from it: its KV queue must also
     // carry meta.route, seeded by seed-kv.mjs from graph-routes.json. Neither
     // queue listed here has one (read 2026-09-21), and neither has a pending item.
-    "ACTIVE_EVENTS": "cutting-board-announce,poblano-2026-cancellation",
+    //
+    // gallery-announce (added 2026-09-25, source change only — this Worker has NOT
+    // been deployed with it): Nino's standing "gallery announcements" route
+    // (see graph-routes.json). Every item carries scheduledAt = its holdUntil, so
+    // this listing is safe the moment items exist — they gate on that timestamp,
+    // any hour, never on ALLOWED_HOURS_UTC below — but nothing publishes from it
+    // yet: build-gallery-announce.mjs only appends to the LOCAL queue file, and
+    // seed-kv.mjs --event gallery-announce --append --put has not been run, so
+    // this Worker's KV holds no "gallery-announce" key at all. loadQueue() returns
+    // null for a missing key and both postDuePending/resumeIfBuilding just skip it.
+    "ACTIVE_EVENTS": "gallery-announce,cutting-board-announce,poblano-2026-cancellation",
     // UTC posting slots — the daily cap for LEGACY (no-scheduledAt) items only.
     // The cancellation item carries no scheduledAt, so it IS gated by these hours
     // once an operator flips it to pending: 17 = noon CDT, 22 = 5p CDT.

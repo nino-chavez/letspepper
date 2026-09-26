@@ -25,6 +25,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   checkRoute, hasStandingRoute, hasReceipt, cleanReason, makeReceipt, digestOf, refusal, REFUSED, RECEIPT_TTL_HOURS,
+  standingEntry,
 } from '../route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -482,6 +483,17 @@ test('checkRoute: the rules, without a subprocess', () => {
   assert.equal(cleanReason(' Nino asked for the API '), 'Nino asked for the API')
 })
 
+test('the tracked route gate accepts gallery-announce for both its accounts, and still refuses adhoc', () => {
+  const tracked = JSON.parse(readFileSync(join(SOCIAL, 'graph-routes.json'), 'utf8'))
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['letspepper']), true)
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto']), true)
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['letspepper', 'ninophoto']), true)
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['flickday']), false, 'flickday.media is a collaborator, not one of the accounts this route publishes to')
+  // adhoc can never hold a standing route, tracked file or not — standingEntry() special-cases it.
+  assert.equal(hasStandingRoute('adhoc', tracked, ['letspepper']), false)
+  assert.equal(checkRoute({ event: 'adhoc', items: incidentQueue().items, routes: tracked }).ok, false)
+})
+
 test('refusal text: says what happened, where the post should go, and what counts as approval', () => {
   const items = incidentQueue().items
   const text = refusal({ event: EVENT, items, missing: items, script: 'post-reels.mjs' })
@@ -489,12 +501,23 @@ test('refusal text: says what happened, where the post should go, and what count
     assert.ok(text.includes(needle), `refusal is missing: ${needle}`)
 })
 
-test('every entry in the tracked approval list is a complete approval', () => {
+test('every entry in the tracked approval list is a complete approval, naming real accounts', () => {
   // A malformed entry does not approve anything, and fails silently at publish time. Catch it here.
+  // hasStandingRoute(event, tracked) alone isn't the right check for an entry with real
+  // accounts: entryCovers() requires accounts.length > 0 on the QUERY side, so calling it
+  // with the default empty [] always returns false regardless of the entry's own validity —
+  // that's what let an empty events:{} pass this test trivially before any entry existed.
   const tracked = JSON.parse(readFileSync(join(SOCIAL, 'graph-routes.json'), 'utf8'))
+  const registry = JSON.parse(readFileSync(join(SOCIAL, 'accounts.json'), 'utf8')).accounts
   assert.equal(typeof tracked.events, 'object')
   for (const event of Object.keys(tracked.events)) {
     assert.notEqual(event, 'adhoc', 'the ad hoc ledger cannot hold a standing route')
-    assert.ok(hasStandingRoute(event, tracked), `graph-routes.json: "${event}" needs a non-empty reason and approved date`)
+    const entry = standingEntry(event, tracked)
+    assert.ok(entry, `graph-routes.json: "${event}" needs a non-empty reason, an approved YYYY-MM-DD date, and a non-empty accounts[]`)
+    // hasStandingRoute still proves the entry actually covers the accounts it claims to.
+    assert.ok(hasStandingRoute(event, tracked, entry.accounts), `graph-routes.json: "${event}"'s own accounts[] does not pass its own entryCovers() check`)
+    for (const slug of entry.accounts) {
+      assert.ok(registry[slug], `graph-routes.json: "${event}" names account slug "${slug}", which is not in accounts.json — a route naming an unknown slug approves nothing a run will ever match`)
+    }
   }
 })

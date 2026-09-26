@@ -8,5 +8,11 @@
     "The scheduled Worker (worker/src/index.js) cannot read this file. It checks `meta.route` in its KV queue, which seed-kv.mjs copies from the entry here and refuses to write without one. A hand-written `meta.route` in KV passes the Worker too, so this file, not KV, is the approval.",
     "Starts empty on purpose (2026-09-21): no campaign was publishing from this machine, and the local queue copies held more than 80 overdue pending items that a stray run would have started posting."
   ],
-  "events": {}
+  "events": {
+    "gallery-announce": {
+      "reason": "Nino, 2026-09-25 (asked how much of a new-gallery announcement should run without him, answering in chat): chose \"Standing auto-post\" — \"You approve a standing 'gallery announcements' route once; every published album posts unattended after a hold window. Needs Facebook crosspost, alt text and a hold state built first.\" Asked which account announces: \"by series and collab with flickday\" — letspepper.open for Let's Pepper series albums, nino.chavez.photo for everything else, flickday.media always a Collab collaborator. Asked which galleries are eligible given many are high-school girls' volleyball: \"All galleries.\" `accounts` below lists the accounts.json SLUGS for letspepper.open and nino.chavez.photo (the publishing accounts this route names — flickday.media is a collaborator, not a publisher, so it is not one of the accounts a run publishes to and is not listed here).",
+      "approved": "2026-09-25",
+      "accounts": ["letspepper", "ninophoto"]
+    }
+  }
 }
