@@ -36,7 +36,7 @@
  *   - letspepper.com/gallery is only named when the album is actually in that
  *     series' scope. Every other album says "link in bio" instead of the direct
  *     album URL — Instagram doesn't linkify a caption URL, so printing it is
- *     dead text; the bio (ninochavez.co/links) redirects to the latest gallery,
+ *     dead text; the bio (ninochavez.co/photography/links) redirects to the latest gallery,
  *     so a personal-brand or Flickday album still routes a follower to a live
  *     link, not to a page where this album isn't listed.
  *   - "#grassvolleyball" is only added for the letspepper (grass triples)
@@ -116,7 +116,7 @@ export function buildGalleryAnnounceCaption({
     lines.push(`Full gallery: ${galleryUrl}`)
   } else if (galleryUrl) {
     // Instagram doesn't linkify a URL in a caption, so a bare link here is dead
-    // text. The bio points at ninochavez.co/links, which lists recent galleries;
+    // text. The bio points at ninochavez.co/photography/links, which lists recent galleries;
     // naming the album keeps this post's call to action pointing at THIS gallery
     // after newer ones are published.
     lines.push(`Full gallery: link in bio (${shortAlbumName(albumName, albumName)})`)
