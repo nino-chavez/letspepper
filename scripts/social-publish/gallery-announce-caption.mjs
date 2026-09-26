@@ -2,24 +2,26 @@
  * Caption for a gallery-announce carousel — facts only, from the album's own
  * display name and the count the selector reports.
  *
- * What was actually read in signal-dispatch-voice-guide.md v1.8 for this
- * module: the full table of contents, Layer 1 ("Truth and evidence" — separate
- * what the source demonstrates from a hypothesis; "a polished hypothesis is
- * still a hypothesis"), the cross-register invariants ("keep claims attached
- * to their actual source and subject"), Layer 6 (surface mechanics — a
- * caption is its own surface; the guide's post-specific mechanics, e.g.
- * Opening Patterns, Post Structure Templates, do NOT transfer to it), and §1b
- * "Relocated claims" in full (grep'd for "caption", "hashtag", "1b" first —
- * there is no dedicated Captions section; §1b is the closest thing and is
- * about derived copy specifically). §1b's rule — a draft keeps the subject the
- * source assigns a claim, neither narrower (attributing a general fact to
- * Nino) nor wider (attributing his system's behavior to everyone) — is the
- * literal rule "favorites" broke below: an unattended heuristic pick is not
+ * signal-dispatch-voice-guide.md v1.8, what was actually read for this module
+ * (grep'd for "caption"/"hashtag"/"1b" first — there is no dedicated Captions
+ * section): the table of contents; lines 1-137 (Purpose, the six-layer Writing
+ * Decision Stack, the cross-register invariants, the Cardinal Rule); and lines
+ * 330-454 in full, which is §1b "Relocated claims" (338-404) plus the "What to
+ * Avoid" tonal list it sits beside. NOT read: Opening Patterns, Post Structure
+ * Templates, Tonal Elements' full corpus data, or Sentence-Level Mechanics —
+ * those govern long-form blog prose (openings, rhythm, section breaks) that a
+ * one-paragraph factual caption has no analogue for, and this is a claim about
+ * exactly what was read, not a summary of the whole guide.
+ *
+ * §1b's rule applies directly: a draft keeps the subject the source assigns a
+ * claim, neither narrower (attributing a general fact to Nino specifically)
+ * nor wider (attributing his system's behavior to everyone). That is the
+ * literal rule "favorites" broke below — an unattended heuristic pick is not
  * Nino's personal judgment, and calling it that narrows a mechanical fact onto
- * a person who didn't make the choice. Not read: the Post Structure Templates,
- * Tonal Elements, and Sentence-Level Mechanics sections in full — they govern
- * long-form blog prose (openings, rhythm, section breaks) that a one-paragraph
- * factual caption has no analogue for.
+ * a person who didn't make the choice. Layer 1 ("Truth and evidence": "a
+ * polished hypothesis is still a hypothesis") and the cross-register invariant
+ * "keep claims attached to their actual source and subject" say the same thing
+ * from the other direction.
  *
  * Hard rules, because the subjects here are minors and because the source data
  * has no result:

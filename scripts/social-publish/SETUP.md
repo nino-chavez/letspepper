@@ -304,28 +304,45 @@ crosspost posts with no Facebook-side collaborator at all.
 
 **Unverified against Cloudflare's actual limits for this account's plan — check
 before relying on this at 10 slides.** Cloudflare's published limits (fetched
-2026-09-25, not this account's dashboard): KV writes to the SAME key are capped
-at 1/second on every plan; Workers subrequests are capped at 50 per invocation
-on Free, up to 10,000+ on Paid. One gallery-announce tick's worst case is
-roughly 10 IG child containers + 1 parent + up to 15 status polls + up to 4
-publish retries (~30) plus 1-2 Page-token lookups + 10 unpublished Facebook
-photos + 1 feed post (~13) — around 43 subrequests, close to the Free-plan cap
-before counting any retry. `uploadFacebookCarouselPhotos` also calls
-`persistQueue` (one KV `put` to the event's key) after every photo — up to 10
-same-key writes in one tick, against that 1/second cap. Whether Graph's own
-per-call latency naturally spaces those out past a second each is unverified;
-if it doesn't, a `put` can 429 and the Facebook half goes terminal on an
-account-plan detail this file cannot see.
+2026-09-25, not this account's dashboard, per Cloudflare's docs: KV calls count
+as Workers subrequests): KV writes to the SAME key are capped at 1/second on
+every plan; Workers subrequests are capped at 50 per invocation on Free, up to
+10,000+ on Paid. One gallery-announce tick's real worst case, counting KV:
+- Graph calls: 10 IG child containers + 1 parent + up to 15 status polls + up
+  to 4 publish retries (~30), plus 1-2 Page-token lookups + 10 unpublished
+  Facebook photos + 1 feed post (~13) ≈ 43.
+- KV calls (each one also a subrequest): up to 3 queue loads in
+  `resumeIfBuilding` (one per `ACTIVE_EVENTS` entry) + 1 in `postDuePending`
+  ≈ 4, plus ~13 `persistQueue` puts (2 on the Instagram side, one per photo on
+  the Facebook side — up to 10 — and 1 final Facebook put) ≈ 13.
+- **Total: roughly 42 on a clean happy path, up to ~60 with retries and every
+  event's queue checked — over the Free plan's 50/invocation cap in the worst
+  case, not merely close to it.**
 
-**Collaborators, confirmed from Meta's current docs (2026-09-25):** up to 3
-Instagram usernames as `collaborators` on an ig media create, not supported for
-Stories — matches what this file already documented as "community-confirmed."
-An invite is NOT automatic acceptance: Meta's December 2025 API additions expose
-`GET /{ig-media-id}/collaborators` (Pending/Accepted/Declined) and an
-accept/decline endpoint. **flickday.media has to accept the invite before it
-shows as a co-author** — do this from the flickday.media account itself (the
-Instagram app's notifications, or the accept endpoint with flickday.media's own
-token) after each post. Nothing in this pipeline accepts on flickday's behalf.
+`uploadFacebookCarouselPhotos` calls `persistQueue` after every photo — up to
+10 same-key writes in one tick, against KV's 1-write-per-second-per-key cap.
+Cloudflare's docs give the limit but not the failure mode for a second write
+within that second (throttled? queued? silently dropped?) — that part is
+unverified. Whether Graph's own per-call latency naturally spaces those puts
+out past a second each is also unverified. This needs the account's actual
+plan tier, which this file cannot see, before it can be called safe at 10
+slides; no code change was made for it in this branch.
+
+**Collaborators — the `collaborators` create parameter is confirmed from Meta's
+own docs (fetched 2026-09-25):** the IG User `/media` reference lists it as "A
+list of up to 3 instagram usernames as collaborators on an ig media. Not
+supported for Stories" — matches what this file already called
+"community-confirmed," now first-party. **An invite is NOT automatic
+acceptance**, also from Meta's own docs: the IG Media `collaborators` edge
+(`GET /{ig-media-id}/collaborators`) reports each invite's `invite_status` as
+`Accepted` or `Pending` (no `Declined` value is documented — an earlier draft
+of this note claimed one, sourced from third-party blog posts, not Meta; that
+claim is withdrawn). That same page states plainly that **create, update, and
+delete are all "not supported"** on this edge — Meta documents no API call
+of any kind to accept or decline an invite. **flickday.media has to accept
+the invite from inside the Instagram app itself** (its notifications) before
+it shows as a co-author. Nothing in this pipeline can do that for them, and
+nothing in Meta's docs suggests it's possible to automate.
 
 ## Facebook Page photo album (photography gallery)
 
