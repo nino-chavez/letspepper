@@ -33,10 +33,12 @@
  *     one exists.
  *   - No "tag yourselves" or any other invitation to identify someone in the
  *     photos.
- *   - letspepper.com/gallery is only linked when the album is actually in that
- *     series' scope — otherwise the direct album URL is the only link, so a
- *     personal-brand or Flickday album never points a follower at a page
- *     where this album isn't listed.
+ *   - letspepper.com/gallery is only named when the album is actually in that
+ *     series' scope. Every other album says "link in bio" instead of the direct
+ *     album URL — Instagram doesn't linkify a caption URL, so printing it is
+ *     dead text; the bio (ninochavez.co/links) redirects to the latest gallery,
+ *     so a personal-brand or Flickday album still routes a follower to a live
+ *     link, not to a page where this album isn't listed.
  *   - "#grassvolleyball" is only added for the letspepper (grass triples)
  *     series — Re7kho is an indoor high-school match (its own captions say
  *     "polished court"), and tagging it grass volleyball would be false, not
@@ -109,7 +111,10 @@ export function buildGalleryAnnounceCaption({
   if (series === 'lpo') {
     lines.push(`Full gallery: letspepper.com/gallery`)
   } else if (galleryUrl) {
-    lines.push(`Full gallery: ${galleryUrl}`)
+    // Instagram doesn't linkify a URL in a caption, so a bare link here is dead
+    // text. The account's bio points at ninochavez.co/links, which redirects to
+    // the latest gallery — "link in bio" is the actual call to action.
+    lines.push(`Full gallery: link in bio`)
   }
   lines.push('')
   lines.push('Motion. Emotion. Frame by Frame.')

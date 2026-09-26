@@ -54,13 +54,14 @@ test('caption: a high-school album never contains a player name, a score, or "ta
   assert.match(caption, /8 of 120/)
 })
 
-test('caption: links the direct album URL, not letspepper.com/gallery, when the album is not in the letspepper series', () => {
+test('caption: says "link in bio", not letspepper.com/gallery or the direct album URL, when the album is not in the letspepper series', () => {
   const caption = buildGalleryAnnounceCaption({
     albumName: RE7KHO_ALBUM_NAME, galleryUrl: 'https://ninochavez.co/photography/albums/hs-girls-vb-jca-at-acc-09-22-2026-Re7kho',
     selectedOf: '8 of 120', series: 'other',
   })
   assert.doesNotMatch(caption, /letspepper\.com\/gallery/)
-  assert.match(caption, /ninochavez\.co\/photography\/albums\/hs-girls-vb-jca-at-acc-09-22-2026-Re7kho/)
+  assert.doesNotMatch(caption, /ninochavez\.co\/photography\/albums/)
+  assert.match(caption, /Full gallery: link in bio/)
 })
 
 test('caption: links letspepper.com/gallery when the album IS in the letspepper series', () => {
