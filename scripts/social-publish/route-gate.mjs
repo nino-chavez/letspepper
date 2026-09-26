@@ -93,16 +93,25 @@ const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' 
  * actually publish to, which --account can point away from item.account.
  */
 export function digestOf(item, account, event = '') {
-  // Mirror post-reels.mjs buildContainer(): hash the fields that are actually sent, per media type.
+  // Mirror post-reels.mjs / worker buildContainer(): hash the fields that are
+  // actually sent, per media type. alt_text rides along with its image (Meta
+  // supports it on a single image or an image carousel child, never video).
   const type = item?.media_type || 'REELS'
   const media = type === 'CAROUSEL'
-    ? (item.children || []).map((c) => (c.media_type === 'VIDEO' ? ['VIDEO', c.video_url || null] : ['IMAGE', c.image_url || null]))
-    : type === 'IMAGE' ? [['IMAGE', item?.image_url || null]]
+    ? (item.children || []).map((c) => (c.media_type === 'VIDEO'
+        ? ['VIDEO', c.video_url || null]
+        : ['IMAGE', c.image_url || null, c.alt_text || null]))
+    : type === 'IMAGE' ? [['IMAGE', item?.image_url || null, item?.alt_text || null]]
     : type === 'STORIES' ? [item?.video_url ? ['VIDEO', item.video_url] : ['IMAGE', item?.image_url || null]]
     : [['VIDEO', item?.video_url || null]]
   // Stories are bare media: caption, tags and collaborators are not sent, so they are not part of what was approved.
   const words = type === 'STORIES' ? [] : [item?.caption || '', item?.collaborators || [], item?.user_tags || []]
-  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media]
+  // channels/facebook_* only matter when this item also crosses to a Facebook Page —
+  // included so a one-off approval binds to that destination's content too.
+  const facebook = Array.isArray(item?.channels) && item.channels.includes('facebook')
+    ? [item?.facebook_caption || null, item?.facebook_alt_text || null]
+    : null
+  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, facebook]
   return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
 }
 

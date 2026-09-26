@@ -208,9 +208,11 @@ async function buildContainer(ig, it) {
   if (it.media_type === 'CAROUSEL') {
     const childIds = []
     for (const child of it.children) {
+      // alt_text: Meta's IG media reference lists it as "supported on a single
+      // image or image media in a carousel" — an IMAGE child only, never VIDEO.
       const base = child.media_type === 'VIDEO'
         ? { media_type: 'VIDEO', video_url: child.video_url }
-        : { image_url: child.image_url }
+        : { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}) }
       const { id } = await api(`${ig}/media`, { ...base, is_carousel_item: 'true' })
       if (child.media_type === 'VIDEO') await waitFinished(id)
       childIds.push(id)
@@ -221,7 +223,9 @@ async function buildContainer(ig, it) {
     return id
   }
   if (it.media_type === 'IMAGE') {
-    const { id } = await api(`${ig}/media`, { image_url: it.image_url, caption: it.caption, ...tagParams(it) })
+    const { id } = await api(`${ig}/media`, {
+      image_url: it.image_url, caption: it.caption, ...(it.alt_text ? { alt_text: it.alt_text } : {}), ...tagParams(it),
+    })
     return id
   }
   if (it.media_type === 'STORIES') {

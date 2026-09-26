@@ -139,9 +139,11 @@ async function buildContainer(token, ig, it) {
   if (it.media_type === 'CAROUSEL') {
     const childIds = []
     for (const child of it.children) {
+      // alt_text: Meta's IG media reference lists it as "supported on a single
+      // image or image media in a carousel" — an IMAGE child only, never VIDEO.
       const base = child.media_type === 'VIDEO'
         ? { media_type: 'VIDEO', video_url: child.video_url }
-        : { image_url: child.image_url }
+        : { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}) }
       const { id } = await api(token, `${ig}/media`, { ...base, is_carousel_item: 'true' })
       if (child.media_type === 'VIDEO') await pollStatus(token, id)
       childIds.push(id)
@@ -152,7 +154,9 @@ async function buildContainer(token, ig, it) {
     return id
   }
   if (it.media_type === 'IMAGE') {
-    const { id } = await api(token, `${ig}/media`, { image_url: it.image_url, caption: it.caption, ...tagParams(it) })
+    const { id } = await api(token, `${ig}/media`, {
+      image_url: it.image_url, caption: it.caption, ...(it.alt_text ? { alt_text: it.alt_text } : {}), ...tagParams(it),
+    })
     return id
   }
   if (it.media_type === 'STORIES') {
@@ -181,9 +185,13 @@ const wantsFacebook = (it) => Array.isArray(it.channels) && it.channels.includes
 // API next, and "pending" alone can't tell a held or vetoed item from an ordinary
 // one. Checked with `new Date()` at call time, never cached, so a hold clears the
 // moment holdUntil passes without needing anything to flip its status.
-const instagramPending = (it) => wantsInstagram(it) && !holdBlock(it) && (it.status === 'pending' || it.status === 'building')
+// 'held' counts as eligible once holdBlock() clears (holdUntil has passed) — the
+// item never needs a separate flip to 'pending', so nothing has to run at exactly
+// holdUntil to make it publishable again.
+const instagramPending = (it) => wantsInstagram(it) && !holdBlock(it) &&
+  (it.status === 'pending' || it.status === 'building' || it.status === 'held')
 const facebookPending = (it) => wantsFacebook(it) && !holdBlock(it) &&
-  ((it.facebook_status || 'pending') === 'pending' || it.facebook_status === 'building')
+  ['pending', 'building', 'held'].includes(it.facebook_status || 'pending')
 
 async function persistQueue(env, ev, q) {
   await env.QUEUE.put(ev, JSON.stringify(q))
@@ -266,6 +274,22 @@ async function publishInstagramItem(env, ev, q, item) {
 }
 
 const pageTokenCache = new Map()
+// Whether the cached token for a Page is a real Page token ('dedicated' | 'page-lookup')
+// or the System User token used as a last resort ('system-fallback'). SETUP.md's live
+// probe (2026-07-29) found unpublished photos (published=false, what the carousel
+// crosspost below needs) work ONLY with a Page token — the System User token 400s with
+// "(#200) Unpublished posts must be posted to a page as the page itself". A published
+// IMAGE or a REELS upload tolerates the fallback; an unpublished multi-photo upload must not.
+const pageTokenKindCache = new Map()
+
+// Test-only: pageTokenCache/pageTokenKindCache are module-scoped so a real Worker
+// instance can reuse a resolved Page token across requests. That same persistence
+// bleeds a token resolved in one test into the next when they share a page_id —
+// call this between tests that need a fresh resolution.
+export function _resetPageTokenCacheForTests() {
+  pageTokenCache.clear()
+  pageTokenKindCache.clear()
+}
 
 async function pageAccessToken(env, acct) {
   const cached = pageTokenCache.get(acct.page_id)
@@ -274,6 +298,7 @@ async function pageAccessToken(env, acct) {
   const dedicated = acct.fb_token_binding ? env[acct.fb_token_binding] : null
   if (dedicated) {
     pageTokenCache.set(acct.page_id, dedicated)
+    pageTokenKindCache.set(acct.page_id, 'dedicated')
     return dedicated
   }
 
@@ -287,6 +312,7 @@ async function pageAccessToken(env, acct) {
     const page = await api(systemToken, acct.page_id, { fields: 'access_token' }, 'GET')
     if (page.access_token) {
       pageTokenCache.set(acct.page_id, page.access_token)
+      pageTokenKindCache.set(acct.page_id, 'page-lookup')
       return page.access_token
     }
   } catch { /* try /me/accounts */ }
@@ -296,11 +322,13 @@ async function pageAccessToken(env, acct) {
     const page = (pages.data || []).find((candidate) => candidate.id === acct.page_id)
     if (page?.access_token) {
       pageTokenCache.set(acct.page_id, page.access_token)
+      pageTokenKindCache.set(acct.page_id, 'page-lookup')
       return page.access_token
     }
   } catch { /* fall back to the assigned System User token */ }
 
   pageTokenCache.set(acct.page_id, systemToken)
+  pageTokenKindCache.set(acct.page_id, 'system-fallback')
   return systemToken
 }
 
@@ -345,6 +373,35 @@ async function uploadHostedFacebookReel(token, acct, item, persist) {
   return videoId
 }
 
+/**
+ * Facebook Page crosspost of a CAROUSEL: upload each image child as an
+ * UNPUBLISHED photo (published=false, carrying alt_text_custom), then attach
+ * every returned photo id to one /{page-id}/feed post via attached_media —
+ * SETUP.md's 2026-07-29 capability probe verified both calls live. Resumable:
+ * item.facebook_photo_ids accumulates one id per uploaded child and picks up
+ * where a prior run stopped, the same shape as uploadHostedFacebookReel's
+ * facebook_video_id/facebook_uploaded pair.
+ */
+async function uploadFacebookCarouselPhotos(token, acct, item, persist) {
+  if (!Array.isArray(item.facebook_photo_ids)) item.facebook_photo_ids = []
+  const children = item.children || []
+  for (let i = item.facebook_photo_ids.length; i < children.length; i++) {
+    const child = children[i]
+    if (child.media_type === 'VIDEO') {
+      throw new Error('Facebook carousel crosspost supports IMAGE children only (received a VIDEO child)')
+    }
+    const altText = typeof child.alt_text === 'string' && child.alt_text ? child.alt_text : null
+    const { id } = await api(token, `${acct.page_id}/photos`, {
+      url: child.image_url,
+      published: 'false',
+      ...(altText ? { alt_text_custom: altText } : {}),
+    })
+    item.facebook_photo_ids.push(id)
+    await persist()
+  }
+  return item.facebook_photo_ids
+}
+
 function collaboratorPageIds(item, publishingAccount) {
   if (Array.isArray(item.facebook_collaborators)) return item.facebook_collaborators
   if (!Array.isArray(item.collaborators)) return []
@@ -384,10 +441,12 @@ async function publishFacebookItem(env, ev, q, item) {
     let postId
 
     if (item.media_type === 'IMAGE') {
+      const altText = typeof item.facebook_alt_text === 'string' && item.facebook_alt_text ? item.facebook_alt_text : null
       const result = await api(token, `${acct.page_id}/photos`, {
         url: item.image_url,
         message: item.facebook_caption || item.caption || '',
         published: 'true',
+        ...(altText ? { alt_text_custom: altText } : {}),
       })
       postId = result.post_id || result.id
     } else if (item.media_type === 'REELS') {
@@ -403,8 +462,25 @@ async function publishFacebookItem(env, ev, q, item) {
         item.account,
         postId,
       )
+    } else if (item.media_type === 'CAROUSEL') {
+      // Unpublished multi-photo upload needs a real Page token (see pageTokenKindCache's
+      // comment) — fail explicitly here rather than let /photos 400 with a generic message
+      // after the first child already uploaded.
+      if (pageTokenKindCache.get(acct.page_id) === 'system-fallback') {
+        throw new Error(`Facebook carousel crosspost needs a Page access token for "${item.account}" — ` +
+          `the System User token cannot create an unpublished photo on this Page. Set FB_${item.account.toUpperCase()}_ACCESS_TOKEN ` +
+          'or grant the Page-publisher System User this Page directly (SETUP.md).')
+      }
+      const photoIds = await uploadFacebookCarouselPhotos(token, acct, item, () => persistQueue(env, ev, q))
+      const attached = {}
+      photoIds.forEach((id, i) => { attached[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id }) })
+      const result = await api(token, `${acct.page_id}/feed`, {
+        message: item.facebook_caption || item.caption || '',
+        ...attached,
+      })
+      postId = result.id
     } else {
-      throw new Error(`Facebook Page publishing supports IMAGE and REELS here; received ${item.media_type}`)
+      throw new Error(`Facebook Page publishing supports IMAGE, REELS and CAROUSEL here; received ${item.media_type}`)
     }
 
     item.facebook_status = 'posted'
