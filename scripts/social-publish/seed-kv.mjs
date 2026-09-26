@@ -58,8 +58,13 @@ export function seedPayload(queue, event, routes, now = new Date()) {
 }
 
 // The fields the Worker writes as it publishes. Only KV holds them.
-const PUBLISH_STATE = ['status', 'ig_container_id', 'ig_media_id', 'facebook_status', 'facebook_video_id',
-  'facebook_uploaded', 'facebook_post_id', 'facebook_photo_ids']
+// ig_child_container_ids (added for the gallery-announce carousel's per-tick subrequest
+// budget): the Worker persists one IG carousel child container id as each is created, so a
+// tick that runs out of budget mid-build resumes from where it stopped instead of
+// re-creating children next tick. Without it here, --replace could drop that partial
+// progress from KV and the next tick would recreate every child from scratch.
+const PUBLISH_STATE = ['status', 'ig_container_id', 'ig_media_id', 'ig_child_container_ids', 'facebook_status',
+  'facebook_video_id', 'facebook_uploaded', 'facebook_post_id', 'facebook_photo_ids']
 // "vetoed" counts as started even though nothing was ever built or published: without
 // it, --replace from a local file where the item is still "held" would silently flip a
 // live vetoed item back to held, and once holdUntil passes the Worker publishes the
@@ -67,7 +72,8 @@ const PUBLISH_STATE = ['status', 'ig_container_id', 'ig_media_id', 'facebook_sta
 // intended way to kill a live item; this closes the OTHER path to the same mistake.
 const STARTED = new Set(['posted', 'building', 'error', 'vetoed'])
 const started = (it) => STARTED.has(it.status) || STARTED.has(it.facebook_status) || !!it.ig_container_id ||
-  !!it.facebook_video_id || (Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0)
+  !!it.facebook_video_id || (Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0) ||
+  (Array.isArray(it.ig_child_container_ids) && it.ig_child_container_ids.length > 0)
 
 /** Ids of live items the Worker has started on whose publish state `local` would drop or change. */
 export function lostState(live, local) {

@@ -59,7 +59,14 @@
     "SWEEP_AUTOREPLY": "off",      // off | intent — DEFAULTS OFF (shadow-logs only)
     // No event is open for registration — the sweep's signup auto-reply must not
     // point at the cancelled finale's page. Homepage until the next season opens.
-    "REGISTRATION_URL": "https://letspepper.com"
+    "REGISTRATION_URL": "https://letspepper.com",
+    // gallery-announce carousel budget (2026-09-26): external (Graph + ntfy) subrequests
+    // one invocation may spend before deferring the rest to the next tick — see src/index.js's
+    // makeBudget. Conservative default under the Workers Free plan's 50/invocation cap; this
+    // account's own cron-trigger count (19+ across existing Workers, Free caps at 5/account)
+    // is evidence it's on Paid, which defaults to 10,000/invocation — raise this once that's
+    // confirmed from the dashboard rather than inferred. See SETUP.md "Cloudflare plan".
+    "SUBREQUEST_BUDGET": "40"
   },
   "observability": { "enabled": true }
   // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, FB_ACCESS_TOKEN,
@@ -68,4 +75,7 @@
   // Optional dedicated Page-token overrides:
   // FB_LETSPEPPER_ACCESS_TOKEN, FB_FLICKDAY_ACCESS_TOKEN,
   // FB_NINOPHOTO_ACCESS_TOKEN.
+  // NTFY_TOPIC (added for gallery-announce phone notifications, 2026-09-26): the ntfy.sh
+  // topic from 1Password (`ntfy gallery-announce`). Absent means the Worker silently skips
+  // notifying — never a publish failure. See notify.mjs and SETUP.md "Arming gallery-announce".
 }

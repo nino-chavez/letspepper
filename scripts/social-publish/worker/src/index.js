@@ -25,8 +25,29 @@
  *                      can be supplied via each account's optional
  *                      FB_*_ACCESS_TOKEN binding.
  *   TRIGGER_KEY        guards /run, /run?force=1, /status (secret)
+ *   NTFY_TOPIC         ntfy.sh topic for gallery-announce POSTED/FAILED phone
+ *                      notifications (secret — see notify.mjs and SETUP.md).
+ *                      Absent means "skip notifying," never a publish failure.
+ *   SUBREQUEST_BUDGET  external subrequests (Graph + ntfy) this invocation may
+ *                      spend before deferring the rest to the next tick (var,
+ *                      default 40 — conservative under the Workers Free cap of
+ *                      50/invocation; raise it once the account's plan is
+ *                      confirmed Paid — see SETUP.md "Cloudflare plan").
  *   ACTIVE_EVENTS      comma-separated slugs, HIGHEST PRIORITY (newest) FIRST (var)
  *   ALLOWED_HOURS_UTC  comma-separated UTC hours = daily slots/cap (var)
+ *
+ * gallery-announce carousel budget (2026-09-26): a CAROUSEL crosspost can need up to
+ * ~43 Graph subrequests in one tick (10 IG children + 1 parent + polls/retries, 10
+ * Facebook photo uploads + 1 feed post) — see SETUP.md's own count. Rather than trust a
+ * plan tier this file can't see, every subrequest that touches the Graph API in the
+ * CAROUSEL paths is charged against a per-invocation SubrequestBudget (see makeBudget
+ * below), created once in run() and threaded down through every publish call. Hitting
+ * the budget mid-build throws Deferred, which is caught where the equivalent "still
+ * transcoding" case already is: the item's PARTIAL progress (each IG child container id,
+ * each Facebook uploaded photo id) is persisted as it's created, so the NEXT tick resumes
+ * from exactly where this one stopped rather than re-creating anything — same shape as
+ * uploadFacebookCarouselPhotos' pre-existing facebook_photo_ids resume, extended to the
+ * Instagram side (see ig_child_container_ids) and made budget-aware on both.
  *
  * Errors are TERMINAL (never auto-retried) and publish uses publishWithRetry on
  * the SAME container (idempotent) — this is what stopped the double-posting:
@@ -45,10 +66,35 @@
  */
 
 import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
-import { holdBlock } from '../../hold-shape.mjs'
+import { holdBlock, isHeld } from '../../hold-shape.mjs'
+import { notify, postedNotification, failedNotification } from '../../notify.mjs'
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
+const DEFAULT_SUBREQUEST_BUDGET = 40
+
+// Thrown by a carousel build step when spending its next subrequest would exceed the
+// invocation's budget. Caught where "still transcoding" already is — it is a deferral,
+// never a terminal error, so it must never reach a catch block that sets status='error'.
+class Deferred extends Error {}
+
+/**
+ * A per-invocation counter for external (Graph + ntfy) subrequests. Created fresh in
+ * run() every invocation — Workers isolates can be reused across invocations, so this
+ * must NEVER be module-scoped state, or a later invocation would inherit an earlier one's
+ * spent budget. canSpend/spend let a caller check before committing to a call ("check
+ * before each call and return deferred" — a budget that only found out AFTER the fetch
+ * would have already spent the subrequest it was trying to avoid).
+ */
+function makeBudget(limit) {
+  let used = 0
+  return {
+    limit,
+    used: () => used,
+    canSpend(n = 1) { return used + n <= limit },
+    spend(n = 1) { if (!this.canSpend(n)) return false; used += n; return true },
+  }
+}
 
 // --- engagement sweep defaults (see SWEEP.md) ---
 const DEFAULT_LOOKBACK_DAYS = 14
@@ -124,9 +170,13 @@ async function publishWithRetry(token, ig, creationId, tries = 4) {
   throw lastErr
 }
 
-async function pollStatus(token, containerId, maxMs = 75000) {
+async function pollStatus(token, containerId, maxMs = 75000, budget) {
   const deadline = Date.now() + maxMs
   while (Date.now() < deadline) {
+    // Budget-exhausted here returns IN_PROGRESS rather than throwing — the caller already
+    // treats a non-FINISHED status as "resumes next run" (see publishInstagramItem), so
+    // running out of budget mid-poll fits that existing path instead of needing its own.
+    if (budget && !budget.spend(1)) return 'IN_PROGRESS'
     const { status_code } = await api(token, containerId, { fields: 'status_code' }, 'GET')
     if (status_code === 'FINISHED') return 'FINISHED'
     if (status_code === 'ERROR' || status_code === 'EXPIRED') throw new Error(`container ${status_code}`)
@@ -135,25 +185,35 @@ async function pollStatus(token, containerId, maxMs = 75000) {
   return 'IN_PROGRESS'
 }
 
-async function buildContainer(token, ig, it) {
+// `persist` is called after each new IG carousel child id is recorded — resumable the same
+// way uploadFacebookCarouselPhotos already is: it.ig_child_container_ids accumulates one id
+// per created child, so a deferred or interrupted build picks up at childIds.length on its
+// next attempt instead of re-creating children the account already holds.
+async function buildContainer(token, ig, it, budget, persist) {
   if (it.media_type === 'CAROUSEL') {
-    const childIds = []
-    for (const child of it.children) {
+    if (!Array.isArray(it.ig_child_container_ids)) it.ig_child_container_ids = []
+    const childIds = it.ig_child_container_ids
+    for (let i = childIds.length; i < it.children.length; i++) {
+      if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted building IG carousel children')
+      const child = it.children[i]
       // alt_text: Meta's IG media reference lists it as "supported on a single
       // image or image media in a carousel" — an IMAGE child only, never VIDEO.
       const base = child.media_type === 'VIDEO'
         ? { media_type: 'VIDEO', video_url: child.video_url }
         : { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}) }
       const { id } = await api(token, `${ig}/media`, { ...base, is_carousel_item: 'true' })
-      if (child.media_type === 'VIDEO') await pollStatus(token, id)
+      if (child.media_type === 'VIDEO') await pollStatus(token, id, 75000, budget)
       childIds.push(id)
+      if (persist) await persist() // persist THIS child's id before starting the next one
     }
+    if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG carousel parent container')
     const { id } = await api(token, `${ig}/media`, {
       media_type: 'CAROUSEL', children: childIds.join(','), caption: it.caption, ...tagParams(it),
     })
     return id
   }
   if (it.media_type === 'IMAGE') {
+    if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG image container')
     const { id } = await api(token, `${ig}/media`, {
       image_url: it.image_url, caption: it.caption, ...(it.alt_text ? { alt_text: it.alt_text } : {}), ...tagParams(it),
     })
@@ -163,10 +223,12 @@ async function buildContainer(token, ig, it) {
     // Stories containers take media only — no caption/user_tags (Graph v16+).
     // Mirrors post-reels.mjs's STORIES branch; image containers finish fast so
     // the non-IMAGE pollStatus below returns FINISHED same-run.
+    if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG story container')
     const media = it.video_url ? { video_url: it.video_url } : { image_url: it.image_url }
     const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media })
     return id
   }
+  if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG reels container')
   const thumb_offset = String(500 + Math.floor(Math.random() * 5500)) // random cover frame
   const { id } = await api(token, `${ig}/media`, {
     media_type: 'REELS', video_url: it.video_url, caption: it.caption,
@@ -239,9 +301,24 @@ async function routed(env, ev, q, candidates, now = new Date()) {
   return allowed
 }
 
+// Best-effort permalink for a POSTED notification's click target — the failure of this
+// single GET must never turn a successful publish into an error, so it's wrapped separately
+// from the publish itself and simply omitted (postedNotification handles a null permalink).
+async function igPermalink(token, mediaId, budget) {
+  try {
+    if (budget && !budget.spend(1)) return null
+    const { permalink } = await api(token, mediaId, { fields: 'permalink' }, 'GET')
+    return permalink || null
+  } catch { return null }
+}
+
+// gallery-announce only: the phone-notification campaign this was built for. Other events
+// on this shared Worker (the legacy reels drip) keep publishing exactly as before, silently.
+const notifiable = (ev) => ev === 'gallery-announce'
+
 // Publish the Instagram destination only. Its legacy fields stay intact so all
 // pre-Facebook queues continue to work without migration.
-async function publishInstagramItem(env, ev, q, item) {
+async function publishInstagramItem(env, ev, q, item, budget) {
   const acct = ACCOUNTS[item.account]
   if (!acct?.ig_user_id) {
     item.status = 'error'; item.error = `unknown account ${item.account}`
@@ -251,24 +328,36 @@ async function publishInstagramItem(env, ev, q, item) {
   try {
     let containerId = item.ig_container_id
     if (!containerId) {
-      containerId = await buildContainer(token, acct.ig_user_id, item)
+      containerId = await buildContainer(token, acct.ig_user_id, item, budget, () => persistQueue(env, ev, q))
       item.ig_container_id = containerId; item.status = 'building'
       await persistQueue(env, ev, q) // persist before the slow poll/publish
     }
     if (item.media_type !== 'IMAGE') {
-      const st = await pollStatus(token, containerId)
+      const st = await pollStatus(token, containerId, 75000, budget)
       if (st !== 'FINISHED') {
         await persistQueue(env, ev, q)
         return { note: 'transcoding — resumes next run' }
       }
     }
+    if (budget && !budget.spend(1)) { await persistQueue(env, ev, q); return { note: 'subrequest budget exhausted before publish — resumes next run' } }
     const mediaId = await publishWithRetry(token, acct.ig_user_id, containerId)
     item.status = 'posted'; item.ig_media_id = mediaId; item.posted_at = new Date().toISOString(); item.error = null
     await persistQueue(env, ev, q)
+    if (notifiable(ev)) {
+      const permalink = await igPermalink(token, mediaId, budget)
+      await notify({ topic: env.NTFY_TOPIC, ...postedNotification({ albumName: item.album_name || item.album_key || item.id, channel: 'instagram', permalink }) })
+    }
     return { posted: item.id, mediaId, account: acct.handle }
   } catch (e) {
+    if (e instanceof Deferred) {
+      await persistQueue(env, ev, q)
+      return { note: `${e.message} — resumes next run` }
+    }
     item.status = 'error'; item.error = String(e?.message || e) // TERMINAL
     await persistQueue(env, ev, q)
+    if (notifiable(ev)) {
+      await notify({ topic: env.NTFY_TOPIC, ...failedNotification({ albumName: item.album_name || item.album_key || item.id, channel: 'instagram', error: item.error }) })
+    }
     return { error: item.error }
   }
 }
@@ -382,10 +471,11 @@ async function uploadHostedFacebookReel(token, acct, item, persist) {
  * where a prior run stopped, the same shape as uploadHostedFacebookReel's
  * facebook_video_id/facebook_uploaded pair.
  */
-async function uploadFacebookCarouselPhotos(token, acct, item, persist) {
+async function uploadFacebookCarouselPhotos(token, acct, item, persist, budget) {
   if (!Array.isArray(item.facebook_photo_ids)) item.facebook_photo_ids = []
   const children = item.children || []
   for (let i = item.facebook_photo_ids.length; i < children.length; i++) {
+    if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted uploading Facebook carousel photos')
     const child = children[i]
     if (child.media_type === 'VIDEO') {
       throw new Error('Facebook carousel crosspost supports IMAGE children only (received a VIDEO child)')
@@ -397,6 +487,12 @@ async function uploadFacebookCarouselPhotos(token, acct, item, persist) {
       ...(altText ? { alt_text_custom: altText } : {}),
     })
     item.facebook_photo_ids.push(id)
+    // First upload flips facebook_status to 'building' — without this, a deferred/interrupted
+    // partial upload (facebook_photo_ids non-empty, but facebook_status still 'pending'/'held')
+    // was invisible to anything that only checked status, not the array. postDuePending still
+    // resumes it correctly either way (see the module header), but /status and a human reading
+    // KV should see "building," not "pending," once photos exist.
+    if (item.facebook_photo_ids.length === 1) item.facebook_status = 'building'
     await persist()
   }
   return item.facebook_photo_ids
@@ -427,7 +523,16 @@ async function inviteFacebookCollaborators(token, item, publishingAccount, video
   return results
 }
 
-async function publishFacebookItem(env, ev, q, item) {
+// Approximate permalink for a Facebook POSTED notification — a real permalink needs
+// another Graph call (?fields=permalink_url) that isn't worth its own subrequest for a
+// click target; the pageid_postid feed/photo id and the watch-URL video id both resolve on
+// facebook.com as published. Pure — no network — so it never touches the budget.
+function facebookPermalink(postId, mediaType) {
+  if (!postId) return null
+  return mediaType === 'REELS' ? `https://www.facebook.com/watch/?v=${postId}` : `https://www.facebook.com/${postId}`
+}
+
+async function publishFacebookItem(env, ev, q, item, budget) {
   const acct = ACCOUNTS[item.account]
   if (!acct?.page_id) {
     item.facebook_status = 'error'
@@ -441,6 +546,7 @@ async function publishFacebookItem(env, ev, q, item) {
     let postId
 
     if (item.media_type === 'IMAGE') {
+      if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted publishing Facebook image')
       const altText = typeof item.facebook_alt_text === 'string' && item.facebook_alt_text ? item.facebook_alt_text : null
       const result = await api(token, `${acct.page_id}/photos`, {
         url: item.image_url,
@@ -471,7 +577,8 @@ async function publishFacebookItem(env, ev, q, item) {
           `the System User token cannot create an unpublished photo on this Page. Set FB_${item.account.toUpperCase()}_ACCESS_TOKEN ` +
           'or grant the Page-publisher System User this Page directly (SETUP.md).')
       }
-      const photoIds = await uploadFacebookCarouselPhotos(token, acct, item, () => persistQueue(env, ev, q))
+      const photoIds = await uploadFacebookCarouselPhotos(token, acct, item, () => persistQueue(env, ev, q), budget)
+      if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted before the Facebook feed post')
       const attached = {}
       photoIds.forEach((id, i) => { attached[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id }) })
       const result = await api(token, `${acct.page_id}/feed`, {
@@ -488,40 +595,59 @@ async function publishFacebookItem(env, ev, q, item) {
     item.facebook_posted_at = new Date().toISOString()
     item.facebook_error = null
     await persistQueue(env, ev, q)
+    if (notifiable(ev)) {
+      await notify({
+        topic: env.NTFY_TOPIC,
+        ...postedNotification({ albumName: item.album_name || item.album_key || item.id, channel: 'facebook', permalink: facebookPermalink(postId, item.media_type) }),
+      })
+    }
     return { posted: item.id, postId, pageId: acct.page_id }
   } catch (e) {
+    if (e instanceof Deferred) {
+      await persistQueue(env, ev, q)
+      return { note: `${e.message} — resumes next run` }
+    }
     item.facebook_status = 'error'
     item.facebook_error = String(e?.message || e)
     await persistQueue(env, ev, q)
+    if (notifiable(ev)) {
+      await notify({ topic: env.NTFY_TOPIC, ...failedNotification({ albumName: item.album_name || item.album_key || item.id, channel: 'facebook', error: item.facebook_error }) })
+    }
     return { error: item.facebook_error }
   }
 }
 
 // Publish every still-pending destination for one campaign item. One channel's
 // failure never changes the other channel's state.
-async function publishItem(env, ev, q, item) {
+async function publishItem(env, ev, q, item, budget) {
   const result = { ev, item: item.id, destinations: {} }
   if (instagramPending(item)) {
-    result.destinations.instagram = await publishInstagramItem(env, ev, q, item)
+    result.destinations.instagram = await publishInstagramItem(env, ev, q, item, budget)
   }
   if (facebookPending(item)) {
-    result.destinations.facebook = await publishFacebookItem(env, ev, q, item)
+    result.destinations.facebook = await publishFacebookItem(env, ev, q, item, budget)
   }
   return result
 }
 
 // Finish an in-flight container/upload for this event, if any. Returns result or null.
 // Same hold/veto check as postDuePending: a container built before a veto lands must
-// not be published just because it is already in flight.
-async function resumeIfBuilding(env, ev) {
+// not be published just because it is already in flight. Also resumes a CAROUSEL that
+// was deferred mid-build (some child container ids or some Facebook photo ids exist, but
+// the top-level parent/feed post doesn't yet) — a budget deferral leaves status/
+// facebook_status wherever it was (pending/held), not 'building', so this predicate has
+// to check the partial-progress arrays too, not just status==='building'.
+async function resumeIfBuilding(env, ev, budget) {
   const q = await loadQueue(env, ev); if (!q) return null
   const building = q.items.filter((it) => !holdBlock(it) &&
     ((wantsInstagram(it) && it.status === 'building' && it.ig_container_id) ||
-    (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id)))
+    (wantsInstagram(it) && Array.isArray(it.ig_child_container_ids) && it.ig_child_container_ids.length > 0 && !it.ig_container_id) ||
+    (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id) ||
+    (wantsFacebook(it) && Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0 && !it.facebook_post_id)))
   if (!building.length) return null
   const [item] = await routed(env, ev, q, building)
   if (!item) return null
-  return publishItem(env, ev, q, item)
+  return publishItem(env, ev, q, item, budget)
 }
 
 // Eligible to post THIS run:
@@ -537,7 +663,7 @@ function eligibleNow(it, nowMs, hourAllowed) {
 // Post one due pending item from this event. Scheduled items go earliest-first
 // (deterministic calendar order); legacy (no-scheduledAt) items keep the random
 // pick. Returns result, or null if nothing is due.
-async function postDuePending(env, ev, hourAllowed) {
+async function postDuePending(env, ev, hourAllowed, budget) {
   const q = await loadQueue(env, ev); if (!q) return null
   const now = Date.now()
   const due = await routed(env, ev, q, q.items.filter((it) =>
@@ -547,7 +673,7 @@ async function postDuePending(env, ev, hourAllowed) {
   if (!due.length) return null
   const scheduled = due.filter((it) => it.scheduledAt).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
   const item = scheduled.length ? scheduled[0] : due[Math.floor(Math.random() * due.length)]
-  return publishItem(env, ev, q, item)
+  return publishItem(env, ev, q, item, budget)
 }
 
 // ============================ ENGAGEMENT SWEEP ============================
@@ -581,7 +707,10 @@ async function digestAppend(env, entries) {
 
 // push the new entries to a notify sink Nino actually sees (generic webhook —
 // point at Discord/Slack/email-relay). No-op if unset; /inbox still serves the pull.
-async function notify(env, entries) {
+// Named notifyWebhook (not notify) so it doesn't collide with notify.mjs's notify(),
+// imported above for the gallery-announce phone notifications — a different sink, a
+// different shape (env+entries here vs. {topic,title,...} there), same word otherwise.
+async function notifyWebhook(env, entries) {
   if (!entries.length || !env.NOTIFY_WEBHOOK_URL) return
   const lines = entries.map((e) =>
     `[${e.account}] @${e.username}: ${JSON.stringify(e.text).slice(0, 120)} — ${e.intent}/${e.action}`)
@@ -658,19 +787,22 @@ async function sweep(env) {
   }
   const real = all.filter((e) => !e.error)
   await digestAppend(env, all)
-  await notify(env, real)
+  await notifyWebhook(env, real)
   return all
 }
 
 async function run(env, force = false) {
+  // One budget per invocation — NEVER module-scoped (a reused isolate must not inherit an
+  // earlier invocation's spent subrequests). See makeBudget's own comment.
+  const budget = makeBudget(Number(env.SUBREQUEST_BUDGET) || DEFAULT_SUBREQUEST_BUDGET)
   const evs = events(env) // priority order: newest first
   // 1) Always finish any in-flight container first (counts as this run's post).
-  for (const ev of evs) { const r = await resumeIfBuilding(env, ev); if (r) return [r] }
+  for (const ev of evs) { const r = await resumeIfBuilding(env, ev, budget); if (r) return [r] }
   // 2) Fresh post. Scheduled items gate on their own scheduledAt (any hour);
   //    legacy items gate on the allowed-hour slot. force=1 opens the slot for
   //    legacy items but never overrides a scheduled item's future scheduledAt.
   const hourAllowed = force || allowedHours(env).includes(new Date().getUTCHours())
-  for (const ev of evs) { const r = await postDuePending(env, ev, hourAllowed); if (r) return [r] }
+  for (const ev of evs) { const r = await postDuePending(env, ev, hourAllowed, budget); if (r) return [r] }
   return [{ note: 'nothing due in any active event' }]
 }
 
@@ -710,7 +842,19 @@ export default {
         const facebookItems = q.items.filter(wantsFacebook)
         const facebookBy = (s) => facebookItems.filter((i) => (i.facebook_status || 'pending') === s).length
         const entry = queueRoute(q, ev)
-        out.events[ev] = { total: q.items.length, posted: by('posted'), pending: by('pending'),
+        // held vs pending: item.status STAYS the literal string 'held' after holdUntil passes
+        // — nothing flips it back (see hold-shape.mjs's own header) — so counting by that
+        // string alone would report an elapsed, about-to-publish hold as still held. isHeld()
+        // is the same still-blocked check the publishers themselves use; "pending" here means
+        // "would be picked up by the next tick," which includes an elapsed hold.
+        const heldNow = (i) => i.status === 'held' && isHeld(i)
+        const pendingNow = (i) => i.status === 'pending' || (i.status === 'held' && !isHeld(i))
+        const facebookHeldNow = (i) => (i.facebook_status || 'pending') === 'held' && isHeld(i)
+        const facebookPendingNow = (i) => (i.facebook_status || 'pending') === 'pending' || ((i.facebook_status || 'pending') === 'held' && !isHeld(i))
+        out.events[ev] = { total: q.items.length, posted: by('posted'),
+          pending: q.items.filter(pendingNow).length,
+          held: q.items.filter(heldNow).length,
+          heldItems: q.items.filter(heldNow).map((i) => ({ id: i.id, holdUntil: i.holdUntil })),
           building: by('building'), error: by('error'),
           route: entry ? { approved: entry.approved, accounts: entry.accounts, expires: entry.expires ?? null }
             : q.meta?.route ? 'incomplete' : 'none',
@@ -719,7 +863,9 @@ export default {
           facebook: {
             enabled: facebookItems.length,
             posted: facebookBy('posted'),
-            pending: facebookBy('pending'),
+            pending: facebookItems.filter(facebookPendingNow).length,
+            held: facebookItems.filter(facebookHeldNow).length,
+            heldItems: facebookItems.filter(facebookHeldNow).map((i) => ({ id: i.id, holdUntil: i.holdUntil })),
             building: facebookBy('building'),
             error: facebookBy('error'),
             errors: facebookItems
