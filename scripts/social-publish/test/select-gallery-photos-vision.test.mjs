@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import sharp from 'sharp'
 import {
-  classifyOrientation, computeMajorityOrientation, filterByOrientation,
+  classifyOrientation, classifyOrientationFromAspectRatio, computeMajorityOrientation, filterByOrientation,
   laplacianVariance, filterBySharpness, buildShortlist,
   validateModelOrder, buildFallbackOrder, costFromUsage,
-  selectGalleryPhotosByVision,
+  selectGalleryPhotosByVision, analyzePhoto, analyzeAlbum,
 } from '../select-gallery-photos.mjs'
+
+// A real, tiny landscape JPEG — needed by the analyzePhoto/analyzeAlbum tests below,
+// which exercise the REAL sharp() pipeline (unlike selectGalleryPhotosByVision's own
+// tests, which inject analyzeAlbumFn and never touch sharp at all).
+async function tinyLandscapeJpeg() {
+  return sharp({ create: { width: 40, height: 24, channels: 3, background: { r: 90, g: 90, b: 90 } } }).jpeg().toBuffer()
+}
 
 // --- classifyOrientation -----------------------------------------------------
 
@@ -21,6 +29,71 @@ test('classifyOrientation: EXIF orientation 5-8 swap stored width/height before 
   assert.equal(classifyOrientation(1200, 800, 6), 'portrait')
   assert.equal(classifyOrientation(800, 1200, 6), 'landscape')
   assert.equal(classifyOrientation(1200, 800, 1), 'landscape') // same raw dims, no rotation tag
+})
+
+// --- classifyOrientationFromAspectRatio (2026-09-26: the album API now returns this field) --
+
+test('classifyOrientationFromAspectRatio: >1 landscape, <1 portrait, ~1 square', () => {
+  assert.equal(classifyOrientationFromAspectRatio(1.5), 'landscape')
+  assert.equal(classifyOrientationFromAspectRatio(0.667), 'portrait') // the live Re7kho value
+  assert.equal(classifyOrientationFromAspectRatio(1.0), 'square')
+  assert.equal(classifyOrientationFromAspectRatio(0.99), 'square') // within the epsilon band
+})
+
+test('classifyOrientationFromAspectRatio: missing/invalid returns null rather than a guess', () => {
+  assert.equal(classifyOrientationFromAspectRatio(null), null)
+  assert.equal(classifyOrientationFromAspectRatio(undefined), null)
+  assert.equal(classifyOrientationFromAspectRatio(0), null)
+  assert.equal(classifyOrientationFromAspectRatio('not a number'), null)
+})
+
+// --- analyzePhoto / analyzeAlbum: aspect_ratio-first, download only when needed ----------
+
+test('analyzePhoto: aspect_ratio present never touches fetch', async () => {
+  let called = false
+  const result = await analyzePhoto(
+    { image_key: 'p1', cf_image_id: 'p1', aspect_ratio: 0.667 },
+    { fetchImpl: async () => { called = true; throw new Error('must not be called') } },
+  )
+  assert.equal(called, false)
+  assert.equal(result.orientation, 'portrait')
+  assert.equal(result.sharpness, null) // sharpness is decided later, only for majority-orientation photos
+})
+
+test('analyzePhoto: falls back to a download + EXIF read when aspect_ratio is missing', async () => {
+  const buf = await tinyLandscapeJpeg()
+  const result = await analyzePhoto({ image_key: 'legacy', cf_image_id: 'legacy' }, { fetchImpl: async () => new Response(buf, { status: 200 }) })
+  assert.equal(result.orientation, 'landscape')
+  assert.equal(typeof result.sharpness, 'number')
+})
+
+test('analyzeAlbum: a minority-orientation photo (known from aspect_ratio alone) is never downloaded', async () => {
+  const buf = await tinyLandscapeJpeg()
+  const calls = []
+  const fetchImpl = async (url) => { calls.push(String(url)); return new Response(buf, { status: 200 }) }
+  const photos = [
+    { image_key: 'l1', cf_image_id: 'l1', aspect_ratio: 1.5, created_at: '2026-01-01T00:00:00Z' },
+    { image_key: 'l2', cf_image_id: 'l2', aspect_ratio: 1.6, created_at: '2026-01-01T00:00:01Z' },
+    { image_key: 'p1', cf_image_id: 'p1', aspect_ratio: 0.6, created_at: '2026-01-01T00:00:02Z' },
+  ]
+  const { analyzed, errors } = await analyzeAlbum(photos, { fetchImpl, concurrency: 4 })
+  assert.equal(errors.length, 0)
+  assert.ok(!calls.some((u) => u.includes('/p1/')), `the minority portrait photo must never be fetched; calls were ${calls}`)
+  assert.ok(calls.some((u) => u.includes('/l1/')) && calls.some((u) => u.includes('/l2/')), 'both majority-orientation photos must be fetched for sharpness')
+
+  const p1 = analyzed.find((a) => a.photo.image_key === 'p1')
+  assert.equal(p1.orientation, 'portrait')
+  assert.equal(p1.sharpness, null, 'a dropped-by-orientation record carries no sharpness — it was never analyzed')
+
+  const l1 = analyzed.find((a) => a.photo.image_key === 'l1')
+  assert.equal(l1.orientation, 'landscape')
+  assert.equal(typeof l1.sharpness, 'number')
+
+  const { majority } = computeMajorityOrientation(analyzed)
+  assert.equal(majority, 'landscape')
+  const { kept, droppedCount } = filterByOrientation(analyzed, majority)
+  assert.equal(droppedCount, 1)
+  assert.equal(kept.length, 2)
 })
 
 // --- orientation majority/filter --------------------------------------------

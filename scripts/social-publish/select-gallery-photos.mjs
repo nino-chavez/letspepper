@@ -26,46 +26,38 @@
  *      posting order with a one-line reason each. Falls back to shortlist
  *      order (by sharpness) on any failure, and says so in the result.
  *
- * `created_at` (used for "time in the match") is NOT ingest order — an
- * earlier version of this comment claimed that and was wrong. The photography
- * site's transformPhotoRow (src/lib/supabase/server.ts) sets
- * `created_at: row.photo_date || row.enriched_at || row.upload_date`, so
- * `created_at` IS `photo_date` (true EXIF capture time) whenever the DB has
- * one. Verified against the live Re7kho pull (test/fixtures/re7kho-photos.json,
- * 120 rows, 2026-09-25): every created_at falls inside the actual match window
- * (18:03–18:53) and none of them equal that row's enriched_at, so no row fell
- * through to a fallback. The substitution is exact for this album; it is not
- * guaranteed for one with missing EXIF dates, because created_at silently
- * degrades to enriched_at/upload_date with no visible marker of which case
- * applied. See the module-level `PHOTO_API_GAP` note below for the exact
- * change that would remove the ambiguity.
+ * PHOTO_API_GAP CLOSED (2026-09-26): the photography site's own /api/album-photos now
+ * returns `aspect_ratio` (width/height — >1 landscape, <1 portrait, =1 square; the site's
+ * own migration comment and its Photo type both document that convention, and it matches
+ * this file's classifyOrientation exactly) and `photo_date` at the photo's root, verified
+ * live against Re7kho on this date (`curl .../api/album-photos?albumKey=Re7kho&page=1`
+ * returned `"aspect_ratio": 0.667, "photo_date": "2026-09-22T18:03:51"` on the first
+ * photo). This module now reads both directly instead of downloading every photo to
+ * classify its orientation, or trusting `created_at`'s fallback chain as a capture-time
+ * proxy — see classifyOrientationFromAspectRatio and analyzeAlbum below. A photo missing
+ * `aspect_ratio` (a legacy row that predates the backfill) still falls back to a download
+ * + EXIF read, so nothing regresses for an album with gaps.
  *
- * Orientation is NOT read from the API (aspect_ratio is selected in
- * PHOTO_COLUMNS but dropped by transformPhotoRow — same gap) — it comes from
- * downloading each photo's CF `medium` variant (confirmed live 2026-09-25:
- * `medium` letterboxes to a max 800px edge and preserves aspect ratio, it is
- * not a cover-crop) and reading width/height + the EXIF orientation tag via
- * `sharp().metadata()`.
+ * Time-in-the-match bucketing and burst-dedupe below now read `photo.photo_date ??
+ * photo.created_at` — `photo_date` is the real field now that it exists; `created_at`
+ * stays as the fallback for a photo where it's missing.
+ *
+ * Orientation is decided BEFORE any download: analyzeAlbum classifies every clean photo
+ * from `aspect_ratio` first (free), computes the album's majority orientation from that,
+ * and only THEN downloads the CF `medium` variant (confirmed live 2026-09-25: `medium`
+ * letterboxes to a max 800px edge and preserves aspect ratio, it is not a cover-crop) for
+ * photos in the majority orientation — the ones that will actually reach the shortlist.
+ * A minority-orientation photo is never fetched at all. The download that remains is for
+ * the deterministic Laplacian sharpness filter, which still needs pixel data.
  *
  * Legacy strategy: `selectGalleryPhotosByCaption` (was the default export
- * under the name `selectGalleryPhotos` before this rewrite) — ranks by the
+ * under the name `selectGalleryPhotos` before the 2026-09-25 rewrite) — ranks by the
  * album's own AI quality score when it shows real spread, else a caption
  * action/emotion heuristic. Kept, unmodified in logic, importable by path or
- * via `--strategy caption`.
+ * via `--strategy caption`. It still reads `created_at` only — see its own module
+ * position below; the photo_date preference above is specific to the default (vision)
+ * strategy's time bucketing.
  */
-
-// PHOTO_API_GAP (report only — do NOT edit that repo from here, per the task
-// that produced this file): src/lib/supabase/server.ts's transformPhotoRow
-// (around line 76) selects `aspect_ratio` and `photo_date` via PHOTO_COLUMNS
-// (src/lib/supabase/columns.ts) but drops both when it builds the returned
-// Photo object — aspect_ratio isn't on the Photo type or its metadata at all,
-// and photo_date only survives folded into `created_at`'s fallback chain
-// (`row.photo_date || row.enriched_at || row.upload_date`), indistinguishable
-// from a same-value fallback. The fix: add `aspect_ratio: row.aspect_ratio`
-// to the returned object (making orientation free, no per-photo download) and
-// add `photo_date: row.photo_date` as its own field (removing the ambiguity
-// above). Until that ships, this file downloads image bytes for orientation
-// and treats `created_at` as a capture-time proxy.
 
 // Same brand-safety hard block as build-album-carousel.mjs / build-fb-album.mjs.
 const BLOCK = ['beer', 'alcohol', 'wine', 'bottle', 'smoke', 'drink']
@@ -293,19 +285,65 @@ export function classifyOrientation(width, height, exifOrientation = 1) {
   return w > h ? 'landscape' : 'portrait'
 }
 
+/**
+ * Orientation straight from the album API's `aspect_ratio` field (width/height — the
+ * site's own migration comment and Photo type both document >1 landscape, <1 portrait,
+ * =1 square; matches classifyOrientation's post-rotation convention exactly). Pure, no
+ * network. `epsilon` widens the "square" band slightly past an exact 1.0, since a stored
+ * DECIMAL(5,2) value rounds a near-square photo to e.g. 0.98 or 1.02. Returns null when
+ * the field is missing/invalid, so the caller knows to fall back to a download.
+ */
+export function classifyOrientationFromAspectRatio(aspectRatio, epsilon = 0.02) {
+  const r = Number(aspectRatio)
+  if (!Number.isFinite(r) || r <= 0) return null
+  if (Math.abs(r - 1) < epsilon) return 'square'
+  return r > 1 ? 'landscape' : 'portrait'
+}
+
+/**
+ * One photo's orientation, preferring the free `aspect_ratio` field and falling back to a
+ * download + EXIF read only when that field is missing (a legacy row predating the
+ * 2026-09-26 backfill). When it downloads, it keeps the buffer and dims so the caller
+ * doesn't have to fetch the same bytes again for sharpness.
+ */
 export async function analyzePhoto(photo, { fetchImage = fetchImageBuffer, analyzeBuffer = computeSharpnessAndDims, fetchImpl = fetch } = {}) {
+  const fromField = classifyOrientationFromAspectRatio(photo.aspect_ratio)
+  if (fromField) return { photo, orientation: fromField, sharpness: null, buffer: null }
   const buffer = await fetchImage(cfMediumUrl(photo.cf_image_id), fetchImpl)
   const { width, height, exifOrientation, sharpness } = await analyzeBuffer(buffer)
   const orientation = classifyOrientation(width, height, exifOrientation)
   return { photo, width, height, orientation, sharpness, buffer }
 }
 
+/**
+ * Two phases, so a minority-orientation photo is never downloaded:
+ *   1. Classify every clean photo's orientation via analyzePhoto (free when `aspect_ratio`
+ *      is present; a download+EXIF fallback only for a row missing it). Compute the
+ *      album's majority orientation from that alone — no sharpness needed yet.
+ *   2. Download + Laplacian-sharpness ONLY the majority-orientation photos (reusing the
+ *      buffer already fetched in step 1 for any fallback row). Minority-orientation
+ *      records are still returned (so computeMajorityOrientation/filterByOrientation give
+ *      the caller the same accurate counts as before), just with `sharpness: null` — they
+ *      get dropped by filterByOrientation before anything reads that field.
+ */
 export async function analyzeAlbum(photos, { concurrency = 8, ...rest } = {}) {
   const limit = pLimit(concurrency)
-  const analyzed = []
+  const classified = []
   const errors = []
   await Promise.all(photos.map((p) => limit(async () => {
-    try { analyzed.push(await analyzePhoto(p, rest)) } catch (e) { errors.push({ photo: p, error: e.message }) }
+    try { classified.push(await analyzePhoto(p, rest)) } catch (e) { errors.push({ photo: p, error: e.message }) }
+  })))
+  const { majority } = computeMajorityOrientation(classified)
+
+  const analyzed = []
+  await Promise.all(classified.map((c) => limit(async () => {
+    if (c.orientation !== majority) { analyzed.push(c); return } // never downloaded
+    if (c.buffer) { analyzed.push(c); return } // already downloaded + sharpness computed in the fallback path
+    try {
+      const buffer = await fetchImageBuffer(cfMediumUrl(c.photo.cf_image_id), rest.fetchImpl)
+      const { sharpness } = await computeSharpnessAndDims(buffer)
+      analyzed.push({ photo: c.photo, orientation: c.orientation, sharpness, buffer })
+    } catch (e) { errors.push({ photo: c.photo, error: e.message }) }
   })))
   return { analyzed, errors }
 }
@@ -334,14 +372,20 @@ export function filterBySharpness(records, { dropFraction = 1 / 3 } = {}) {
   return { kept, droppedCount: dropCount, threshold }
 }
 
+/** The vision strategy's capture-time field: `photo_date` when the album API provides it
+ * (2026-09-26 onward — see the module header), falling back to `created_at` for a row
+ * without one. The legacy caption strategy (withTimeBucket, above) is unchanged and reads
+ * created_at only, on purpose — this preference is specific to the default strategy. */
+function captureTime(photo) { return photo.photo_date || photo.created_at }
+
 /** Collapses burst near-duplicates: within `minGapSeconds` of the previous KEPT frame,
- * keep only the sharper of the pair (by created_at order, not by group). */
+ * keep only the sharper of the pair (by capture-time order, not by group). */
 function dedupeBursts(records, minGapSeconds) {
-  const sorted = [...records].sort((a, b) => new Date(a.photo.created_at || 0) - new Date(b.photo.created_at || 0))
+  const sorted = [...records].sort((a, b) => new Date(captureTime(a.photo) || 0) - new Date(captureTime(b.photo) || 0))
   const out = []
   for (const r of sorted) {
     const last = out[out.length - 1]
-    const gapSec = last ? Math.abs(new Date(r.photo.created_at || 0) - new Date(last.photo.created_at || 0)) / 1000 : Infinity
+    const gapSec = last ? Math.abs(new Date(captureTime(r.photo) || 0) - new Date(captureTime(last.photo) || 0)) / 1000 : Infinity
     if (last && gapSec < minGapSeconds) {
       if (r.sharpness > last.sharpness) out[out.length - 1] = r
       continue
@@ -352,7 +396,7 @@ function dedupeBursts(records, minGapSeconds) {
 }
 
 function timeBucketsOf(records) {
-  const chrono = [...records].sort((a, b) => new Date(a.photo.created_at || 0) - new Date(b.photo.created_at || 0))
+  const chrono = [...records].sort((a, b) => new Date(captureTime(a.photo) || 0) - new Date(captureTime(b.photo) || 0))
   const third = Math.ceil(chrono.length / 3) || 1
   return chrono.map((r, i) => ({ ...r, bucket: i < third ? 'early' : i < 2 * third ? 'mid' : 'late' }))
 }
