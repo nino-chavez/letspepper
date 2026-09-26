@@ -8,6 +8,12 @@ Fully controlled, no third-party SaaS. Multi-account scheduled publishing over I
 accounts.json            registry: account slug → ig_user_id (+ handle, page_id)
 build-queue.mjs          folder of media → queue/<event>.json (per-account, scheduled)
 build-album-carousel.mjs gallery album → R2-hosted CAROUSEL queue/<event>.json
+build-gallery-announce.mjs  standing campaign: one album → held CAROUSEL, APPENDED to queue/gallery-announce.json
+select-gallery-photos.mjs   swappable photo-selection strategy for build-gallery-announce.mjs
+alt-text.mjs                derives Instagram/Facebook alt text from the site's own caption
+gallery-announce-caption.mjs   facts-only caption template for build-gallery-announce.mjs
+hold-shape.mjs           the held/vetoed check both publishers share (never opened by --force)
+veto-announce.mjs        kill one gallery-announce album locally before it publishes
 upload-r2.mjs            push media to a public R2 bucket, write URLs into the queue
 post-reels.mjs           local Instagram publisher (reels / image / carousel)
 route-gate.mjs           refuses any local publish that has no approved Graph route
@@ -217,6 +223,94 @@ to webp on a webp-Accept fetch and Instagram rejects webp. The builder fetches t
 `large` variant as jpeg and re-hosts on R2 (which serves the stored type verbatim).
 The `flickday-social` bucket has public dev access enabled for exactly this.
 
+## Gallery announcements (standing campaign)
+
+The one route in graph-routes.json that isn't per-post: Nino approved a **standing**
+"gallery announcements" route (2026-09-25 — quoted in that entry's `reason`) so that
+every published photography album can post unattended, once its build has a hold
+window, Facebook crosspost, and alt text — this is that build.
+
+```bash
+# 1. build (dry-run first — no R2 upload, no queue write, no Graph/wrangler call).
+#    Selection is delegated to select-gallery-photos.mjs (or --strategy <path>).
+node scripts/social-publish/build-gallery-announce.mjs \
+  --album-key Re7kho --series other --dry-run
+#   → writes .temp/gallery-announce-<key>.dry-run.json (a meta-publish manifest)
+
+# 2. build for real (appends ONE item to queue/gallery-announce.json — never
+#    overwrites; refuses a duplicate album id instead of double-adding it):
+node scripts/social-publish/build-gallery-announce.mjs --album-key Re7kho --series other
+
+# 3. seed the new item to the Worker's KV without touching any item the Worker has
+#    already started on (--replace is refused the moment anything has posted; this
+#    merges only the ids KV doesn't have yet):
+node scripts/social-publish/seed-kv.mjs --event gallery-announce --append --put
+```
+
+**`--series` is required, not defaulted.** There is no public read path to an
+album's `gallery_scope` — `album_settings` is read anon, server-side only, with no
+API route (checked in the photography repo 2026-09-25) — and many albums in this
+scope are high-school girls' volleyball. `lpo` routes to `letspepper.open`;
+anything else routes to `nino.chavez.photo`. `flickday.media` is **always** added
+as a Collab collaborator on every album, regardless of series (Nino: "by series
+and collab with flickday").
+
+**The hold window.** Every item is created `status: "held"` with `holdUntil` (default
+12h out, `--hold-hours` to change it) — hold-shape.mjs's `holdBlock()` refuses BOTH
+destinations in both publishers (post-reels.mjs and the Worker) until it passes, and
+`--force` does not open it. Once `holdUntil` passes the item becomes ordinarily
+publishable — nothing has to flip its status back to `pending`. **Kill a bad pick**
+before it posts:
+
+```bash
+node scripts/social-publish/veto-announce.mjs --album-key Re7kho --reason "wrong gallery scope" --dry-run
+node scripts/social-publish/veto-announce.mjs --album-key Re7kho --reason "wrong gallery scope"
+```
+
+This only edits the LOCAL queue file. If the item was already seeded to KV
+(step 3 above already ran for it), the veto has to be repeated directly against
+KV — `--append` never touches an item KV already has — the script prints the
+`wrangler kv key get` / hand-edit / `--put` steps when this applies.
+
+**Photo selection** (select-gallery-photos.mjs) ranks by the album's AI quality
+sub-scores only when they show real spread (`qualitySpread()`, default
+threshold: composition_score needs at least 4 distinct values across the album)
+— on Re7kho they don't (3 distinct values across 120 photos; sharpness is 7 or 8
+on 112/120), so it falls back to build-album-carousel.mjs's caption heuristic. A
+model evaluation that may replace the scorer is running now; when it lands, only
+select-gallery-photos.mjs (or a `--strategy` override) needs to change.
+
+**Alt text** (alt-text.mjs) is derived from the album's existing AI caption, not
+written fresh, with jersey numbers and any quoted on-scene signage
+(`"CENTRAL CATHOLIC TIGERS"`-style banner transcriptions — measured live on
+Re7kho) stripped unconditionally. There is no public or persisted `visible_text`
+field to diff against (see that file's header), so a Title-Case backstop
+catches a likely name pair when nothing else is available — call it a defensive
+net, not a verified filter, in anything that cites it.
+
+**Facebook crosspost of a carousel** has no native multi-photo post type on
+Facebook's side. The Worker uploads each image child as an UNPUBLISHED photo
+(`published=false`, one `alt_text_custom` each) via `/{page-id}/photos`, then
+attaches every resulting photo id to ONE `/{page-id}/feed` post via
+`attached_media` — the same two calls this file's own 2026-07-29 capability
+probe verified live (see "Facebook Page photo album" below). `published=false`
+only works with a real Page token (that same probe); the Worker now checks for
+that and refuses explicitly, before uploading a single photo, rather than
+failing opaquely partway through when only the System User token resolves.
+**Not carried over: a Collab on the Facebook side.** The Worker only sends Page
+collaborator invitations on Reels (`inviteFacebookCollaborators`) — a carousel
+crosspost posts with no Facebook-side collaborator at all.
+
+**Collaborators, confirmed from Meta's current docs (2026-09-25):** up to 3
+Instagram usernames as `collaborators` on an ig media create, not supported for
+Stories — matches what this file already documented as "community-confirmed."
+An invite is NOT automatic acceptance: Meta's December 2025 API additions expose
+`GET /{ig-media-id}/collaborators` (Pending/Accepted/Declined) and an
+accept/decline endpoint. **flickday.media has to accept the invite before it
+shows as a co-author** — do this from the flickday.media account itself (the
+Instagram app's notifications, or the accept endpoint with flickday.media's own
+token) after each post. Nothing in this pipeline accepts on flickday's behalf.
+
 ## Facebook Page photo album (photography gallery)
 
 A real named album in the Page's Photos tab — the surface that gets browsed,
@@ -342,12 +436,14 @@ that item via `post-reels.mjs --id`. Reads the token from 1Password itself if
 
 ## Capabilities
 - **Multi-account:** `--account <slug>` or per-item `account` field → posts to any owned IG account from the one token.
-- **Facebook Pages:** Worker items with `"channels":["instagram","facebook"]` publish an image or Reel to the paired Page and preserve independent destination state.
-- **Facebook Reel collaborators:** matching owned collaborator handles become Page collaborator invitations; invitation errors are recorded without rewriting a successful Reel receipt.
+- **Facebook Pages:** Worker items with `"channels":["instagram","facebook"]` publish an image, Reel, or (2026-09-25) a CAROUSEL to the paired Page and preserve independent destination state. A carousel crosspost uploads each child as an unpublished photo then attaches them all to one `/feed` post (see "Gallery announcements" above) — needs a real Page token, not the System User fallback.
+- **Facebook Reel collaborators:** matching owned collaborator handles become Page collaborator invitations; invitation errors are recorded without rewriting a successful Reel receipt. **Not extended to a carousel crosspost** — that publishes with no Facebook-side collaborator.
 - **User tags:** item `user_tags: ["flickday.media"]` → `user_tags=[{username}]` on the post.
-- **Collab:** item `collaborators: ["flickday.media"]` → co-author invite (reels/image/carousel; not Stories; public accounts only). `collaborators` is community-confirmed but not in Meta's main doc — first live call verifies it; on rejection the item is marked `error` with the API message, not silently dropped. Verified working on a five-image carousel 2026-09-21. **Supported is not approved:** an ad hoc Collab goes out through native Instagram unless Nino named the API for it — the route gate refuses it otherwise.
-- **Media types:** `media_type` = `REELS` (default) | `IMAGE` (`image_url`) | `STORIES` (`image_url` or `video_url`; bare media) | `CAROUSEL` (`children: [{media_type,image_url|video_url}]`).
+- **Collab:** item `collaborators: ["flickday.media"]` → co-author invite (reels/image/carousel; not Stories; public accounts only). `collaborators` is community-confirmed but not in Meta's main doc — first live call verifies it; on rejection the item is marked `error` with the API message, not silently dropped. Verified working on a five-image carousel 2026-09-21. An invite is not an accept: `GET /{ig-media-id}/collaborators` reports Pending/Accepted/Declined, and the invited account has to accept it itself — nothing here does that on flickday.media's behalf. **Supported is not approved:** an ad hoc Collab goes out through native Instagram unless Nino named the API for it — the route gate refuses it otherwise.
+- **Alt text (2026-09-25):** `alt_text` on an item/child → Instagram's `alt_text` on a single image or an image carousel child (never video/reels/stories, confirmed from Meta's current IG media reference). `facebook_alt_text` → Facebook's `alt_text_custom` on an IMAGE post or each CAROUSEL child photo. See alt-text.mjs for how gallery-announce derives it from the site's own caption.
+- **Media types:** `media_type` = `REELS` (default) | `IMAGE` (`image_url`) | `STORIES` (`image_url` or `video_url`; bare media) | `CAROUSEL` (`children: [{media_type,image_url|video_url,alt_text}]`).
 - **Stories:** published via the API since 2026-07-12 (Business accounts; `media_type=STORIES`). Bare media only — sticker/link/tag decoration is NOT in the API (see STORIES-SPEC.md for the decorated-firehose design). Accidental story? `DELETE /{ig-media-id}` works (verified live) — feed-media delete is unverified.
+- **Hold + veto (2026-09-25):** item `status: "held"` + `holdUntil` → neither destination publishes before that timestamp, in either publisher, even with `--force` (hold-shape.mjs). `status: "vetoed"` is the same gate, permanently. See "Gallery announcements" above; veto-announce.mjs is the CLI for it.
 
 ## Notes
 - Queue is the source of truth; saved after every publish; posted items are skipped (no double-post).
