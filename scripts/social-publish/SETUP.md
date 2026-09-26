@@ -258,12 +258,13 @@ node scripts/social-publish/seed-kv.mjs --event gallery-announce --append --put
 # Change the caption of an item already in KV, while it is still held on both channels
 # (e.g. to add a college result). Photos, alt text and schedule stay as queued; the
 # account the item posts from decides the series. The builder reads the LIVE item and
-# writes queue/<id>.caption.txt; seed-kv re-checks held/held on the live queue and
+# writes queue/<id>.captions.json (Instagram and Facebook captions); seed-kv re-checks
+# held/held on the live queue and
 # pushes with the same tick-window and re-read guards as --veto:
 node scripts/social-publish/build-gallery-announce.mjs --album-key DWdCET --refresh-caption \
   --venue "Gregory Arena, Naperville"
 node scripts/social-publish/seed-kv.mjs --event gallery-announce \
-  --recaption DWdCET-gallery-announce --caption-file scripts/social-publish/queue/DWdCET-gallery-announce.caption.txt --put
+  --recaption DWdCET-gallery-announce --caption-file scripts/social-publish/queue/DWdCET-gallery-announce.captions.json --put
 
 # Move a held item to another publishing account and set its Instagram collaborators
 # (at most 3; an account cannot invite itself). The new account must be listed in the

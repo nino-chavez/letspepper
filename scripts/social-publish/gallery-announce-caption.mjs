@@ -91,7 +91,7 @@ export function shortAlbumName(albumName = '', fallback) {
  * has no account-routing logic of its own to get out of sync with the builder's.
  */
 export function buildGalleryAnnounceCaption({
-  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series, result,
+  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series, result, channel = 'instagram',
 }) {
   const parsed = parseAlbumName(albumName)
   const teamsLine = teams || parsed.teams
@@ -110,11 +110,16 @@ export function buildGalleryAnnounceCaption({
   lines.push('')
   if (series === 'lpo') {
     lines.push(`Full gallery: letspepper.com/gallery`)
+  } else if (galleryUrl && channel === 'facebook') {
+    // Facebook makes caption URLs clickable, so the Facebook copy keeps the direct
+    // link to this album.
+    lines.push(`Full gallery: ${galleryUrl}`)
   } else if (galleryUrl) {
     // Instagram doesn't linkify a URL in a caption, so a bare link here is dead
-    // text. The account's bio points at ninochavez.co/links, which redirects to
-    // the latest gallery — "link in bio" is the actual call to action.
-    lines.push(`Full gallery: link in bio`)
+    // text. The bio points at ninochavez.co/links, which lists recent galleries;
+    // naming the album keeps this post's call to action pointing at THIS gallery
+    // after newer ones are published.
+    lines.push(`Full gallery: link in bio (${shortAlbumName(albumName, albumName)})`)
   }
   lines.push('')
   lines.push('Motion. Emotion. Frame by Frame.')
