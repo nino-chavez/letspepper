@@ -671,11 +671,21 @@ async function publishItem(env, ev, q, item, budget) {
 // Facebook is already 'building' (or holds photo ids with no feed post yet), and the naive
 // reviewHeldNow/reviewPendingNow check alone would let that item be "cancelled" while its
 // Facebook upload keeps running and completes anyway.
+//
+// The partial-progress clauses (2 and 4) explicitly exclude a destination that has already
+// gone terminal ('error') — a second review pass caught that a Facebook upload can fail
+// PARTWAY through a carousel (facebook_status -> 'error', but facebook_photo_ids stays
+// non-empty and facebook_post_id stays unset forever, since errors are terminal and never
+// auto-retried, see this file's own header). Without the exclusion, an item whose Facebook
+// leg permanently failed would read as "still in flight" forever: /review/cancel would
+// wrongly refuse to cancel its still-eligible Instagram side ("a publish is already in
+// flight" — false, nothing is running), and resumeIfBuilding would keep treating it as the
+// tick's resume candidate instead of letting postDuePending route it normally.
 function hasInFlightProgress(it) {
   return (wantsInstagram(it) && it.status === 'building' && it.ig_container_id) ||
-    (wantsInstagram(it) && Array.isArray(it.ig_child_container_ids) && it.ig_child_container_ids.length > 0 && !it.ig_container_id) ||
+    (wantsInstagram(it) && it.status !== 'error' && Array.isArray(it.ig_child_container_ids) && it.ig_child_container_ids.length > 0 && !it.ig_container_id) ||
     (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id) ||
-    (wantsFacebook(it) && Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0 && !it.facebook_post_id)
+    (wantsFacebook(it) && it.facebook_status !== 'error' && Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0 && !it.facebook_post_id)
 }
 
 // Finish an in-flight container/upload for this event, if any. Returns result or null.

@@ -245,6 +245,29 @@ test('GET /review: no Cancel button when Instagram is held/pending but Facebook 
   assert.doesNotMatch(html, /Cancel this post/)
 })
 
+test('POST /review/cancel: CAN cancel when Instagram is held/pending and Facebook errored partway — a terminal error is not "in flight"', async () => {
+  // Second review pass, 2026-09-26: facebook_status 'error' leaves facebook_photo_ids
+  // non-empty and facebook_post_id unset FOREVER (errors are terminal, never auto-retried),
+  // so hasInFlightProgress() must not read that as still-running or a permanently failed
+  // Facebook leg would make its Instagram sibling uncancellable forever.
+  const kv = fakeKv(queueWith(heldItem({
+    status: 'held', holdUntil: new Date(Date.now() - 1000).toISOString(),
+    facebook_status: 'error', facebook_error: 'Missing pages_manage_posts permission', facebook_photo_ids: ['fb-photo-1'],
+  })))
+  const res = await post(kv, '/review/cancel', { form: { key: KEY, id: 'Re7kho-gallery-announce' } })
+  assert.equal(res.status, 303)
+  const item = JSON.parse(await kv.get(EVENT)).items[0]
+  assert.equal(item.status, 'vetoed')
+  assert.equal(item.facebook_status, 'vetoed')
+})
+
+test('GET /review: shows a Cancel button when Instagram is held/pending and Facebook errored partway', async () => {
+  const html = await (await get(fakeKv(queueWith(
+    heldItem({ status: 'held', facebook_status: 'error', facebook_error: 'boom', facebook_photo_ids: ['fb-photo-1'] }),
+  )), `/review?key=${KEY}`)).text()
+  assert.match(html, /Cancel this post/)
+})
+
 test('POST /review/cancel: refuses, and does not write, if the queue changed since this request read it', async () => {
   const queue = queueWith(heldItem())
   const values = new Map([[EVENT, JSON.stringify(queue)]])
