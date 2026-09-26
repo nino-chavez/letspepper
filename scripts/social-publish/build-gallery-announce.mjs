@@ -57,6 +57,7 @@ import { execFileSync } from 'node:child_process'
 import selectGalleryPhotosDefault, { selectGalleryPhotosByCaption } from './select-gallery-photos.mjs'
 import { altTextFromCaption } from './alt-text.mjs'
 import { buildGalleryAnnounceCaption } from './gallery-announce-caption.mjs'
+import { notify, heldNotification } from './notify.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
@@ -168,6 +169,26 @@ function resolveOpenRouterKey() {
   } catch { return undefined }
 }
 
+/** notify.mjs is Worker-safe (no node: imports) and never looks up its own topic — the `op
+ * read` belongs here, in the local caller, same pattern as resolveOpenRouterKey() above. The
+ * Worker instead gets NTFY_TOPIC as its own secret binding (see SETUP.md). */
+function resolveNtfyTopic() {
+  if (process.env.NTFY_TOPIC) return process.env.NTFY_TOPIC
+  if (process.env.NTFY_DISABLED) return undefined // tests: skip the real `op read`, never send a real notification
+  try {
+    return execFileSync('op', ['read', 'op://Developer Secrets/ntfy gallery-announce/credential'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim()
+  } catch { return undefined }
+}
+
+/** Chicago-local, human-readable holdUntil for the HELD notification body — America/Chicago
+ * per the task (Nino reads this on his phone). */
+function holdUntilChicagoLabel(holdUntilIso) {
+  return new Date(holdUntilIso).toLocaleString('en-US', {
+    timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  })
+}
+
 /** Re-hosts one photo on R2 as jpeg (Instagram rejects webp) — same approach as
  * build-album-carousel.mjs. NEVER called in --dry-run. */
 async function r2Put({ bucket, publicBase, event, cfId, key }) {
@@ -243,6 +264,7 @@ export async function main(argv = process.argv.slice(2)) {
   const item = {
     id: `${albumKey}-${EVENT}`,
     album_key: albumKey,
+    album_name: albumName, // carried so the Worker can name the album in a POSTED/FAILED notification without an extra lookup
     account,
     media_type: 'CAROUSEL',
     channels: ['instagram', 'facebook'],
@@ -333,6 +355,17 @@ export async function main(argv = process.argv.slice(2)) {
   writeFileSync(queuePath, JSON.stringify(result.queue, null, 2))
   console.log(`Appended ${item.id} to ${queuePath} (${result.queue.items.length} items total). Held until ${holdUntil}.`)
   console.log('Not seeded to the Worker yet — run seed-kv.mjs --event gallery-announce --append --put once graph-routes.json carries the standing route.')
+
+  // HELD notification — non-dry-run only, since a dry run touches nothing else either.
+  // Never blocks or fails the build: notify() itself never throws, and any failure here is
+  // logged, not surfaced as an error on this otherwise-successful append.
+  const heldBuild = heldNotification({
+    albumKey, albumName, selectedOf: selection.selectedOf, account, collaborator: item.collaborators[0],
+    holdUntilChicago: holdUntilChicagoLabel(holdUntil), galleryUrl,
+  })
+  const topic = resolveNtfyTopic()
+  await notify({ topic, ...heldBuild })
+
   return { item, queuePath }
 }
 

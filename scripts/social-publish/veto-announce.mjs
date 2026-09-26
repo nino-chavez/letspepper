@@ -16,11 +16,24 @@
  * rather than hand-editing KV.
  */
 import { readFileSync, writeFileSync, existsSync, realpathSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { notify, vetoedNotification } from './notify.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
+
+/** Same pattern as build-gallery-announce.mjs's resolveNtfyTopic(): local caller looks up
+ * its own topic; notify.mjs never does. */
+function resolveNtfyTopic() {
+  if (process.env.NTFY_TOPIC) return process.env.NTFY_TOPIC
+  if (process.env.NTFY_DISABLED) return undefined // tests: skip the real `op read`, never send a real notification
+  try {
+    return execFileSync('op', ['read', 'op://Developer Secrets/ntfy gallery-announce/credential'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim()
+  } catch { return undefined }
+}
 
 function parseArgs(argv) {
   return Object.fromEntries(argv.reduce((a, t, i, arr) => {
@@ -50,7 +63,7 @@ export function vetoAlbum(queue, albumKey, reason) {
   return { queue: next, vetoed, alreadyPosted: already.map((it) => it.id) }
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2))
   const albumKey = typeof args['album-key'] === 'string' ? args['album-key'] : null
   if (!albumKey) { console.error('Required: --album-key <key> [--reason "..."] [--dry-run]'); process.exit(1) }
@@ -81,6 +94,16 @@ function main() {
   console.log('and neither --append nor a plain re-seed touches an item KV already has. Kill it there too, through the same')
   console.log('tick-window + re-read guard every other --put uses (no hand-edit needed):')
   console.log(`  node ${join(HERE, 'seed-kv.mjs')} --event ${EVENT} --veto ${result.vetoed.join(',')} --reason "${reason || 'vetoed by operator'}" --put`)
+
+  // VETOED notification. This script only ever edits the LOCAL queue (never KV), so the
+  // notification MUST say "LOCAL ONLY" every time it's sent from here — never mark it
+  // otherwise, even though seed-kv.mjs --veto (called separately) sends the honest
+  // "reached the Worker" version.
+  const topic = resolveNtfyTopic()
+  for (const id of result.vetoed) {
+    const item = result.queue.items.find((it) => it.id === id)
+    await notify({ topic, ...vetoedNotification({ albumName: item?.album_name || item?.album_key || id, reason, localOnly: true }) })
+  }
 }
 
 // realpathSync before comparing: on macOS, node's own module resolution canonicalizes
@@ -90,4 +113,4 @@ function main() {
 // main() never runs. Same fix seed-kv.mjs's own guard needs, not yet applied there.
 let isEntryPoint = false
 try { isEntryPoint = import.meta.url === pathToFileURL(realpathSync(process.argv[1] || '')).href } catch { /* argv[1] unreadable — not the entry point */ }
-if (isEntryPoint) main()
+if (isEntryPoint) main().catch((e) => { console.error(`ERROR — ${e.message}`); process.exit(1) })

@@ -53,13 +53,17 @@ function sandbox() {
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
   cpSync(join(SOCIAL, 'veto-announce.mjs'), join(social, 'veto-announce.mjs'))
+  cpSync(join(SOCIAL, 'notify.mjs'), join(social, 'notify.mjs'))
   writeFileSync(join(social, 'queue', 'gallery-announce.json'), JSON.stringify(queueFixture(), null, 2))
   return { social, queuePath: join(social, 'queue', 'gallery-announce.json'), cleanup: () => rmSync(root, { recursive: true, force: true }) }
 }
 
 function run(args, cwd) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [join(cwd, 'veto-announce.mjs'), ...args], { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    // NTFY_DISABLED: this CLI now sends a real ntfy.sh notification on a live veto — never
+    // let a test reach the real `op read` / real network for it.
+    const child = spawn(process.execPath, [join(cwd, 'veto-announce.mjs'), ...args],
+      { cwd, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, NTFY_DISABLED: '1' } })
     let out = ''; let err = ''
     child.stdout.on('data', (d) => { out += d }); child.stderr.on('data', (d) => { err += d })
     child.on('close', (code) => resolve({ code, out, err }))
