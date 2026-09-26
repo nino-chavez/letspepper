@@ -67,6 +67,17 @@ export function parseAlbumName(albumName = '') {
   return { title, teams: teamsPart, eventDateLabel }
 }
 
+/** The event/matchup segment of an album's standard name ("JCA at ACC" out of "HS Girls
+ * VB - JCA at ACC - 09-22-2026") — the short label a phone notification uses (notify.mjs's
+ * heldNotification/postedNotification/failedNotification/vetoedNotification), so a title
+ * fits on one line instead of carrying the full three-part name. Falls back to `fallback`
+ * (typically the album key or id) and then to the full name itself when no "<team> at
+ * <team>" segment parses out — an album that doesn't use this shape still gets a usable
+ * label instead of `undefined`. */
+export function shortAlbumName(albumName = '', fallback) {
+  return parseAlbumName(albumName).teams || fallback || albumName || 'album'
+}
+
 /**
  * `series` is the routing decision already made upstream (build-gallery-announce.mjs's
  * --series/gallery_scope check) — passed in rather than re-derived here, so this module

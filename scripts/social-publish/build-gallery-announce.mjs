@@ -38,7 +38,8 @@
  *   --out <path>           dry-run only: write the manifest here instead of
  *                          .temp/gallery-announce-<key>.dry-run.json.
  *   --count <N>            max carousel slides. Default 10.
- *   --hold-hours <N>       hold window before the item is publishable. Default 12.
+ *   --hold-hours <N>       hold window before the item is publishable. Default 2
+ *                          (Nino, 2026-09-26: "2 hours" — was 12 until then).
  *   --strategy <name|path> "vision" (default) or "caption" — selects a named export of
  *                          select-gallery-photos.mjs — or a path to another module exporting
  *                          the same selectGalleryPhotos(photos, opts) shape.
@@ -56,14 +57,18 @@ import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import selectGalleryPhotosDefault, { selectGalleryPhotosByCaption } from './select-gallery-photos.mjs'
 import { altTextFromCaption } from './alt-text.mjs'
-import { buildGalleryAnnounceCaption } from './gallery-announce-caption.mjs'
-import { notify, heldNotification } from './notify.mjs'
+import { buildGalleryAnnounceCaption, shortAlbumName } from './gallery-announce-caption.mjs'
+import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor } from './notify.mjs'
+import { loadRoutes, standingEntry } from './route-gate.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
 const CF_HASH = 'wg34HB28-JkySWVm5fW4kA' // Cloudflare Images account hash (public) — same as build-album-carousel.mjs
 const IG_CAROUSEL_MAX = 10
-const DEFAULT_HOLD_HOURS = 12
+const DEFAULT_HOLD_HOURS = 2 // Nino, 2026-09-26: "2 hours" (was 12)
+const DEFAULT_ALLOWED_HOURS_UTC = [17, 22] // mirrors worker/wrangler.jsonc's ALLOWED_HOURS_UTC var — this
+// script cannot read the live Worker config, so it mirrors the tracked default; override with
+// process.env.ALLOWED_HOURS_UTC (comma-separated) if the two ever need to differ for a test.
 
 function parseArgs(argv) {
   return Object.fromEntries(argv.reduce((a, t, i, arr) => {
@@ -181,12 +186,44 @@ function resolveNtfyTopic() {
   } catch { return undefined }
 }
 
-/** Chicago-local, human-readable holdUntil for the HELD notification body — America/Chicago
- * per the task (Nino reads this on his phone). */
-function holdUntilChicagoLabel(holdUntilIso) {
-  return new Date(holdUntilIso).toLocaleString('en-US', {
-    timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-  })
+/** notify.mjs is Worker-safe and never looks up its own key — the `op read` belongs here,
+ * same pattern as resolveNtfyTopic()/resolveOpenRouterKey() above. The Worker instead gets
+ * REVIEW_KEY as its own secret binding (see SETUP.md "Arming gallery-announce"). Fails soft:
+ * a HELD notification still sends — without a review link or cancel button, and saying so —
+ * when the key can't be resolved, because the album is already appended by the time this
+ * runs and a notification failure must never fail the build. The 1Password item is created
+ * by whoever arms this campaign, not by this script. */
+function resolveReviewKey() {
+  if (process.env.REVIEW_KEY) return process.env.REVIEW_KEY
+  if (process.env.NTFY_DISABLED) return undefined // tests: skip the real `op read`, never send a real notification
+  try {
+    return execFileSync('op', ['read', 'op://Developer Secrets/Cloudflare letspepper-reels-worker review-key/credential'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim()
+  } catch (e) {
+    console.error(`resolveReviewKey: could not read REVIEW_KEY from 1Password (${e.message}) — the HELD notification will send without a review link or cancel button.`)
+    return undefined
+  }
+}
+
+/** This script cannot read the live Worker's ALLOWED_HOURS_UTC var, so it mirrors the
+ * tracked default (see DEFAULT_ALLOWED_HOURS_UTC above) unless a test overrides it. */
+function allowedHoursUtc() {
+  const raw = process.env.ALLOWED_HOURS_UTC
+  if (!raw) return DEFAULT_ALLOWED_HOURS_UTC
+  const hours = raw.split(',').map(Number).filter((n) => Number.isFinite(n))
+  return hours.length ? hours : DEFAULT_ALLOWED_HOURS_UTC
+}
+
+/** The console line printed after a real (non-dry-run) append — reworded 2026-09-26: the
+ * campaign's standing route already exists in graph-routes.json and the photography repo's
+ * publish-album.ts runs seed-kv.mjs immediately after this builder, so the original
+ * "Not seeded to the Worker yet... once graph-routes.json carries the standing route" line
+ * read as a failure when nothing was wrong. Mentions graph-routes.json only when the route
+ * is actually absent — pure so it's directly testable without exercising the whole build. */
+export function nextStepMessage(hasRoute) {
+  return hasRoute
+    ? 'Next: seed-kv.mjs --event gallery-announce --append --put (publish-album.ts runs this automatically).'
+    : 'Next: seed-kv.mjs --event gallery-announce --append --put once graph-routes.json carries the standing route for "gallery-announce" — it does not yet.'
 }
 
 /** Re-hosts one photo on R2 as jpeg (Instagram rejects webp) — same approach as
@@ -354,14 +391,20 @@ export async function main(argv = process.argv.slice(2)) {
   mkdirSync(dirname(queuePath), { recursive: true })
   writeFileSync(queuePath, JSON.stringify(result.queue, null, 2))
   console.log(`Appended ${item.id} to ${queuePath} (${result.queue.items.length} items total). Held until ${holdUntil}.`)
-  console.log('Not seeded to the Worker yet — run seed-kv.mjs --event gallery-announce --append --put once graph-routes.json carries the standing route.')
+  const hasRoute = !!standingEntry(EVENT, loadRoutes())
+  console.log(nextStepMessage(hasRoute))
 
   // HELD notification — non-dry-run only, since a dry run touches nothing else either.
   // Never blocks or fails the build: notify() itself never throws, and any failure here is
   // logged, not surfaced as an error on this otherwise-successful append.
+  const reviewKey = resolveReviewKey()
   const heldBuild = heldNotification({
-    albumKey, albumName, selectedOf: selection.selectedOf, account, collaborator: item.collaborators[0],
-    holdUntilChicago: holdUntilChicagoLabel(holdUntil), galleryUrl,
+    shortName: shortAlbumName(albumName, albumKey),
+    photoCount: children.length,
+    holdUntilIso: holdUntil,
+    nextSlotIso: nextAllowedSlot(holdUntil, allowedHoursUtc()),
+    reviewUrl: reviewUrlFor(reviewKey, item.id),
+    reviewCancelUrl: reviewCancelUrlFor(reviewKey, item.id),
   })
   const topic = resolveNtfyTopic()
   await notify({ topic, ...heldBuild })

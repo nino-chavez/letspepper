@@ -25,7 +25,11 @@
  *                      can be supplied via each account's optional
  *                      FB_*_ACCESS_TOKEN binding.
  *   TRIGGER_KEY        guards /run, /run?force=1, /status (secret)
- *   NTFY_TOPIC         ntfy.sh topic for gallery-announce POSTED/FAILED phone
+ *   REVIEW_KEY         guards GET /review and POST /review/cancel ONLY — a separate secret
+ *                      from TRIGGER_KEY, which /review can never reach (secret, added
+ *                      2026-09-26 — see SETUP.md "/review"). Absent means every /review*
+ *                      request 403s.
+ *   NTFY_TOPIC         ntfy.sh topic for gallery-announce HELD/POSTED/FAILED/VETOED phone
  *                      notifications (secret — see notify.mjs and SETUP.md).
  *                      Absent means "skip notifying," never a publish failure.
  *   SUBREQUEST_BUDGET  external subrequests (Graph + ntfy) this invocation may
@@ -67,7 +71,12 @@
 
 import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
 import { holdBlock, isHeld } from '../../hold-shape.mjs'
-import { notify, postedNotification, failedNotification } from '../../notify.mjs'
+import {
+  notify, postedNotification, failedNotification, vetoedNotification,
+  chicagoLabel, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor,
+} from '../../notify.mjs'
+import { veto } from '../../veto-shape.mjs'
+import { shortAlbumName } from '../../gallery-announce-caption.mjs'
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
@@ -255,6 +264,12 @@ const instagramPending = (it) => wantsInstagram(it) && !holdBlock(it) &&
 const facebookPending = (it) => wantsFacebook(it) && !holdBlock(it) &&
   ['pending', 'building', 'held'].includes(it.facebook_status || 'pending')
 
+// /review's own held/pending split — same live check as /status's heldNow/pendingNow (item
+// stays `status: 'held'` forever; eligibility is checked live via isHeld(), never a status
+// flip), named separately here so /review doesn't reach into /status's local closures.
+const reviewHeldNow = (it) => it.status === 'held' && isHeld(it)
+const reviewPendingNow = (it) => it.status === 'pending' || (it.status === 'held' && !isHeld(it))
+
 async function persistQueue(env, ev, q) {
   await env.QUEUE.put(ev, JSON.stringify(q))
 }
@@ -345,7 +360,10 @@ async function publishInstagramItem(env, ev, q, item, budget) {
     await persistQueue(env, ev, q)
     if (notifiable(ev)) {
       const permalink = await igPermalink(token, mediaId, budget)
-      await notify({ topic: env.NTFY_TOPIC, ...postedNotification({ albumName: item.album_name || item.album_key || item.id, channel: 'instagram', permalink }) })
+      await notify({ topic: env.NTFY_TOPIC, ...postedNotification({
+        albumName: shortAlbumName(item.album_name, item.album_key || item.id), channel: 'instagram', permalink,
+        collaborator: item.collaborators?.[0],
+      }) })
     }
     return { posted: item.id, mediaId, account: acct.handle }
   } catch (e) {
@@ -356,7 +374,10 @@ async function publishInstagramItem(env, ev, q, item, budget) {
     item.status = 'error'; item.error = String(e?.message || e) // TERMINAL
     await persistQueue(env, ev, q)
     if (notifiable(ev)) {
-      await notify({ topic: env.NTFY_TOPIC, ...failedNotification({ albumName: item.album_name || item.album_key || item.id, channel: 'instagram', error: item.error }) })
+      await notify({ topic: env.NTFY_TOPIC, ...failedNotification({
+        albumName: shortAlbumName(item.album_name, item.album_key || item.id), channel: 'instagram', error: item.error,
+        reviewUrl: reviewUrlFor(env.REVIEW_KEY, item.id),
+      }) })
     }
     return { error: item.error }
   }
@@ -598,7 +619,10 @@ async function publishFacebookItem(env, ev, q, item, budget) {
     if (notifiable(ev)) {
       await notify({
         topic: env.NTFY_TOPIC,
-        ...postedNotification({ albumName: item.album_name || item.album_key || item.id, channel: 'facebook', permalink: facebookPermalink(postId, item.media_type) }),
+        ...postedNotification({
+          albumName: shortAlbumName(item.album_name, item.album_key || item.id), channel: 'facebook',
+          permalink: facebookPermalink(postId, item.media_type),
+        }),
       })
     }
     return { posted: item.id, postId, pageId: acct.page_id }
@@ -611,7 +635,10 @@ async function publishFacebookItem(env, ev, q, item, budget) {
     item.facebook_error = String(e?.message || e)
     await persistQueue(env, ev, q)
     if (notifiable(ev)) {
-      await notify({ topic: env.NTFY_TOPIC, ...failedNotification({ albumName: item.album_name || item.album_key || item.id, channel: 'facebook', error: item.facebook_error }) })
+      await notify({ topic: env.NTFY_TOPIC, ...failedNotification({
+        albumName: shortAlbumName(item.album_name, item.album_key || item.id), channel: 'facebook', error: item.facebook_error,
+        reviewUrl: reviewUrlFor(env.REVIEW_KEY, item.id),
+      }) })
     }
     return { error: item.facebook_error }
   }
@@ -806,6 +833,140 @@ async function run(env, force = false) {
   return [{ note: 'nothing due in any active event' }]
 }
 
+// ============================================= /review (2026-09-26) ==============
+// Server-rendered review + one-tap cancel for held/pending gallery-announce items —
+// the answer to "where do I go to see what's on hold to post" (Nino, 2026-09-26):
+// /status is JSON behind TRIGGER_KEY and queue/gallery-announce.json shows neither
+// the photos nor the caption; this renders both, plus a Cancel button that vetoes
+// through the exact same veto() function seed-kv.mjs --veto uses (see
+// veto-shape.mjs), so there is one veto format, not two.
+//
+// Auth is its own secret, REVIEW_KEY — never TRIGGER_KEY, and never able to reach
+// /run — view + cancel only. Constant-time compare via a fixed-length XOR loop
+// rather than Node's crypto.timingSafeEqual (unavailable under `node --test`, and
+// this file has to run identically there and in the Worker — no nodejs_compat).
+// Every response is Cache-Control: no-store: the page shows unposted photos of
+// minors, and a shared/CDN cache must never hold a copy.
+
+function safeEqual(a, b) {
+  const sa = typeof a === 'string' ? a : ''
+  const sb = typeof b === 'string' ? b : ''
+  const len = Math.max(sa.length, sb.length, 1)
+  let diff = sa.length ^ sb.length
+  for (let i = 0; i < len; i++) diff |= (sa.charCodeAt(i) || 0) ^ (sb.charCodeAt(i) || 0)
+  return diff === 0
+}
+
+// Missing/empty REVIEW_KEY always refuses — an unset secret must never read as "any key matches".
+function authorizedReview(env, key) {
+  return typeof env.REVIEW_KEY === 'string' && env.REVIEW_KEY.length > 0 && safeEqual(key, env.REVIEW_KEY)
+}
+
+const NO_STORE = { 'cache-control': 'no-store' }
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+
+function itemAccountLabel(it) {
+  return ACCOUNTS[it.account]?.handle || it.account || 'unknown account'
+}
+
+function itemStatusLabel(it) {
+  if (reviewHeldNow(it)) return 'Held'
+  if (reviewPendingNow(it)) return 'Pending'
+  return { posted: 'Posted', vetoed: 'Vetoed', building: 'Building', error: 'Error' }[it.status] || it.status || 'unknown'
+}
+
+function renderSlide(child, i) {
+  return `<figure class="slide"><img src="${esc(child.image_url)}" alt="${esc(child.alt_text || '')}" loading="lazy">` +
+    `<figcaption>#${i + 1}${child.alt_text ? ` — ${esc(child.alt_text)}` : ''}</figcaption></figure>`
+}
+
+function renderItemCard(it, { reviewKey, allowedHoursForEvent }) {
+  const canCancel = reviewHeldNow(it) || reviewPendingNow(it)
+  const slides = (it.children || []).map(renderSlide).join('\n')
+  const fbCaptionBlock = it.facebook_caption && it.facebook_caption !== it.caption
+    ? `<div class="caption"><h3>Facebook caption</h3><pre>${esc(it.facebook_caption)}</pre></div>` : ''
+  const nextSlot = it.holdUntil ? nextAllowedSlot(it.holdUntil, allowedHoursForEvent) : null
+  return `<section class="item" id="${esc(it.id)}">
+  <header>
+    <h2>${esc(it.album_name || it.album_key || it.id)}</h2>
+    <span class="badge badge-${esc(it.status || 'unknown')}">${esc(itemStatusLabel(it))}</span>
+  </header>
+  <div class="meta">
+    <div>Account: <strong>${esc(itemAccountLabel(it))}</strong>${Array.isArray(it.collaborators) && it.collaborators.length ? ` &middot; Collab: ${esc(it.collaborators.join(', '))}` : ''}</div>
+    ${it.holdUntil ? `<div>Hold until: ${esc(chicagoLabel(it.holdUntil))}</div>` : ''}
+    ${nextSlot ? `<div>Next posting slot: ${esc(chicagoLabel(nextSlot))}</div>` : ''}
+  </div>
+  <div class="slides">${slides}</div>
+  <div class="caption"><h3>Instagram caption</h3><pre>${esc(it.caption || '')}</pre></div>
+  ${fbCaptionBlock}
+  ${canCancel ? `<form method="POST" action="/review/cancel">
+    <input type="hidden" name="key" value="${esc(reviewKey)}">
+    <input type="hidden" name="id" value="${esc(it.id)}">
+    <button type="submit" class="cancel">Cancel this post</button>
+  </form>` : ''}
+</section>`
+}
+
+function renderReviewPage({ queue, key, allowedHoursForEvent }) {
+  const items = queue?.items || []
+  const primary = items.filter((it) => reviewHeldNow(it) || reviewPendingNow(it))
+  const secondary = items.filter((it) => !reviewHeldNow(it) && !reviewPendingNow(it)).slice(-5)
+  const opts = { reviewKey: key, allowedHoursForEvent }
+  const primaryHtml = primary.length
+    ? primary.map((it) => renderItemCard(it, opts)).join('\n')
+    : '<p class="empty">Nothing held or pending.</p>'
+  const secondaryHtml = secondary.length
+    ? `<details><summary>Recent posted / vetoed / error (${secondary.length})</summary>${secondary.map((it) => renderItemCard(it, opts)).join('\n')}</details>`
+    : ''
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gallery review</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; background: #14161a; color: #e6e6e6;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+h1 { font-size: 18px; margin: 0 0 16px; }
+h2 { font-size: 16px; margin: 0; }
+h3 { font-size: 12px; margin: 12px 0 4px; color: #9aa0a6; text-transform: uppercase; letter-spacing: .04em; }
+section.item { background: #1c1f24; border: 1px solid #2a2e35; border-radius: 10px;
+  padding: 14px; margin: 0 0 16px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #333; white-space: nowrap; }
+.badge-held { background: #4a3b1a; color: #ffcf6a; }
+.badge-pending { background: #1a3b4a; color: #6ad4ff; }
+.badge-posted { background: #1a4a24; color: #7dffa0; }
+.badge-vetoed { background: #4a1a1a; color: #ff8a8a; }
+.badge-error { background: #4a1a1a; color: #ff8a8a; }
+.badge-building { background: #33301a; color: #e8d97a; }
+.meta { font-size: 13px; color: #b7bcc4; margin-bottom: 10px; }
+.meta div { margin: 2px 0; }
+.slides { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 8px; }
+figure.slide { margin: 0; }
+figure.slide img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; display: block; background: #000; }
+figcaption { font-size: 10px; color: #8b9099; margin-top: 3px; }
+pre { white-space: pre-wrap; word-break: break-word; font: 13px/1.5 -apple-system, sans-serif; margin: 0; color: #d8dade; }
+.empty { color: #8b9099; }
+form { margin-top: 10px; }
+button.cancel { width: 100%; padding: 12px; border: 1px solid #5a2020; background: #2a1414;
+  color: #ff8a8a; border-radius: 8px; font-size: 15px; font-weight: 600; -webkit-appearance: none; }
+details summary { cursor: pointer; color: #9aa0a6; margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>Gallery announcements &mdash; review</h1>
+${primaryHtml}
+${secondaryHtml}
+</body>
+</html>`
+}
+
 export default {
   async scheduled(_controller, env, ctx) {
     ctx.waitUntil((async () => {
@@ -874,6 +1035,68 @@ export default {
           } }
       }
       return Response.json(out)
+    }
+    if (url.pathname === '/review') {
+      if (req.method !== 'GET' || !authorizedReview(env, url.searchParams.get('key'))) {
+        return new Response('forbidden', { status: 403, headers: NO_STORE })
+      }
+      const q = await loadQueue(env, 'gallery-announce')
+      const html = renderReviewPage({ queue: q, key: url.searchParams.get('key'), allowedHoursForEvent: allowedHours(env) })
+      return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', ...NO_STORE } })
+    }
+    if (url.pathname === '/review/cancel') {
+      if (req.method !== 'POST') return new Response('method not allowed', { status: 405, headers: NO_STORE })
+      // Two input shapes, both accepted: the review page's own HTML form POST (key/id in the
+      // body), and ntfy's one-tap Cancel action (an `http` action sends no form content-type,
+      // so key/id ride the URL query string instead — see notify.mjs's reviewCancelUrlFor).
+      // The query-string shape is the API-style call (no browser to redirect), so it gets a
+      // fast plain-text response; the form shape redirects back to /review so a tap in the
+      // page itself lands on the now-updated list.
+      const viaQuery = url.searchParams.has('id')
+      let key = null; let id = null; let reason = null
+      if (viaQuery) {
+        key = url.searchParams.get('key'); id = url.searchParams.get('id'); reason = url.searchParams.get('reason')
+      } else {
+        let form = null
+        try { form = await req.formData() } catch { form = null }
+        key = form?.get('key') ?? null; id = form?.get('id') ?? null; reason = form?.get('reason') ?? null
+      }
+      if (!authorizedReview(env, key)) return new Response('forbidden', { status: 403, headers: NO_STORE })
+      if (!id) return new Response('missing id', { status: 400, headers: NO_STORE })
+
+      const q = await loadQueue(env, 'gallery-announce')
+      if (!q) return new Response('no gallery-announce queue', { status: 404, headers: NO_STORE })
+      // Response.redirect()'s result carries only Location — built by hand instead so the
+      // no-store guarantee covers this response too (Location alone isn't sensitive, but the
+      // rule is every /review* response, no exceptions to remember later).
+      const redirectBack = () => new Response(null, {
+        status: 303,
+        headers: { location: `${url.origin}/review?key=${encodeURIComponent(key)}#${encodeURIComponent(id)}`, ...NO_STORE },
+      })
+
+      const existing = q.items.find((it) => it.id === id)
+      if (existing?.status === 'vetoed') {
+        // Idempotent: a retried tap (or the ntfy action firing twice) is a no-op — no KV
+        // write, no second VETOED alert.
+        return viaQuery ? new Response('already cancelled', { status: 200, headers: NO_STORE }) : redirectBack()
+      }
+
+      const result = veto(q, [id], reason || 'cancelled from /review')
+      if (result.refused) return new Response(result.refused, { status: 400, headers: NO_STORE })
+      await persistQueue(env, 'gallery-announce', result.queue)
+
+      const vetoedItem = result.queue.items.find((it) => it.id === id)
+      if (env.NTFY_TOPIC) {
+        await notify({
+          topic: env.NTFY_TOPIC,
+          ...vetoedNotification({
+            albumName: shortAlbumName(vetoedItem?.album_name, vetoedItem?.album_key || id),
+            reason: reason || 'cancelled from /review',
+            localOnly: false,
+          }),
+        })
+      }
+      return viaQuery ? new Response('cancelled', { status: 200, headers: NO_STORE }) : redirectBack()
     }
     return new Response('letspepper-reels-worker')
   },

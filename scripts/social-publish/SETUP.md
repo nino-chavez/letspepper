@@ -15,13 +15,15 @@ gallery-announce-caption.mjs   facts-only caption template for build-gallery-ann
 notify.mjs               phone notifications (ntfy.sh) for HELD/POSTED/FAILED/VETOED — Worker-safe, no node: imports
 hold-shape.mjs           the held/vetoed check both publishers share (never opened by --force)
 veto-announce.mjs        kill one gallery-announce album locally before it publishes
+veto-shape.mjs           the veto() function seed-kv.mjs --veto AND the Worker's /review/cancel both call — Worker-safe
 upload-r2.mjs            push media to a public R2 bucket, write URLs into the queue
 post-reels.mjs           local Instagram publisher (reels / image / carousel)
 route-gate.mjs           refuses any local publish that has no approved Graph route
 route-shape.mjs          the standing-route check both publishers share
 graph-routes.json        tracked list of campaigns approved to publish through the API
 seed-kv.mjs              seeds a queue into the Worker's KV with its route copied from graph-routes.json
-worker/src/index.js      scheduled Instagram + Facebook Page publisher
+worker/src/index.js      scheduled Instagram + Facebook Page publisher; also serves GET /review
+                         and POST /review/cancel (see "/review" below)
 ```
 
 ## Architecture
@@ -277,7 +279,8 @@ as a Collab collaborator on every album, regardless of series (Nino: "by series
 and collab with flickday").
 
 **The hold window.** Every item is created `status: "held"` with `holdUntil` (default
-12h out, `--hold-hours` to change it) — hold-shape.mjs's `holdBlock()` refuses BOTH
+2h out — Nino, 2026-09-26: "2 hours" (was 12h until then); `--hold-hours` to change it) —
+hold-shape.mjs's `holdBlock()` refuses BOTH
 destinations in both publishers (post-reels.mjs and the Worker) until it passes, and
 `--force` does not open it. Once `holdUntil` passes the item becomes ordinarily
 publishable — nothing has to flip its status back to `pending`. **Kill a bad pick**
@@ -291,7 +294,9 @@ node scripts/social-publish/veto-announce.mjs --album-key Re7kho --reason "wrong
 This only edits the LOCAL queue file. If the item was already seeded to KV
 (step 3 above already ran for it), the veto has to be repeated directly against
 KV — `--append` never touches an item KV already has — the script prints the
-`wrangler kv key get` / hand-edit / `--put` steps when this applies.
+`wrangler kv key get` / hand-edit / `--put` steps when this applies. Once an item is
+seeded, the phone alert's own Cancel button (or `/review` — see below) is the ordinary
+path; this CLI is for before that, or from a machine that has the repo but not a phone.
 
 **Photo selection** (select-gallery-photos.mjs, rewritten 2026-09-25, orientation/time
 source switched 2026-09-26). The model's own quality sub-scores are unusable — on
@@ -425,22 +430,43 @@ through — it has no `node:` imports, so it bundles into the Worker without
 `nodejs_compat`; local scripts read the topic from `NTFY_TOPIC` or `op read
 'op://Developer Secrets/ntfy gallery-announce/credential'` themselves (notify.mjs never
 looks it up). A notification failure is always logged and never blocks or fails a
-publish. Four events:
+publish.
+
+**Alert text was rewritten 2026-09-26** after Nino read the live HELD alert on his phone:
+"i'm confused on what i'm supposed to do... hard to distinguish info from action." The rule
+now: say the outcome first, put the one action behind a button, and never print a terminal
+command into a phone alert (the pre-2026-09-26 shape did all three wrong). Four events:
 - **HELD** — sent by `build-gallery-announce.mjs` right after it appends a new item
-  (non-dry-run only). Names the album, "N of total" selected, the account and collab, the
-  hold-until time in America/Chicago, and BOTH veto commands (local `veto-announce.mjs`
-  and the live `seed-kv.mjs --veto`, since by the time it's read the item may already be
-  seeded) — clicking it opens the gallery.
-- **POSTED** — the Worker, once per channel that actually published. Clicking opens the
-  post: Instagram's real permalink (one extra `GET .../{media-id}?fields=permalink` —
-  counted against the tick's subrequest budget); Facebook's is a constructed
-  `facebook.com/{post_id}` (or `/watch/?v={id}` for a Reel) rather than a second Graph
-  call for `permalink_url`.
-- **FAILED** — the Worker, only on a TERMINAL error (never a budget-deferred "resumes
-  next run" note). High priority.
-- **VETOED** — `veto-announce.mjs` (always says "LOCAL ONLY — not yet seeded to the
-  Worker," since that script never touches KV) and `seed-kv.mjs --veto` (says it reached
-  the Worker's live queue).
+  (non-dry-run only). Title: "Posts \<next ALLOWED_HOURS_UTC slot at/after holdUntil, in
+  America/Chicago\>: \<short album name\> (N photos)". Body: "Nothing to do. Cancel before
+  \<holdUntil, Chicago\> if you don't want it." Two ntfy Action buttons (not a click on the
+  body alone) — **Review** (opens `/review`) and **Cancel post** (one-tap `POST
+  /review/cancel`, `clear=true` so the tap also dismisses the notification) — plus tapping
+  the body itself also opens `/review`. If `REVIEW_KEY` can't be resolved: sends the title
+  and "Nothing to do. It posts on its own." with no click and no action buttons, and logs
+  why — never a fallback command in the alert body.
+- **POSTED** — the Worker, once per channel that actually published. Title: "Posted: \<short
+  name\>". A View-on-Instagram/View-on-Facebook button opens the real permalink (Instagram:
+  one extra `GET .../{media-id}?fields=permalink`, counted against the tick's subrequest
+  budget; Facebook: a constructed `facebook.com/{post_id}`, or `/watch/?v={id}` for a Reel,
+  rather than a second Graph call). The Instagram destination's body carries a one-line
+  reminder to accept the Collab as flickday.media (Meta gives no API to accept an invite —
+  see "Collaborators" above) — the Facebook destination never shows it, since a carousel
+  crosspost carries no Facebook-side Collab at all.
+- **FAILED** — the Worker, only on a TERMINAL error (never a budget-deferred "resumes next
+  run" note). Title: "Didn't post: \<short name\>". High priority, a Review button.
+- **VETOED** — confirms a cancel: "Cancelled: \<short name\> — won't post." `veto-announce.mjs`
+  (local CLI) always says LOCAL ONLY, since it never touches KV. The Worker's `/review/cancel`
+  reaches KV directly and does NOT say LOCAL ONLY. **`seed-kv.mjs --veto` itself sends no
+  notification at all** (checked 2026-09-26 — SETUP.md previously claimed it did; that was
+  never true of the code, only of the intent).
+
+"Short album name" is the event/matchup segment of the standard name ("JCA at ACC" out of
+"HS Girls VB - JCA at ACC - 09-22-2026") — `gallery-announce-caption.mjs`'s `shortAlbumName()`,
+the same album-name parser the caption itself uses, so there's one parser, not two. Account
+slugs, veto commands, and ntfy Tags are never shown in HELD's title/body — Tags render as a
+visible "Tags: ..." line, which is exactly the extra-things-to-read Nino's correction was
+about, so HELD carries none.
 
 Other events sharing this Worker (the legacy reels drip) never notify — gated on the
 literal event slug `gallery-announce` (`notifiable()` in `worker/src/index.js`), so
@@ -453,6 +479,69 @@ string alone would show an elapsed, about-to-publish hold as still "held." `/sta
 uses `isHeld()` (the same live check the publishers use) to split `held` (still blocked,
 with each item's `id` + `holdUntil` in `heldItems`) from `pending` (would be picked up by
 the next tick, including an elapsed hold). Same split on the Facebook side.
+
+## `/review` — see and cancel what's on hold, from a phone (2026-09-26)
+
+The answer to "i don't understand the utility of ntfy or where i go to see what is on hold
+to post" (Nino, 2026-09-26): before this, a HELD alert said a post was waiting, but the only
+places to check it were `/status` (JSON, behind `TRIGGER_KEY`, no photos or caption) and
+`queue/gallery-announce.json` in the repo (needs a checkout). `GET /review?key=<REVIEW_KEY>`
+is a server-rendered, mobile-first HTML page: every held/pending gallery-announce item with
+its slides in posting order (the real R2 URLs), the Instagram caption, the Facebook caption
+too when it differs, each slide's alt text, the publishing account (by handle, not the
+`accounts.json` slug) and Collab, hold-until and the next posting slot in America/Chicago,
+and status. The last few posted/vetoed/error items are listed too, collapsed under a
+`<details>`, for context. No JS framework, inline CSS, dark neutral styling — the photos are
+the content.
+
+**Cancel** is a button per held/pending item — `POST /review/cancel` — that vetoes through
+the *exact* function `seed-kv.mjs --veto` uses (`veto()`, moved to `veto-shape.mjs` so the
+Worker can import it without pulling in `seed-kv.mjs`'s `node:` imports): one veto format,
+not two. It redirects back to `/review` showing the item vetoed, and fires the same VETOED
+ntfy alert `seed-kv.mjs --veto`'s live path would. A posted item can't be cancelled — `veto()`
+itself refuses an id whose Instagram OR Facebook destination has already posted, and the page
+shows no Cancel button on one either. The endpoint also accepts `key`/`id`/`reason` as URL
+query parameters (not just the page's own form body), because ntfy's one-tap Cancel-post
+action button sends a request with no form content-type — see notify.mjs's
+`reviewCancelUrlFor()`. That shape is idempotent: cancelling an already-vetoed item is a
+no-op (no second KV write, no second alert), so a retried tap or a double-fired action button
+never sends two VETOED notifications.
+
+**Auth is its own secret, `REVIEW_KEY`** — never `TRIGGER_KEY`, and it can never reach `/run`.
+`?key=` on `GET /review`, a hidden form field on the Cancel POST (or the query string for the
+ntfy action), constant-time compare (a fixed-length XOR loop — Node has no
+`crypto.timingSafeEqual` equivalent this file can share between `node --test` and the Worker
+without `nodejs_compat`), 403 otherwise. Every response — including the 403 and the redirect
+— sends `Cache-Control: no-store`: the page shows unposted photos of minors, and nothing here
+should ever sit in a shared or CDN cache.
+
+**The HELD alert's Review/Cancel buttons carry `REVIEW_KEY` in the URL**, so the topic's
+secrecy is no longer the only thing protecting this campaign — the review key is now equally
+sensitive, because it travels inside every HELD and FAILED alert body. Store it in
+`Developer Secrets` the same way as the ntfy topic:
+
+```bash
+op item create --category "API Credential" --vault "Developer Secrets" \
+  --title "Cloudflare letspepper-reels-worker review-key" credential="$(openssl rand -hex 24)"
+```
+
+`build-gallery-announce.mjs` reads it at runtime — `REVIEW_KEY` env var first, else `op read
+'op://Developer Secrets/Cloudflare letspepper-reels-worker review-key/credential'` — to build
+the HELD alert's Review/Cancel links locally, exactly like it already does for the ntfy topic.
+**Fails soft**: the item is already appended to the queue by the time this runs, so a missing
+or unreadable key must never fail the build. Without it, the HELD alert still sends — just the
+title and "Nothing to do. It posts on its own.," no click, no action buttons — and it logs why.
+There is no terminal-command fallback in the alert body; the CLI veto commands above are still
+there for someone at a terminal, they just aren't printed into the phone alert itself. The
+Worker gets the same value as its own secret binding (`REVIEW_KEY`, set in "Arming
+gallery-announce" below) so `/review` and `/review/cancel` can check it and the POSTED/FAILED
+notifications can build a Review link.
+
+**Known gap — KV has no compare-and-set.** The same race `seed-kv.mjs`'s own header describes
+for `--put` applies here too: a cron tick that already read the queue before a cancel writes
+its own copy back can silently revert the cancel if both writes land in the same second. This
+narrows the window, it does not close it — don't describe a cancel as guaranteed to land
+before treating it as done for a post that's very close to its next tick.
 
 ## Arming gallery-announce
 
@@ -471,24 +560,30 @@ In order:
 
 2. **Secrets, from the named 1Password items** (`Developer Secrets` vault; check field
    names first — see the global secret-handling convention — the pattern below assumes
-   `credential`). Each `secret put` is its own deploy of the code from step 1, so three
-   secrets means three small redeploys — expected, not a problem:
+   `credential`). Each `secret put` is its own deploy of the code from step 1, so four
+   secrets means four small redeploys — expected, not a problem:
    ```bash
    cd scripts/social-publish/worker
    op read 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential' | npx wrangler secret put IG_ACCESS_TOKEN
    op read 'op://Developer Secrets/Meta Lets Pepper Page Publisher/credential'      | npx wrangler secret put FB_ACCESS_TOKEN
    op read 'op://Developer Secrets/ntfy gallery-announce/credential'                | npx wrangler secret put NTFY_TOPIC
+   op read 'op://Developer Secrets/Cloudflare letspepper-reels-worker review-key/credential' | npx wrangler secret put REVIEW_KEY
    ```
    (`TRIGGER_KEY` should already be set from an earlier campaign — `npx wrangler secret
-   list` shows names, never values, so check there before overwriting it.)
+   list` shows names, never values, so check there before overwriting it. `REVIEW_KEY` is
+   new — see "`/review`" above for what it gates and why it's a separate secret from
+   `TRIGGER_KEY`. Create the 1Password item first if it doesn't exist yet — the command is
+   in that section.)
 
-3. **How a publish on the photo site reaches this build: it doesn't, yet.** Nothing in
-   the photography repo calls this builder, triggers a webhook, or otherwise knows this
-   pipeline exists (checked 2026-09-26 — no `webhook`/`gallery-announce`/dispatch
-   reference anywhere in that repo). "Publishing an album" there is really "an album
-   finishes ingest and its settings allow it to be listed" — there's no dedicated publish
-   action to hook. Until something is built to watch for that, run the builder by hand
-   per album:
+3. **How a publish on the photo site reaches this build.** Superseded 2026-09-26 (re-verified
+   the same day, later): the photography repo's `scripts/publish-album.ts` now runs both
+   steps itself when an album goes from hidden to public ("ANNOUNCE" in its own header
+   comment) — it shells out to `build-gallery-announce.mjs --album-key <key> --series
+   <lpo|other>` and then `seed-kv.mjs --event gallery-announce --append --put`, in that
+   order. The line that used to be here ("nothing in the photography repo calls this
+   builder... run it by hand") was accurate when written and stopped being true the same
+   day. The manual commands below still work — for a re-run, a fixed-up album, or from a
+   machine `publish-album.ts` didn't run on:
    ```bash
    node scripts/social-publish/build-gallery-announce.mjs --album-key <key> --series <lpo|other>
    node scripts/social-publish/seed-kv.mjs --event gallery-announce --append --put
