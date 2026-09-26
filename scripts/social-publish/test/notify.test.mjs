@@ -54,27 +54,35 @@ test('buildNtfyRequest: sets X-Actions from the actions array', () => {
     topic: 't', message: 'm',
     actions: [{ action: 'view', label: 'Review', url: 'https://example.test/review' }],
   })
-  assert.equal(req.headers['X-Actions'], 'view, Review, https://example.test/review')
+  assert.equal(req.headers['X-Actions'], 'action=view, label=Review, url=https://example.test/review')
 })
 
-// --- buildActionsHeader: the exact short-format syntax docs.ntfy.sh/publish/#action-buttons
-// documents (fetched 2026-09-26, not guessed) --------------------------------------------
+// --- buildActionsHeader: the explicit key=value form of the syntax docs.ntfy.sh/publish/
+// #action-buttons documents (fetched 2026-09-26, not guessed — see this function's own
+// comment for why the explicit form is used over the docs' positional shorthand) ---------
 
 test('buildActionsHeader: a view action, with and without clear', () => {
   assert.equal(
     buildActionsHeader([{ action: 'view', label: 'Review', url: 'https://x.test/review' }]),
-    'view, Review, https://x.test/review',
+    'action=view, label=Review, url=https://x.test/review',
   )
   assert.equal(
     buildActionsHeader([{ action: 'view', label: 'Review', url: 'https://x.test/review', clear: true }]),
-    'view, Review, https://x.test/review, clear=true',
+    'action=view, label=Review, url=https://x.test/review, clear=true',
+  )
+})
+
+test('buildActionsHeader: a URL query string (containing "=" and "&") passes through untouched', () => {
+  assert.equal(
+    buildActionsHeader([{ action: 'view', label: 'Review', url: 'https://x.test/review?key=abc&id=Re7kho-gallery-announce' }]),
+    'action=view, label=Review, url=https://x.test/review?key=abc&id=Re7kho-gallery-announce',
   )
 })
 
 test('buildActionsHeader: an http action defaults to no explicit method (POST is ntfy\'s default)', () => {
   assert.equal(
     buildActionsHeader([{ action: 'http', label: 'Cancel post', url: 'https://x.test/cancel', clear: true }]),
-    'http, Cancel post, https://x.test/cancel, clear=true',
+    'action=http, label=Cancel post, url=https://x.test/cancel, clear=true',
   )
 })
 
@@ -83,13 +91,13 @@ test('buildActionsHeader: joins multiple actions with "; "', () => {
     { action: 'view', label: 'Review', url: 'https://x.test/review' },
     { action: 'http', label: 'Cancel post', url: 'https://x.test/cancel', clear: true },
   ])
-  assert.equal(header, 'view, Review, https://x.test/review; http, Cancel post, https://x.test/cancel, clear=true')
+  assert.equal(header, 'action=view, label=Review, url=https://x.test/review; action=http, label=Cancel post, url=https://x.test/cancel, clear=true')
 })
 
 test('buildActionsHeader: quotes a field that carries a comma or semicolon', () => {
   assert.equal(
     buildActionsHeader([{ action: 'view', label: 'Cancel, or not', url: 'https://x.test/a;b' }]),
-    'view, "Cancel, or not", "https://x.test/a;b"',
+    'action=view, label="Cancel, or not", url="https://x.test/a;b"',
   )
 })
 

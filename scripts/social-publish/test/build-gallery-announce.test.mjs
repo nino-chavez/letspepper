@@ -4,7 +4,7 @@ import { readFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createAlbumSlug, slugify, accountForSeries, appendGalleryAnnounceItem, main } from '../build-gallery-announce.mjs'
+import { createAlbumSlug, slugify, accountForSeries, appendGalleryAnnounceItem, nextStepMessage, main } from '../build-gallery-announce.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const RE7KHO = JSON.parse(readFileSync(join(HERE, 'fixtures', 're7kho-photos.json'), 'utf8'))
@@ -102,7 +102,28 @@ test('main(): --dry-run produces a manifest at --out and touches nothing else', 
     assert.ok(result.manifest.selected.every((s) => /NOT yet re-hosted/.test(s.source)))
     assert.doesNotMatch(result.manifest.caption, /tag yourselves/i)
     assert.equal(result.manifest.gallery_url, 'https://ninochavez.co/photography/albums/hs-girls-vb-jca-at-acc-09-22-2026-Re7kho')
+    // scheduledAt must NOT equal holdUntil (fixed 2026-09-26 — see nextAllowedSlot in
+    // notify.mjs): it's the first ALLOWED_HOURS_UTC slot at/after holdUntil, since that's
+    // the field the Worker's eligibleNow() actually gates a scheduled item's publish on.
+    assert.notEqual(result.item.scheduledAt, result.item.holdUntil)
+    assert.ok(new Date(result.item.scheduledAt).getTime() >= new Date(result.item.holdUntil).getTime())
+    assert.ok([17, 22].includes(new Date(result.item.scheduledAt).getUTCHours()), 'scheduledAt must land exactly on an ALLOWED_HOURS_UTC slot')
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// --- nextStepMessage(): pure, so testable without exercising a real (non-dry-run) build ---
+
+test('nextStepMessage: a neutral next-step line when the standing route already exists', () => {
+  assert.equal(
+    nextStepMessage(true),
+    'Next: seed-kv.mjs --event gallery-announce --append --put (publish-album.ts runs this automatically).',
+  )
+  assert.doesNotMatch(nextStepMessage(true), /graph-routes\.json/, 'must not mention the route file when it is not the problem')
+})
+
+test('nextStepMessage: mentions graph-routes.json only when the route is actually absent', () => {
+  assert.match(nextStepMessage(false), /graph-routes\.json/)
+  assert.match(nextStepMessage(false), /does not yet/)
 })
 
 test('main(): refuses an unlisted/private album (album page 404) rather than announcing it', async () => {

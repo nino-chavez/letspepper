@@ -4,13 +4,23 @@
  * cancel, which vetoes through the exact same veto() function seed-kv.mjs --veto uses (see
  * veto-shape.mjs). Mirrors worker/test/index.test.mjs's fakeKv/runQueue shape rather than
  * importing it (that file has no exports for them).
+ *
+ * The clock is mocked for this whole file (node:test's experimental mock.timers, Date only —
+ * setTimeout/sleep stay real). /review/cancel refuses inside the :55-:05 hourly tick window
+ * (mirrors seed-kv.mjs's --put guard), so a real wall-clock run of this suite would be flaky
+ * for ~17% of the hour without it. SAFE_NOW sits at :30, comfortably outside that window;
+ * the one test that exercises the window itself moves the clock there and back.
  */
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import test, { mock, before, after } from 'node:test'
 import worker from '../src/index.js'
 
 const EVENT = 'gallery-announce'
 const KEY = 'test-review-key'
+const SAFE_NOW = '2026-09-26T15:30:00.000Z' // :30 past the hour — outside the :55-:05 tick window
+
+before(() => { mock.timers.enable({ apis: ['Date'], now: new Date(SAFE_NOW) }) })
+after(() => { mock.timers.reset() })
 
 function heldItem(overrides = {}) {
   return {
@@ -23,7 +33,12 @@ function heldItem(overrides = {}) {
     caption: 'JCA at ACC, Sept. 22.\n\n10 of 120 from the gallery.',
     facebook_caption: 'JCA at ACC, Sept. 22.\n\n10 of 120 from the gallery. (Facebook)',
     collaborators: ['flickday.media'],
-    scheduledAt: '2026-09-27T03:08:00.000Z',
+    // holdUntil = Sat 10:08 PM Central; scheduledAt is what build-gallery-announce.mjs
+    // ACTUALLY writes (2026-09-26 fix) — the first ALLOWED_HOURS_UTC (17,22) slot at/after
+    // holdUntil, NOT holdUntil itself. That slot is 2026-09-27T17:00:00Z = Sun 12:00 PM
+    // Central. Keeping these deliberately different (rather than equal, the pre-fix shape)
+    // is what makes the "next posting slot" render test meaningful.
+    scheduledAt: '2026-09-27T17:00:00.000Z',
     holdUntil: '2026-09-27T03:08:00.000Z',
     status: 'held', facebook_status: 'held',
     ig_container_id: null, ig_media_id: null, facebook_photo_ids: [], facebook_post_id: null,
@@ -80,6 +95,15 @@ test('GET /review: never Cache-Control anything but no-store, even on a 403', as
   assert.equal(res.headers.get('cache-control'), 'no-store')
 })
 
+test('REVIEW_KEY cannot reach /run — a separate secret from TRIGGER_KEY, by design', async () => {
+  const kv = fakeKv(queueWith(heldItem()))
+  const res = await worker.fetch(
+    new Request(`https://worker.example.test/run?key=${KEY}&force=1`),
+    { QUEUE: kv, IG_ACCESS_TOKEN: 'x', TRIGGER_KEY: 'trigger', REVIEW_KEY: KEY, ACTIVE_EVENTS: EVENT, ALLOWED_HOURS_UTC: '0' },
+  )
+  assert.equal(res.status, 403)
+})
+
 // --------------------------------------------------------------------------- rendering
 
 test('GET /review: renders a held item\'s slides, alt text, and both captions', async () => {
@@ -114,12 +138,23 @@ test('GET /review: a pending item (elapsed hold) also shows a Cancel button; a p
   assert.ok(cancelForms.every((m) => !m[0].includes('posted-gallery-announce')))
 })
 
-test('GET /review: shows hold-until and the next posting slot in America/Chicago time', async () => {
+test('GET /review: shows hold-until and the next posting slot, straight from item.scheduledAt', async () => {
   const html = await (await get(fakeKv(queueWith(heldItem())), `/review?key=${KEY}`)).text()
-  // holdUntil 2026-09-27T03:08:00Z = Sat 10:08 PM Central; first ALLOWED_HOURS_UTC (17,22)
-  // slot at/after that is 2026-09-27T17:00:00Z = Sun 12:00 PM Central.
+  // holdUntil 2026-09-27T03:08:00Z = Sat 10:08 PM Central; item.scheduledAt (what the Worker
+  // actually gates the publish on — see build-gallery-announce.mjs) is 2026-09-27T17:00:00Z
+  // = Sun 12:00 PM Central. The page must show the LATTER as "next posting slot" — it's read
+  // directly off the field the Worker gates on, never re-derived.
   assert.match(html, /Hold until: Sat 10:08 PM Central/)
   assert.match(html, /Next posting slot: Sun 12:00 PM Central/)
+})
+
+test('GET /review: a posted item shows no "next posting slot" (its scheduledAt is history, not a promise)', async () => {
+  const html = await (await get(fakeKv(queueWith(
+    heldItem({ id: 'other', status: 'held', facebook_status: 'held', holdUntil: new Date(Date.now() - 1000).toISOString() }),
+    heldItem({ status: 'posted', facebook_status: 'posted' }),
+  )), `/review?key=${KEY}`)).text()
+  const postedCard = html.slice(html.indexOf('id="Re7kho-gallery-announce"'))
+  assert.doesNotMatch(postedCard, /Next posting slot/)
 })
 
 test('GET /review: escapes caption/alt-text content rather than injecting it as HTML', async () => {
@@ -164,6 +199,50 @@ test('POST /review/cancel: vetoes via the exact seed-kv shape (status+facebook_s
   assert.equal(item.status, 'vetoed')
   assert.equal(item.facebook_status, 'vetoed')
   assert.equal(item.veto_reason, 'wrong series')
+})
+
+test('POST /review/cancel: refuses inside the hourly tick window (:55-:05), mirroring seed-kv.mjs --put', async () => {
+  mock.timers.setTime(new Date('2026-09-26T15:58:00.000Z').getTime()) // :58 — inside the window
+  try {
+    const kv = fakeKv(queueWith(heldItem()))
+    const res = await post(kv, '/review/cancel', { form: { key: KEY, id: 'Re7kho-gallery-announce' } })
+    assert.equal(res.status, 409)
+    assert.match(await res.text(), /try again/i)
+    assert.equal(JSON.parse(await kv.get(EVENT)).items[0].status, 'held', 'nothing was vetoed')
+  } finally {
+    mock.timers.setTime(new Date(SAFE_NOW).getTime())
+  }
+})
+
+test('POST /review/cancel: refuses a "building" item even via the query-string shape — the worst case of the KV race', async () => {
+  const kv = fakeKv(queueWith(heldItem({ status: 'building', ig_container_id: 'in-flight' })))
+  const res = await worker.fetch(
+    new Request(`https://worker.example.test/review/cancel?key=${KEY}&id=Re7kho-gallery-announce`, { method: 'POST' }),
+    baseEnv(kv),
+  )
+  assert.equal(res.status, 400)
+  assert.match(await res.text(), /not eligible/)
+  assert.equal(JSON.parse(await kv.get(EVENT)).items[0].status, 'building', 'untouched — a building item almost always publishes anyway once "vetoed" is overwritten by the in-flight run\'s own next write')
+})
+
+test('POST /review/cancel: refuses, and does not write, if the queue changed since this request read it', async () => {
+  const queue = queueWith(heldItem())
+  const values = new Map([[EVENT, JSON.stringify(queue)]])
+  let getCalls = 0
+  const raceyKv = {
+    async get(key) {
+      getCalls++
+      // The SECOND read (the re-read-before-write check) sees a queue an in-flight publish
+      // run already changed — simulating exactly the race worker/test's own code review found.
+      if (getCalls === 2) return JSON.stringify({ ...queue, items: [{ ...queue.items[0], status: 'building', ig_container_id: 'raced-in' }] })
+      return values.get(key) ?? null
+    },
+    async put(key, value) { values.set(key, value) },
+  }
+  const res = await post(raceyKv, '/review/cancel', { form: { key: KEY, id: 'Re7kho-gallery-announce' } })
+  assert.equal(res.status, 409)
+  assert.match(await res.text(), /changed since this request read it/)
+  assert.equal(JSON.parse(values.get(EVENT)).items[0].status, 'held', 'the stale read must never be written back over the run\'s change')
 })
 
 test('POST /review/cancel: a later tick does not publish a cancelled item, even forced (control run does publish)', async () => {
@@ -223,7 +302,7 @@ test('POST /review/cancel: cannot cancel a posted item — refused, item stays p
     res = await post(kv, '/review/cancel', { form: { key: KEY, id: 'Re7kho-gallery-announce' }, envOverrides: { NTFY_TOPIC: 'topic' } })
   } finally { globalThis.fetch = originalFetch }
   assert.equal(res.status, 400)
-  assert.match(await res.text(), /already posted/)
+  assert.match(await res.text(), /not eligible/)
   const item = JSON.parse(await kv.get(EVENT)).items[0]
   assert.equal(item.status, 'posted')
   assert.equal(ntfyCalls.length, 0)

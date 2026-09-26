@@ -30,8 +30,10 @@
  *           gives no API to accept an invite (see SETUP.md), so this is the only nudge.
  *   FAILED  "Didn't post: <short name>" + the channel and error, high priority, Review action.
  *   VETOED  "Cancelled: <short name>" — "won't post" (+ reason). veto-announce.mjs marks
- *           LOCAL ONLY (it never touches KV); the Worker's /review/cancel and seed-kv.mjs
- *           --veto both reach KV, so neither sets it.
+ *           LOCAL ONLY (it never touches KV); the Worker's /review/cancel reaches KV directly
+ *           and does not set it. **seed-kv.mjs --veto sends no notification of its own at
+ *           all** (checked 2026-09-26 — this file, and SETUP.md before this rewrite, both
+ *           claimed otherwise; that was never true of the code).
  *
  * Header shapes, straight from the docs:
  *   Title    X-Title (alias Title) — plain text.
@@ -42,17 +44,21 @@
  *            from HELD (2026-09-26): they render as a visible "Tags: ..." line, which is
  *            exactly the extra-things-to-read Nino's correction was about.
  *   Click    X-Click (alias Click) — a URL opened when the notification BODY is tapped.
- *   Actions  X-Actions (alias Actions) — up to 3 buttons. Short format, fetched 2026-09-26
- *            from docs.ntfy.sh/publish/#action-buttons (never guessed): one action per
+ *   Actions  X-Actions (alias Actions) — up to 3 buttons. Docs fetched 2026-09-26 from
+ *            docs.ntfy.sh/publish/#action-buttons (never guessed): one action per
  *            `; `-separated segment, its own fields comma-separated, a field containing a
- *            comma or semicolon double-quoted. This file uses two of the three documented
- *            action types:
- *              view  "view, <label>, <url>[, clear=true]"
- *              http  "http, <label>, <url>[, method=<verb>][, headers.<H>=<v>][, body=<b>]
- *                     [, clear=true]" — method defaults to POST, which is all this uses, so
- *                     it's omitted. `clear` removes the notification once the request the
+ *            comma or semicolon double-quoted. Two of the three documented action types:
+ *              view  positional: "view, <label>, <url>[, clear=true]"
+ *              http  positional: "http, <label>, <url>[, method=<verb>][, headers.<H>=<v>]
+ *                     [, body=<b>][, clear=true]" — method defaults to POST, which is all
+ *                     this uses. `clear` removes the notification once the request the
  *                     button fired resolves — used on Cancel post so one tap both cancels
  *                     and dismisses the alert.
+ *            buildActionsHeader() emits the EXPLICIT `key=value` form of both
+ *            (`action=view, label=..., url=...`), not the positional form shown above — see
+ *            that function's own comment for why (verified against ntfy's parser source that
+ *            the positional form is actually safe too, for a URL whose query string carries
+ *            "=" and "&", but the explicit form removes the ambiguity for good).
  *
  * "ntfy supports UTF-8 in HTTP headers, but not every library or programming language
  * does" (the docs' own words) — Node's fetch (undici) throws on a header value outside
@@ -99,18 +105,29 @@ function actionField(value) {
 }
 
 /** The X-Actions header value for one or more actions — see this file's header for the
- * short-format shape, fetched live from docs.ntfy.sh rather than guessed. Only `view` and
- * `http` are implemented; nothing here uses ntfy's third type (`broadcast`, an Android
- * intent). */
+ * short-format shape. Only `view` and `http` are implemented; nothing here uses ntfy's third
+ * type (`broadcast`, an Android intent).
+ *
+ * Uses the EXPLICIT `key=value` form (`action=view, label=..., url=...`), not the positional
+ * form the docs lead with (`view, ..., ...`) — deliberately, not by default. Verified against
+ * ntfy's own parser (github.com/binwiederhier/ntfy `action/action.go`, fetched 2026-09-26): a
+ * section is read as `key=value` only when it matches `^([-.\w]+)\s*=\s*` at its very start,
+ * so a positional URL value beginning "https://..." is never misread as a key (the colon
+ * breaks the match before any "=" — verified against the parser's own regex, not assumed).
+ * That means the positional form IS safe for a URL whose query string carries "=" and "&"
+ * (both of ours do — reviewUrlFor/reviewCancelUrlFor put key/id there). The explicit form is
+ * used anyway because it removes the ambiguity for good rather than resting on one parser's
+ * behavior today: a reader (or a future ntfy version) checking "does a value with '=' in it
+ * break this" doesn't have to re-derive the same proof. */
 export function buildActionsHeader(actions = []) {
   return actions.map((a) => {
     if (a.action === 'view') {
-      const parts = ['view', actionField(a.label), actionField(a.url)]
+      const parts = [`action=view`, `label=${actionField(a.label)}`, `url=${actionField(a.url)}`]
       if (a.clear) parts.push('clear=true')
       return parts.join(', ')
     }
     if (a.action === 'http') {
-      const parts = ['http', actionField(a.label), actionField(a.url)]
+      const parts = [`action=http`, `label=${actionField(a.label)}`, `url=${actionField(a.url)}`]
       if (a.method) parts.push(`method=${a.method}`)
       if (a.clear) parts.push('clear=true')
       return parts.join(', ')
@@ -276,10 +293,11 @@ export function failedNotification({ albumName, channel, error, reviewUrl }) {
   }
 }
 
-/** d. VETOED — veto-announce.mjs (local only, `localOnly: true`) or a cancel that reached
- * KV — the Worker's /review/cancel or seed-kv.mjs --veto (`localOnly: false`). `localOnly`
- * must be honest: a confirmation that doesn't say "local only" reads as "this is stopped,"
- * and it is not stopped until the same veto reaches the Worker's copy in KV. */
+/** d. VETOED — veto-announce.mjs (local only, `localOnly: true`) or the Worker's own
+ * /review/cancel, which reaches KV directly (`localOnly: false`). `localOnly` must be
+ * honest: a confirmation that doesn't say "local only" reads as "this is stopped," and it
+ * is not stopped until the same veto reaches the Worker's copy in KV. NOTE: seed-kv.mjs
+ * --veto also reaches KV but does not call this — it sends no VETOED notification at all. */
 export function vetoedNotification({ albumName, reason, localOnly }) {
   return {
     title: `Cancelled: ${albumName}`,

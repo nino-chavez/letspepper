@@ -280,6 +280,13 @@ export async function main(argv = process.argv.slice(2)) {
 
   const now = new Date()
   const holdUntil = new Date(now.getTime() + holdHours * 3600_000).toISOString()
+  // The item's ACTUAL earliest publish time — eligibleNow() in worker/src/index.js gates a
+  // scheduledAt item on this timestamp alone, at any hour, never on ALLOWED_HOURS_UTC. Nino,
+  // 2026-09-26: "the post goes out at the first ALLOWED_HOURS_UTC slot at or after holdUntil"
+  // — that used to be true only of the HELD alert's claim, not of the code (scheduledAt was
+  // set equal to holdUntil, so a hold clearing at 2am would publish at 2am, any hour). Fixed
+  // here so the alert's "Posts <slot>" title is no longer a claim the Worker can contradict.
+  const nextSlot = nextAllowedSlot(holdUntil, allowedHoursUtc())
 
   // Children: real R2 hosting for a live build, imagedelivery.net large URLs (unhosted,
   // labeled as such) for --dry-run — never touch R2 in a dry run.
@@ -311,7 +318,7 @@ export async function main(argv = process.argv.slice(2)) {
     children: children.map(({ _source, _image_key, ...c }) => c), // internal fields stay off the published payload
     user_tags: [],
     collaborators: ['flickday.media'],
-    scheduledAt: holdUntil,
+    scheduledAt: nextSlot,
     holdUntil,
     status: 'held',
     facebook_status: 'held',
@@ -402,7 +409,7 @@ export async function main(argv = process.argv.slice(2)) {
     shortName: shortAlbumName(albumName, albumKey),
     photoCount: children.length,
     holdUntilIso: holdUntil,
-    nextSlotIso: nextAllowedSlot(holdUntil, allowedHoursUtc()),
+    nextSlotIso: nextSlot, // the SAME value now written onto item.scheduledAt — one computation, not two
     reviewUrl: reviewUrlFor(reviewKey, item.id),
     reviewCancelUrl: reviewCancelUrlFor(reviewKey, item.id),
   })

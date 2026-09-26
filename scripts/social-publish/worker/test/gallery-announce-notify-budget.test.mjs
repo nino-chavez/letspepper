@@ -101,7 +101,7 @@ test('a successful Instagram publish sends a POSTED notification to ntfy.sh with
   assert.equal(ntfyCalls[0].url, `https://ntfy.sh/${NTFY_TOPIC}`)
   assert.equal(ntfyCalls[0].headers['X-Click'], 'https://instagram.com/p/abc123/')
   assert.equal(ntfyCalls[0].headers['X-Title'], 'Posted: JCA at ACC')
-  assert.match(ntfyCalls[0].headers['X-Actions'], /^view, View on Instagram, https:\/\/instagram\.com\/p\/abc123\/$/)
+  assert.match(ntfyCalls[0].headers['X-Actions'], /^action=view, label=View on Instagram, url=https:\/\/instagram\.com\/p\/abc123\/$/)
 })
 
 test('a successful Facebook publish sends its own POSTED notification, independent of Instagram', async () => {
@@ -119,7 +119,7 @@ test('a successful Facebook publish sends its own POSTED notification, independe
   const fbNotif = ntfyCalls.find((c) => c.headers['X-Click'] === 'https://www.facebook.com/739564079232058_999')
   assert.ok(fbNotif, 'expected a Facebook POSTED notification')
   assert.equal(fbNotif.headers['X-Title'], 'Posted: JCA at ACC')
-  assert.match(fbNotif.headers['X-Actions'], /^view, View on Facebook, https:\/\/www\.facebook\.com\/739564079232058_999$/)
+  assert.match(fbNotif.headers['X-Actions'], /^action=view, label=View on Facebook, url=https:\/\/www\.facebook\.com\/739564079232058_999$/)
 })
 
 test('a terminal Instagram error sends a high-priority FAILED notification instead of POSTED', async () => {

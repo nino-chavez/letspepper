@@ -283,8 +283,19 @@ and collab with flickday").
 hold-shape.mjs's `holdBlock()` refuses BOTH
 destinations in both publishers (post-reels.mjs and the Worker) until it passes, and
 `--force` does not open it. Once `holdUntil` passes the item becomes ordinarily
-publishable — nothing has to flip its status back to `pending`. **Kill a bad pick**
-before it posts:
+publishable — nothing has to flip its status back to `pending`.
+
+**`scheduledAt` is a SEPARATE timestamp, not a copy of `holdUntil`** (fixed 2026-09-26 — it
+used to be the same value, so a hold clearing at 2am published at 2am, any hour). The Worker's
+`eligibleNow()` gates a scheduledAt item on that field alone, never on `ALLOWED_HOURS_UTC`, so
+`scheduledAt` is computed once at build time as the first `ALLOWED_HOURS_UTC` slot at or after
+`holdUntil` (`nextAllowedSlot()` in notify.mjs) — a morning hold clears and posts at that day's
+noon-Central slot; a hold clearing after the last slot posts the next day's first one. This is
+also what the HELD phone alert's "Posts \<slot\>" title and `/review`'s "Next posting slot"
+both read directly off `item.scheduledAt` — one field, never re-derived, so the alert can't
+promise a time the Worker doesn't actually gate on.
+
+**Kill a bad pick** before it posts:
 
 ```bash
 node scripts/social-publish/veto-announce.mjs --album-key Re7kho --reason "wrong gallery scope" --dry-run
@@ -497,15 +508,18 @@ the content.
 **Cancel** is a button per held/pending item — `POST /review/cancel` — that vetoes through
 the *exact* function `seed-kv.mjs --veto` uses (`veto()`, moved to `veto-shape.mjs` so the
 Worker can import it without pulling in `seed-kv.mjs`'s `node:` imports): one veto format,
-not two. It redirects back to `/review` showing the item vetoed, and fires the same VETOED
-ntfy alert `seed-kv.mjs --veto`'s live path would. A posted item can't be cancelled — `veto()`
-itself refuses an id whose Instagram OR Facebook destination has already posted, and the page
-shows no Cancel button on one either. The endpoint also accepts `key`/`id`/`reason` as URL
-query parameters (not just the page's own form body), because ntfy's one-tap Cancel-post
-action button sends a request with no form content-type — see notify.mjs's
-`reviewCancelUrlFor()`. That shape is idempotent: cancelling an already-vetoed item is a
-no-op (no second KV write, no second alert), so a retried tap or a double-fired action button
-never sends two VETOED notifications.
+not two. It redirects back to `/review` showing the item vetoed, and fires the VETOED ntfy
+alert itself (this is the FIRST thing in this campaign that does — `seed-kv.mjs --veto` reaches
+the same KV but sends no notification of its own; see notify.mjs's own header). A posted item
+can't be cancelled — `veto()` itself refuses an id whose Instagram OR Facebook destination has
+already posted, and the endpoint separately refuses anything that isn't held or pending (so a
+`building` item — mid-publish right now — can't be "cancelled" into a false sense that it
+won't post); the page shows no Cancel button on either kind. The endpoint also accepts
+`key`/`id`/`reason` as URL query parameters (not just the page's own form body), because
+ntfy's one-tap Cancel-post action button sends a request with no form content-type — see
+notify.mjs's `reviewCancelUrlFor()`. That shape is idempotent: cancelling an already-vetoed
+item is a no-op (no second KV write, no second alert), so a retried tap or a double-fired
+action button never sends two VETOED notifications.
 
 **Auth is its own secret, `REVIEW_KEY`** — never `TRIGGER_KEY`, and it can never reach `/run`.
 `?key=` on `GET /review`, a hidden form field on the Cancel POST (or the query string for the
@@ -517,12 +531,39 @@ should ever sit in a shared or CDN cache.
 
 **The HELD alert's Review/Cancel buttons carry `REVIEW_KEY` in the URL**, so the topic's
 secrecy is no longer the only thing protecting this campaign — the review key is now equally
-sensitive, because it travels inside every HELD and FAILED alert body. Store it in
-`Developer Secrets` the same way as the ntfy topic:
+sensitive, because it travels inside every HELD and FAILED alert body.
+
+**Order matters here, and it's the reverse of the usual "create the 1Password item, then wire
+it up" habit.** `publish-album.ts` runs `build-gallery-announce.mjs` automatically the moment
+an album goes public, and that builder embeds a Review/Cancel link into the HELD alert as soon
+as `resolveReviewKey()` can read a value from ANYWHERE (env var or 1Password) — it doesn't know
+whether the deployed Worker recognizes that value yet. Until the Worker is deployed with this
+PR's code, EVERY `/review*` path falls through to its old catch-all, which returns a plain 200 for any URL —
+tapping "Cancel post" would look like it worked and do nothing. So: deploy first, generate and
+set the secret second, and only THEN create the 1Password item — never the other order, and
+never create the 1Password item as a way to "reserve" the value before the Worker can use it.
 
 ```bash
-op item create --category "API Credential" --vault "Developer Secrets" \
-  --title "Cloudflare letspepper-reels-worker review-key" credential="$(openssl rand -hex 24)"
+# 1. Generate the value once.
+REVIEW_KEY_VALUE=$(openssl rand -hex 24)
+
+# 2. Set it on the ALREADY-DEPLOYED Worker (see "Arming gallery-announce" step 1 below —
+#    do this after that step, not before). This is its own deploy of whatever code is
+#    currently live, per Cloudflare's own docs (see step 1's own note on that).
+cd scripts/social-publish/worker
+echo "$REVIEW_KEY_VALUE" | npx wrangler secret put REVIEW_KEY
+cd -
+
+# 3. ONLY NOW create the matching 1Password item, with the SAME value — this vault's write
+#    path needs the interactive user account, not the read-only service account the shell
+#    exports by default (see the global secret-handling convention, "Read vs write mode"):
+env -u OP_SERVICE_ACCOUNT_TOKEN op --account my.1password.com item create \
+  --category "API Credential" --vault "Developer Secrets" \
+  --title "Cloudflare letspepper-reels-worker review-key" credential="$REVIEW_KEY_VALUE"
+
+# 4. Round-trip verify (mandatory for any secret write — see the global convention):
+[ "$(op read 'op://Developer Secrets/Cloudflare letspepper-reels-worker review-key/credential')" = "$REVIEW_KEY_VALUE" ] && echo OK
+unset REVIEW_KEY_VALUE
 ```
 
 `build-gallery-announce.mjs` reads it at runtime — `REVIEW_KEY` env var first, else `op read
@@ -532,16 +573,19 @@ the HELD alert's Review/Cancel links locally, exactly like it already does for t
 or unreadable key must never fail the build. Without it, the HELD alert still sends — just the
 title and "Nothing to do. It posts on its own.," no click, no action buttons — and it logs why.
 There is no terminal-command fallback in the alert body; the CLI veto commands above are still
-there for someone at a terminal, they just aren't printed into the phone alert itself. The
-Worker gets the same value as its own secret binding (`REVIEW_KEY`, set in "Arming
-gallery-announce" below) so `/review` and `/review/cancel` can check it and the POSTED/FAILED
-notifications can build a Review link.
+there for someone at a terminal, they just aren't printed into the phone alert itself.
 
 **Known gap — KV has no compare-and-set.** The same race `seed-kv.mjs`'s own header describes
 for `--put` applies here too: a cron tick that already read the queue before a cancel writes
-its own copy back can silently revert the cancel if both writes land in the same second. This
-narrows the window, it does not close it — don't describe a cancel as guaranteed to land
-before treating it as done for a post that's very close to its next tick.
+its own copy back can silently revert the cancel — found by code review 2026-09-26, before
+this shipped. `/review/cancel` now carries the same mitigation `seed-kv.mjs --put` uses (refuse
+inside the :55-:05 tick window; re-read the queue immediately before persisting and refuse if
+it changed), plus one this endpoint needed that the CLI didn't: it refuses a `building` item
+outright (not just an already-`posted` one), because cancelling mid-publish is the case where
+the run's own next write is most likely to silently undo the cancel. This narrows the window,
+it does not close it — a cancel racing the exact same tick it lands in in the same
+millisecond is still theoretically possible, so don't describe a cancel as guaranteed to land
+before treating it as done for a post that's about to publish.
 
 ## Arming gallery-announce
 
@@ -560,20 +604,24 @@ In order:
 
 2. **Secrets, from the named 1Password items** (`Developer Secrets` vault; check field
    names first — see the global secret-handling convention — the pattern below assumes
-   `credential`). Each `secret put` is its own deploy of the code from step 1, so four
-   secrets means four small redeploys — expected, not a problem:
+   `credential`). Each `secret put` is its own deploy of the code from step 1, so three
+   secrets means three small redeploys — expected, not a problem:
    ```bash
    cd scripts/social-publish/worker
    op read 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential' | npx wrangler secret put IG_ACCESS_TOKEN
    op read 'op://Developer Secrets/Meta Lets Pepper Page Publisher/credential'      | npx wrangler secret put FB_ACCESS_TOKEN
    op read 'op://Developer Secrets/ntfy gallery-announce/credential'                | npx wrangler secret put NTFY_TOPIC
-   op read 'op://Developer Secrets/Cloudflare letspepper-reels-worker review-key/credential' | npx wrangler secret put REVIEW_KEY
    ```
    (`TRIGGER_KEY` should already be set from an earlier campaign — `npx wrangler secret
-   list` shows names, never values, so check there before overwriting it. `REVIEW_KEY` is
-   new — see "`/review`" above for what it gates and why it's a separate secret from
-   `TRIGGER_KEY`. Create the 1Password item first if it doesn't exist yet — the command is
-   in that section.)
+   list` shows names, never values, so check there before overwriting it.)
+
+   **`REVIEW_KEY` is new, and its order is DELIBERATELY different from the three above —
+   generate the value and `secret put` it here, THEN create its 1Password item, never the
+   reverse.** See "`/review`" above ("Order matters here...") for the full sequence and why:
+   creating the 1Password item first lets `build-gallery-announce.mjs` embed a Review/Cancel
+   link in a HELD alert before this deployed Worker can recognize it, and until it can, every
+   `/review*` path falls through to the OLD catch-all, which returns a plain 200 for any URL
+   at all — tapping "Cancel post" would look like it worked and do nothing.
 
 3. **How a publish on the photo site reaches this build.** Superseded 2026-09-26 (re-verified
    the same day, later): the photography repo's `scripts/publish-album.ts` now runs both

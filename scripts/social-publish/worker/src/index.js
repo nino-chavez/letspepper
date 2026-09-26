@@ -73,7 +73,7 @@ import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
 import { holdBlock, isHeld } from '../../hold-shape.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
-  chicagoLabel, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor,
+  chicagoLabel, reviewUrlFor, reviewCancelUrlFor,
 } from '../../notify.mjs'
 import { veto } from '../../veto-shape.mjs'
 import { shortAlbumName } from '../../gallery-announce-caption.mjs'
@@ -883,12 +883,17 @@ function renderSlide(child, i) {
     `<figcaption>#${i + 1}${child.alt_text ? ` — ${esc(child.alt_text)}` : ''}</figcaption></figure>`
 }
 
-function renderItemCard(it, { reviewKey, allowedHoursForEvent }) {
+function renderItemCard(it, { reviewKey }) {
   const canCancel = reviewHeldNow(it) || reviewPendingNow(it)
   const slides = (it.children || []).map(renderSlide).join('\n')
   const fbCaptionBlock = it.facebook_caption && it.facebook_caption !== it.caption
     ? `<div class="caption"><h3>Facebook caption</h3><pre>${esc(it.facebook_caption)}</pre></div>` : ''
-  const nextSlot = it.holdUntil ? nextAllowedSlot(it.holdUntil, allowedHoursForEvent) : null
+  // The next posting slot is item.scheduledAt itself, not a re-derived guess — that field is
+  // exactly what eligibleNow() in this file gates the real publish on (see build-gallery-
+  // announce.mjs's own comment on why it no longer equals holdUntil), so this can never show
+  // a time the Worker doesn't agree with. Shown only while the item can still be cancelled —
+  // a posted/vetoed item's scheduledAt is history, not a promise.
+  const nextSlot = canCancel ? it.scheduledAt : null
   return `<section class="item" id="${esc(it.id)}">
   <header>
     <h2>${esc(it.album_name || it.album_key || it.id)}</h2>
@@ -910,11 +915,11 @@ function renderItemCard(it, { reviewKey, allowedHoursForEvent }) {
 </section>`
 }
 
-function renderReviewPage({ queue, key, allowedHoursForEvent }) {
+function renderReviewPage({ queue, key }) {
   const items = queue?.items || []
   const primary = items.filter((it) => reviewHeldNow(it) || reviewPendingNow(it))
   const secondary = items.filter((it) => !reviewHeldNow(it) && !reviewPendingNow(it)).slice(-5)
-  const opts = { reviewKey: key, allowedHoursForEvent }
+  const opts = { reviewKey: key }
   const primaryHtml = primary.length
     ? primary.map((it) => renderItemCard(it, opts)).join('\n')
     : '<p class="empty">Nothing held or pending.</p>'
@@ -1041,7 +1046,7 @@ export default {
         return new Response('forbidden', { status: 403, headers: NO_STORE })
       }
       const q = await loadQueue(env, 'gallery-announce')
-      const html = renderReviewPage({ queue: q, key: url.searchParams.get('key'), allowedHoursForEvent: allowedHours(env) })
+      const html = renderReviewPage({ queue: q, key: url.searchParams.get('key') })
       return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', ...NO_STORE } })
     }
     if (url.pathname === '/review/cancel') {
@@ -1064,6 +1069,20 @@ export default {
       if (!authorizedReview(env, key)) return new Response('forbidden', { status: 403, headers: NO_STORE })
       if (!id) return new Response('missing id', { status: 400, headers: NO_STORE })
 
+      // KV has no compare-and-set (same limit seed-kv.mjs's own --put documents), and this
+      // handler reads the whole queue, mutates it, and writes the whole queue back — exactly
+      // like the hourly publish run does. A cancel landing while a run is mid-publish can
+      // revert whatever that run already saved (a posted receipt, a partial carousel build),
+      // which then either loses that state or, worse, un-does the cancel itself. Two guards,
+      // narrowing but not closing the race (found in code review 2026-09-26):
+      //   1. Refuse inside the same :55-:05 tick window seed-kv.mjs's --put already refuses in.
+      //   2. Re-read the queue immediately before persisting and refuse if it changed since the
+      //      first read (a run wrote to it in between).
+      const minute = new Date().getUTCMinutes()
+      if (minute >= 55 || minute < 5) {
+        return new Response('try again in a few minutes — the hourly publish run may be active (retry after :05)', { status: 409, headers: NO_STORE })
+      }
+
       const q = await loadQueue(env, 'gallery-announce')
       if (!q) return new Response('no gallery-announce queue', { status: 404, headers: NO_STORE })
       // Response.redirect()'s result carries only Location — built by hand instead so the
@@ -1080,9 +1099,21 @@ export default {
         // write, no second VETOED alert.
         return viaQuery ? new Response('already cancelled', { status: 200, headers: NO_STORE }) : redirectBack()
       }
+      // Same eligibility the page itself shows a Cancel button for (reviewHeldNow/
+      // reviewPendingNow) — veto() alone only refuses an already-POSTED item, which would
+      // still let this accept a `building` item (mid-publish right now) or a terminal `error`.
+      // Cancelling a `building` item is the worst case of the race above: it reports success
+      // and the item almost always publishes anyway, because the in-flight run's own next
+      // write overwrites the veto this request just made.
+      if (existing && !(reviewHeldNow(existing) || reviewPendingNow(existing))) {
+        return new Response(`not eligible to cancel — item is "${existing.status}", not held or pending`, { status: 400, headers: NO_STORE })
+      }
 
       const result = veto(q, [id], reason || 'cancelled from /review')
       if (result.refused) return new Response(result.refused, { status: 400, headers: NO_STORE })
+      if (JSON.stringify(await loadQueue(env, 'gallery-announce')) !== JSON.stringify(q)) {
+        return new Response('the queue changed since this request read it (a publish run likely wrote to it) — reload /review and try again', { status: 409, headers: NO_STORE })
+      }
       await persistQueue(env, 'gallery-announce', result.queue)
 
       const vetoedItem = result.queue.items.find((it) => it.id === id)
