@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { altTextFromCaption, stripVisibleText, stripLikelyNames } from '../alt-text.mjs'
+import { altTextFromCaption, stripVisibleText, stripLikelyNames, stripQuotedSignage } from '../alt-text.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const RE7KHO = JSON.parse(readFileSync(join(HERE, 'fixtures', 're7kho-photos.json'), 'utf8'))
@@ -39,6 +39,19 @@ test('stripVisibleText is whole-word and case-insensitive', () => {
   assert.equal(stripVisibleText('LEWIS is on the left, lewis again', ['Lewis']), ' is on the left,  again')
 })
 
+test('strips a quoted banner/signage transcription — measured live on Re7kho: "A banner reads \\"CENTRAL CATHOLIC TIGERS.\\""', () => {
+  const caption = 'Players in blue and yellow uniforms celebrate on the court, with one player jumping in the air. A banner reads "CENTRAL CATHOLIC TIGERS."'
+  const out = altTextFromCaption(caption)
+  assert.doesNotMatch(out, /CENTRAL CATHOLIC TIGERS/)
+  assert.doesNotMatch(out, /"/)
+  assert.match(out, /celebrate on the court/)
+})
+
+test('stripQuotedSignage removes any quoted span and its "X reads" lead-in clause', () => {
+  assert.doesNotMatch(stripQuotedSignage('A scoreboard reads "48-12" behind the net.'), /48-12/)
+  assert.doesNotMatch(stripQuotedSignage('A player in a jersey that reads "LEWIS" digs the ball.'), /LEWIS/)
+})
+
 test('returns null for empty or missing captions', () => {
   assert.equal(altTextFromCaption(''), null)
   assert.equal(altTextFromCaption(null), null)
@@ -59,6 +72,7 @@ test('every caption in the real Re7kho fixture produces alt text with no digit-b
       produced++
       assert.doesNotMatch(out, /\bnumber\s+\d+\b/i, p.caption)
       assert.doesNotMatch(out, /#\d+\b/, p.caption)
+      assert.doesNotMatch(out, /["“]/, p.caption)
     }
   }
   assert.ok(produced > 100, `expected most of the 120 captions to produce alt text, got ${produced}`)

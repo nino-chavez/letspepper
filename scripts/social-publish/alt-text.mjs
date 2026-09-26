@@ -54,6 +54,19 @@ function stripJerseyNumbers(text) {
   return out
 }
 
+// Measured live against Re7kho 2026-09-25: the site's own AI caption quoted a banner
+// verbatim — 'Players ... celebrate ... A banner reads "CENTRAL CATHOLIC TIGERS."' —
+// which is exactly visible_text (signage) reaching alt text through the caption itself,
+// with no structured visible_text field available to diff against (see module header).
+// Any quoted span in one of these captions is a literal on-scene transcription, so it
+// and its lead-in clause ("A banner reads") are stripped unconditionally.
+const QUOTED_TEXT_CLAUSE = /[,.]?\s*(?:with\s+)?(?:a |the )?(?:banner|sign|scoreboard|jersey|shirt)[^,."]{0,20}reads?\s*[:,]?\s*["“][^"”]*["”][.,]?/gi
+const BARE_QUOTED_TEXT = /["“][^"”]*["”]/g
+
+export function stripQuotedSignage(text) {
+  return text.replace(QUOTED_TEXT_CLAUSE, '').replace(BARE_QUOTED_TEXT, '')
+}
+
 /** Strips any token in `terms` (whole-word, case-insensitive) — for a caller that DOES have visible_text. */
 export function stripVisibleText(text, terms = []) {
   let out = text
@@ -94,6 +107,7 @@ const IG_ALT_TEXT_MAX = 1000
 export function altTextFromCaption(caption, { visibleText = [] } = {}) {
   if (!caption || typeof caption !== 'string') return null
   let out = stripJerseyNumbers(caption)
+  out = stripQuotedSignage(out)
   out = stripVisibleText(out, visibleText)
   out = stripLikelyNames(out)
   out = tidy(out)
