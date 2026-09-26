@@ -225,6 +225,26 @@ test('POST /review/cancel: refuses a "building" item even via the query-string s
   assert.equal(JSON.parse(await kv.get(EVENT)).items[0].status, 'building', 'untouched — a building item almost always publishes anyway once "vetoed" is overwritten by the in-flight run\'s own next write')
 })
 
+test('POST /review/cancel: refuses when Instagram is still held/pending but FACEBOOK already has in-flight progress', async () => {
+  // Found by code review 2026-09-26: reviewHeldNow/reviewPendingNow look at `status` (the
+  // Instagram side) alone, so an item Instagram-side 'held' but Facebook-side 'building'
+  // (upload already started) used to slip past the eligibility check entirely.
+  const kv = fakeKv(queueWith(heldItem({ status: 'held', facebook_status: 'building', facebook_photo_ids: ['fb-photo-1'] })))
+  const res = await post(kv, '/review/cancel', { form: { key: KEY, id: 'Re7kho-gallery-announce' } })
+  assert.equal(res.status, 400)
+  assert.match(await res.text(), /in flight/)
+  const item = JSON.parse(await kv.get(EVENT)).items[0]
+  assert.equal(item.status, 'held', 'untouched')
+  assert.equal(item.facebook_status, 'building', 'the in-flight Facebook upload state must survive, not get overwritten to vetoed')
+})
+
+test('GET /review: no Cancel button when Instagram is held/pending but Facebook already has in-flight progress', async () => {
+  const html = await (await get(fakeKv(queueWith(
+    heldItem({ status: 'held', facebook_status: 'building', facebook_photo_ids: ['fb-photo-1'] }),
+  )), `/review?key=${KEY}`)).text()
+  assert.doesNotMatch(html, /Cancel this post/)
+})
+
 test('POST /review/cancel: refuses, and does not write, if the queue changed since this request read it', async () => {
   const queue = queueWith(heldItem())
   const values = new Map([[EVENT, JSON.stringify(queue)]])

@@ -512,9 +512,13 @@ not two. It redirects back to `/review` showing the item vetoed, and fires the V
 alert itself (this is the FIRST thing in this campaign that does — `seed-kv.mjs --veto` reaches
 the same KV but sends no notification of its own; see notify.mjs's own header). A posted item
 can't be cancelled — `veto()` itself refuses an id whose Instagram OR Facebook destination has
-already posted, and the endpoint separately refuses anything that isn't held or pending (so a
-`building` item — mid-publish right now — can't be "cancelled" into a false sense that it
-won't post); the page shows no Cancel button on either kind. The endpoint also accepts
+already posted — and neither can one with real in-flight progress on EITHER destination
+(`reviewCancelEligible()`/`hasInFlightProgress()`): not just `status/facebook_status ===
+'building'`, but also a Facebook upload that already has photo ids with no feed post yet, or an
+Instagram carousel with child containers but no parent yet — a dual-destination item can be
+Instagram-side `held` while Facebook is already mid-upload, and checking only the Instagram
+`status` field (the first version of this endpoint's guard) would let that one through. The
+page shows no Cancel button on either kind. The endpoint also accepts
 `key`/`id`/`reason` as URL query parameters (not just the page's own form body), because
 ntfy's one-tap Cancel-post action button sends a request with no form content-type — see
 notify.mjs's `reviewCancelUrlFor()`. That shape is idempotent: cancelling an already-vetoed
@@ -578,14 +582,33 @@ there for someone at a terminal, they just aren't printed into the phone alert i
 **Known gap — KV has no compare-and-set.** The same race `seed-kv.mjs`'s own header describes
 for `--put` applies here too: a cron tick that already read the queue before a cancel writes
 its own copy back can silently revert the cancel — found by code review 2026-09-26, before
-this shipped. `/review/cancel` now carries the same mitigation `seed-kv.mjs --put` uses (refuse
-inside the :55-:05 tick window; re-read the queue immediately before persisting and refuse if
-it changed), plus one this endpoint needed that the CLI didn't: it refuses a `building` item
-outright (not just an already-`posted` one), because cancelling mid-publish is the case where
-the run's own next write is most likely to silently undo the cancel. This narrows the window,
-it does not close it — a cancel racing the exact same tick it lands in in the same
-millisecond is still theoretically possible, so don't describe a cancel as guaranteed to land
-before treating it as done for a post that's about to publish.
+this shipped (in two passes: the second pass found the first fix still had a gap on the
+Facebook side, and found the fix's own code comment overclaiming what it catches). `/review/
+cancel` carries two guards, neither of which closes the race — stated precisely, because the
+first draft of this note said "narrows" without being specific about the actual hole that
+leaves open:
+- **Refuses inside the :55-:05 tick window** `seed-kv.mjs --put` already refuses in. This is a
+  heuristic, not a guarantee: a slow carousel build (multiple container-status polls, retries
+  with 8s sleeps) can still be running well past :05, and a manual `/run?force=1` can start at
+  any minute this window doesn't cover at all.
+- **Re-reads the queue immediately before persisting** and refuses if it changed since the
+  first read. This only catches a write landing in the microseconds between this ONE request's
+  own two reads. It does NOT detect a run that read the queue before the cancel request even
+  arrived and is still working (and will write) after this check passes — both of the cancel's
+  reads see the same stale value in that case, and the run's later write silently reverts it.
+  Closing that fully would need a run-in-progress marker in KV that `/review/cancel` refuses
+  against; not implemented here.
+- **Refuses an item with real in-flight progress on EITHER destination** — not just an
+  already-`posted` one, and not just Instagram's `status` field. A dual-destination item can
+  have Instagram still `held`/`pending` while Facebook is already `building` (or holds upload
+  progress with no feed post yet); the first version of this fix only checked the Instagram
+  side and would have let such an item get "cancelled" while its Facebook upload kept running
+  and completed anyway. `hasInFlightProgress()` (shared with `resumeIfBuilding`'s own resume
+  check) covers both.
+
+None of this closes the race outright — a cancel landing while a run is actively mid-write, or
+racing the exact tick it lands in, is still theoretically possible. Don't describe a cancel as
+guaranteed to land before treating it as done for a post that's about to publish.
 
 ## Arming gallery-announce
 

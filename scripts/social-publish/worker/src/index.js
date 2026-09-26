@@ -269,6 +269,12 @@ const facebookPending = (it) => wantsFacebook(it) && !holdBlock(it) &&
 // flip), named separately here so /review doesn't reach into /status's local closures.
 const reviewHeldNow = (it) => it.status === 'held' && isHeld(it)
 const reviewPendingNow = (it) => it.status === 'pending' || (it.status === 'held' && !isHeld(it))
+// Held/pending on the INSTAGRAM side alone is not enough: a dual-destination item can have
+// Instagram still 'held' while Facebook is already 'building' (or holds upload progress with
+// no feed post yet) — hasInFlightProgress() (defined near resumeIfBuilding) catches that.
+// Without this, /review/cancel could "cancel" an item whose Facebook upload keeps running and
+// completes anyway (found by code review 2026-09-26).
+const reviewCancelEligible = (it) => (reviewHeldNow(it) || reviewPendingNow(it)) && !hasInFlightProgress(it)
 
 async function persistQueue(env, ev, q) {
   await env.QUEUE.put(ev, JSON.stringify(q))
@@ -657,20 +663,29 @@ async function publishItem(env, ev, q, item, budget) {
   return result
 }
 
+// True when EITHER destination has real in-progress build/upload state — not just
+// status/facebook_status === 'building' (a budget deferral leaves those wherever they were,
+// pending/held, so the partial-progress arrays are checked too). Shared by resumeIfBuilding
+// (below) and /review's cancel eligibility (reviewCancelEligible, near renderItemCard) — a
+// review-hook finding 2026-09-26: an item can have Instagram still 'held'/'pending' while
+// Facebook is already 'building' (or holds photo ids with no feed post yet), and the naive
+// reviewHeldNow/reviewPendingNow check alone would let that item be "cancelled" while its
+// Facebook upload keeps running and completes anyway.
+function hasInFlightProgress(it) {
+  return (wantsInstagram(it) && it.status === 'building' && it.ig_container_id) ||
+    (wantsInstagram(it) && Array.isArray(it.ig_child_container_ids) && it.ig_child_container_ids.length > 0 && !it.ig_container_id) ||
+    (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id) ||
+    (wantsFacebook(it) && Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0 && !it.facebook_post_id)
+}
+
 // Finish an in-flight container/upload for this event, if any. Returns result or null.
 // Same hold/veto check as postDuePending: a container built before a veto lands must
 // not be published just because it is already in flight. Also resumes a CAROUSEL that
 // was deferred mid-build (some child container ids or some Facebook photo ids exist, but
-// the top-level parent/feed post doesn't yet) — a budget deferral leaves status/
-// facebook_status wherever it was (pending/held), not 'building', so this predicate has
-// to check the partial-progress arrays too, not just status==='building'.
+// the top-level parent/feed post doesn't yet).
 async function resumeIfBuilding(env, ev, budget) {
   const q = await loadQueue(env, ev); if (!q) return null
-  const building = q.items.filter((it) => !holdBlock(it) &&
-    ((wantsInstagram(it) && it.status === 'building' && it.ig_container_id) ||
-    (wantsInstagram(it) && Array.isArray(it.ig_child_container_ids) && it.ig_child_container_ids.length > 0 && !it.ig_container_id) ||
-    (wantsFacebook(it) && it.facebook_status === 'building' && it.facebook_video_id) ||
-    (wantsFacebook(it) && Array.isArray(it.facebook_photo_ids) && it.facebook_photo_ids.length > 0 && !it.facebook_post_id)))
+  const building = q.items.filter((it) => !holdBlock(it) && hasInFlightProgress(it))
   if (!building.length) return null
   const [item] = await routed(env, ev, q, building)
   if (!item) return null
@@ -884,7 +899,7 @@ function renderSlide(child, i) {
 }
 
 function renderItemCard(it, { reviewKey }) {
-  const canCancel = reviewHeldNow(it) || reviewPendingNow(it)
+  const canCancel = reviewCancelEligible(it)
   const slides = (it.children || []).map(renderSlide).join('\n')
   const fbCaptionBlock = it.facebook_caption && it.facebook_caption !== it.caption
     ? `<div class="caption"><h3>Facebook caption</h3><pre>${esc(it.facebook_caption)}</pre></div>` : ''
@@ -1074,10 +1089,21 @@ export default {
       // like the hourly publish run does. A cancel landing while a run is mid-publish can
       // revert whatever that run already saved (a posted receipt, a partial carousel build),
       // which then either loses that state or, worse, un-does the cancel itself. Two guards,
-      // narrowing but not closing the race (found in code review 2026-09-26):
+      // NEITHER of which closes the race (found in code review 2026-09-26 — stated precisely,
+      // not just "narrows it", after a second review pass showed the first draft of this
+      // comment overclaimed what guard 2 actually catches):
       //   1. Refuse inside the same :55-:05 tick window seed-kv.mjs's --put already refuses in.
+      //      This is a heuristic, not a guarantee: a slow carousel build (multiple container
+      //      polls, retries with 8s sleeps) can still be running well past :05, and a manual
+      //      /run?force=1 can start at any minute this window doesn't cover at all.
       //   2. Re-read the queue immediately before persisting and refuse if it changed since the
-      //      first read (a run wrote to it in between).
+      //      first read. This only catches a write that lands in the microseconds between
+      //      THIS handler's own two reads — it does NOT detect a run that read the queue
+      //      before this request started and is still working (and will write) after this
+      //      check passes; both of this handler's reads see the same stale value in that case,
+      //      and the run's later write silently reverts the cancel. Closing that fully would
+      //      need a run-in-progress marker in KV that /review/cancel refuses against, not
+      //      implemented here.
       const minute = new Date().getUTCMinutes()
       if (minute >= 55 || minute < 5) {
         return new Response('try again in a few minutes — the hourly publish run may be active (retry after :05)', { status: 409, headers: NO_STORE })
@@ -1102,11 +1128,14 @@ export default {
       // Same eligibility the page itself shows a Cancel button for (reviewHeldNow/
       // reviewPendingNow) — veto() alone only refuses an already-POSTED item, which would
       // still let this accept a `building` item (mid-publish right now) or a terminal `error`.
-      // Cancelling a `building` item is the worst case of the race above: it reports success
+      // Cancelling an in-flight item is the worst case of the race above: it reports success
       // and the item almost always publishes anyway, because the in-flight run's own next
-      // write overwrites the veto this request just made.
-      if (existing && !(reviewHeldNow(existing) || reviewPendingNow(existing))) {
-        return new Response(`not eligible to cancel — item is "${existing.status}", not held or pending`, { status: 400, headers: NO_STORE })
+      // write overwrites the veto this request just made. reviewCancelEligible() checks BOTH
+      // destinations' progress, not just the (Instagram) `status` field alone — a dual-
+      // destination item can be Instagram-'held' while Facebook is already 'building'.
+      if (existing && !reviewCancelEligible(existing)) {
+        const why = hasInFlightProgress(existing) ? 'a publish is already in flight for it' : `item is "${existing.status}", not held or pending`
+        return new Response(`not eligible to cancel — ${why}`, { status: 400, headers: NO_STORE })
       }
 
       const result = veto(q, [id], reason || 'cancelled from /review')
