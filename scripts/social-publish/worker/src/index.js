@@ -73,7 +73,7 @@ import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
 import { holdBlock, isHeld } from '../../hold-shape.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
-  chicagoLabel, reviewUrlFor, reviewCancelUrlFor,
+  chicagoLabel, reviewUrlFor,
 } from '../../notify.mjs'
 import { veto } from '../../veto-shape.mjs'
 import { shortAlbumName } from '../../gallery-announce-caption.mjs'
