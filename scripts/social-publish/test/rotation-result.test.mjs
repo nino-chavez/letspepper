@@ -116,3 +116,26 @@ test('recaption: refuses a missing item, an empty caption, and any item past hel
 test('seriesForAccount inverts accountForSeries, so a refreshed caption follows the posting account', () => {
   for (const series of ['lpo', 'other']) assert.equal(seriesForAccount(accountForSeries(series)), series)
 })
+
+test('state-tagged namesakes map one-to-one: a Miami (FL) home win is never credited to Miami (OH)', () => {
+  const album = "College Women's VB - Miami (OH) at Miami (FL) - 09-23-2026"
+  const data = {
+    cols: COLS,
+    teams: [['Miami (OH)'], ['Miami (FL)']],
+    matches: [COLS.map((c) => ({ date: '2026-09-23', home: 1, away: 0, state: 'F', score: '3-1' })[c] ?? '')],
+  }
+  assert.equal(findRotationResult(data, album).result.line, 'Miami (FL) won 3-1.')
+  data.matches[0][COLS.indexOf('score')] = '0-3'
+  assert.equal(findRotationResult(data, album).result.line, 'Miami (OH) won 3-0.')
+})
+
+test('names that fit the match either way round state no result', () => {
+  const data = {
+    cols: COLS,
+    teams: [['Miami (OH)'], ['Miami (FL)']],
+    matches: [COLS.map((c) => ({ date: '2026-09-23', home: 1, away: 0, state: 'F', score: '3-1' })[c] ?? '')],
+  }
+  const { result, reason } = findRotationResult(data, "College Women's VB - Miami at Miami - 09-23-2026")
+  assert.equal(result, null)
+  assert.match(reason, /either way round/)
+})

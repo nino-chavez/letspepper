@@ -30,10 +30,19 @@ export function rotationDataUrl(albumName = '', site = ROTATION_SITE) {
   return /^College\s+Men's\b/i.test(albumName.trim()) ? `${site}/men/data.json` : `${site}/data.json`
 }
 
-/** "North Central (IL)" and "north central" compare equal; the state tag is a
- * disambiguator The Rotation adds, not part of the name an album uses. */
-export function normalizeTeamName(name = '') {
-  return name.replace(/\([^)]*\)/g, ' ').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+/** Lowercased, punctuation-free name; `keepTag: false` also drops a "(IL)"-style tag. */
+export function normalizeTeamName(name = '', { keepTag = false } = {}) {
+  const base = keepTag ? name : name.replace(/\([^)]*\)/g, ' ')
+  return base.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/** Does an album's team name refer to this Rotation team? "North Central" matches
+ * "North Central (IL)", because The Rotation adds the state tag to disambiguate and the
+ * album does not carry one. An album name that DOES carry a tag must match it exactly,
+ * so "Miami (OH)" never matches "Miami (FL)". */
+export function teamMatches(albumTeam, rotationTeam) {
+  if (normalizeTeamName(albumTeam, { keepTag: true }) === normalizeTeamName(rotationTeam, { keepTag: true })) return true
+  return !/\(/.test(albumTeam) && normalizeTeamName(albumTeam) === normalizeTeamName(rotationTeam)
 }
 
 /** "College Women's VB - Millikin at North Central - 09-23-2026" ->
@@ -67,17 +76,27 @@ export function findRotationResult(data, albumName) {
   const [iDate, iHome, iAway, iState, iScore] = ['date', 'home', 'away', 'state', 'score'].map(col)
   if ([iDate, iHome, iAway, iState, iScore].some((i) => i < 0)) return { result: null, reason: 'Rotation data.json cols changed shape' }
 
-  const wanted = matchup.teams.map(normalizeTeamName)
   const teamName = (idx) => (Array.isArray(teams[idx]) ? teams[idx][0] : teams[idx]?.name) ?? ''
-  const hits = data.matches.filter((m) => {
-    if (m[iDate] !== matchup.isoDate) return false
-    const pair = [normalizeTeamName(teamName(m[iHome])), normalizeTeamName(teamName(m[iAway]))]
-    return wanted.every((w) => pair.includes(w)) && pair.every((p) => wanted.includes(p))
-  })
+  // Each album team must map to exactly one side of the match, one-to-one. A match where
+  // both orientations fit (the two names are indistinguishable) cannot say who won.
+  const [a, b] = matchup.teams
+  const hits = []
+  let indistinct = 0
+  for (const m of data.matches) {
+    if (m[iDate] !== matchup.isoDate) continue
+    const home = teamName(m[iHome])
+    const away = teamName(m[iAway])
+    const aHome = teamMatches(a, home) && teamMatches(b, away)
+    const aAway = teamMatches(a, away) && teamMatches(b, home)
+    if (aHome && aAway) indistinct++
+    else if (aHome) hits.push({ m, home: a, away: b })
+    else if (aAway) hits.push({ m, home: b, away: a })
+  }
+  if (indistinct) return { result: null, reason: `${a} and ${b} match The Rotation's teams either way round on ${matchup.isoDate} — cannot tell who won` }
   if (hits.length === 0) return { result: null, reason: `no Rotation match for ${matchup.teams.join(' / ')} on ${matchup.isoDate}` }
   if (hits.length > 1) return { result: null, reason: `${hits.length} Rotation matches for ${matchup.teams.join(' / ')} on ${matchup.isoDate} — ambiguous` }
 
-  const m = hits[0]
+  const { m, home, away } = hits[0]
   if (m[iState] !== 'F') return { result: null, reason: `the Rotation match is not final (state "${m[iState]}")` }
   const score = /^(\d+)-(\d+)$/.exec(m[iScore] || '')
   if (!score) return { result: null, reason: `the Rotation match has no usable score ("${m[iScore]}")` }
@@ -85,10 +104,9 @@ export function findRotationResult(data, albumName) {
   const homeSets = Number(score[1])
   const awaySets = Number(score[2])
   if (homeSets === awaySets) return { result: null, reason: `the Rotation score "${m[iScore]}" has no winner` }
-  const albumNameFor = (idx) => matchup.teams[wanted.indexOf(normalizeTeamName(teamName(idx)))]
   const homeWon = homeSets > awaySets
-  const winner = albumNameFor(homeWon ? m[iHome] : m[iAway])
-  const loser = albumNameFor(homeWon ? m[iAway] : m[iHome])
+  const winner = homeWon ? home : away
+  const loser = homeWon ? away : home
   const scoreLine = `${Math.max(homeSets, awaySets)}-${Math.min(homeSets, awaySets)}`
   return { result: { winner, loser, score: scoreLine, line: `${winner} won ${scoreLine}.` }, reason: null }
 }
