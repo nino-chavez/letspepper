@@ -45,6 +45,13 @@
  *                          the same selectGalleryPhotos(photos, opts) shape.
  *   --model <id>            vision strategy only: OpenRouter model id. Default google/gemini-2.5-flash.
  *   --venue / --teams / --event-date   override the caption's parsed album-name facts.
+ *   --refresh-caption      rebuild ONLY the caption of this album's item already in the local
+ *                          queue, keeping its photos, alt text and schedule. Refused unless the
+ *                          item is still held on both channels. Push it with
+ *                          seed-kv.mjs --event gallery-announce --replace --put.
+ *
+ * A college album's caption also states the match result, looked up on The Rotation
+ * (rotation-result.mjs); any other album, or any failed lookup, states none.
  *   --name <string>        override the resolved album display name.
  *   --site <url>           gallery base. Default https://ninochavez.co/photography.
  *   --bucket / --public-base   R2 target for a REAL (non-dry-run) build. Same
@@ -58,6 +65,7 @@ import { execFileSync } from 'node:child_process'
 import selectGalleryPhotosDefault, { selectGalleryPhotosByCaption } from './select-gallery-photos.mjs'
 import { altTextFromCaption } from './alt-text.mjs'
 import { buildGalleryAnnounceCaption, shortAlbumName } from './gallery-announce-caption.mjs'
+import { lookupCollegeResult } from './rotation-result.mjs'
 import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor } from './notify.mjs'
 import { loadRoutes, standingEntry } from './route-gate.mjs'
 
@@ -110,6 +118,22 @@ export function appendGalleryAnnounceItem(queue, item) {
     return { refused: `an item with id "${item.id}" is already in queue/${EVENT}.json — not appending a duplicate.` }
   }
   return { queue: { event: EVENT, ...queue, items: [...items, item] } }
+}
+
+/**
+ * Replace the caption of an item that has not published anywhere yet. Pure, so the
+ * refusal rules are testable: the item must exist and be "held" on BOTH channels — a
+ * caption change after either channel posted would make the two posts disagree.
+ */
+export function refreshHeldCaption(queue, id, caption) {
+  const items = queue?.items || []
+  const item = items.find((it) => it.id === id)
+  if (!item) return { refused: `no item with id "${id}" in queue/${EVENT}.json — nothing to refresh.` }
+  if (item.status !== 'held' || item.facebook_status !== 'held') {
+    return { refused: `item "${id}" is ${item.status}/${item.facebook_status}, not held/held — its caption can no longer change.` }
+  }
+  const updated = { ...item, caption, facebook_caption: caption }
+  return { queue: { ...queue, items: items.map((it) => (it.id === id ? updated : it)) }, before: item.caption, after: caption }
 }
 
 async function getJson(url) {
@@ -260,6 +284,32 @@ export async function main(argv = process.argv.slice(2)) {
   if (!photos.length) throw new Error(`No photos for album "${albumKey}" at ${site}`)
 
   const albumName = await resolveAlbumName(site, albumKey, args.name)
+  const { result: matchResult, reason: resultReason } = await lookupCollegeResult(albumName)
+  console.log(matchResult ? `Result (The Rotation): ${matchResult.line}` : `No result line: ${resultReason}`)
+
+  if (args['refresh-caption']) {
+    const queuePath = join(HERE, 'queue', `${EVENT}.json`)
+    if (!existsSync(queuePath)) throw new Error(`${queuePath} does not exist — nothing to refresh.`)
+    const queue = JSON.parse(readFileSync(queuePath, 'utf8'))
+    const id = `${albumKey}-${EVENT}`
+    const held = (queue.items || []).find((it) => it.id === id)
+    const caption = buildGalleryAnnounceCaption({
+      albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
+      galleryUrl: `${site}/albums/${createAlbumSlug(albumName, albumKey)}`,
+      selectedOf: `${held?.children?.length ?? 0} of ${photos.length}`, series, result: matchResult,
+    })
+    const refreshed = refreshHeldCaption(queue, id, caption)
+    if (refreshed.refused) { console.error(`REFUSED — ${refreshed.refused}`); process.exitCode = 1; return { refused: refreshed.refused } }
+    if (dryRun) {
+      console.log(`[dry-run] caption for ${id} would change from:\n${refreshed.before}\n\nto:\n${refreshed.after}`)
+      return { before: refreshed.before, after: refreshed.after }
+    }
+    writeFileSync(queuePath, JSON.stringify(refreshed.queue, null, 2))
+    console.log(`Refreshed caption of ${id} in ${queuePath}:\n${refreshed.after}`)
+    console.log('Next: seed-kv.mjs --event gallery-announce --replace --put')
+    return { before: refreshed.before, after: refreshed.after, queuePath }
+  }
+
   const strategyArg = typeof args.strategy === 'string' ? args.strategy : null
   const selectPhotos = await loadStrategy(strategyArg)
   const usingVision = selectPhotos === selectGalleryPhotosDefault
@@ -301,7 +351,7 @@ export async function main(argv = process.argv.slice(2)) {
 
   const caption = buildGalleryAnnounceCaption({
     albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
-    galleryUrl, selectedOf: selection.selectedOf, series,
+    galleryUrl, selectedOf: selection.selectedOf, series, result: matchResult,
   })
   const facebookAltText = children[0]?.alt_text || null
 

@@ -42,7 +42,7 @@ test('caption: "#grassvolleyball" only appears for the letspepper (grass triples
   assert.match(lpo, /#grassvolleyball/)
 })
 
-test('caption: never contains a player name, a score, or "tag yourselves"', () => {
+test('caption: a high-school album never contains a player name, a score, or "tag yourselves"', () => {
   const caption = buildGalleryAnnounceCaption({
     albumName: RE7KHO_ALBUM_NAME, galleryUrl: 'https://ninochavez.co/photography/albums/hs-girls-vb-jca-at-acc-09-22-2026-Re7kho',
     selectedOf: '8 of 120', series: 'other',

@@ -23,11 +23,14 @@
  * "keep claims attached to their actual source and subject" say the same thing
  * from the other direction.
  *
- * Hard rules, because the subjects here are minors and because the source data
- * has no result:
+ * Hard rules, because many subjects here are minors:
  *   - Never a player's name (nothing here is sourced anyway).
- *   - Never a result or score (not sourced — this is an announcement, not a
- *     recap; do not imply one exists).
+ *   - A result only for a COLLEGE album, only as `result.line` from
+ *     rotation-result.mjs (The Rotation, built from official feeds), and never
+ *     set scores. Nino, 2026-09-26: "this is college so not minors. and the data
+ *     can be sourced from therotation.tv which itself sourced from official
+ *     sources". Every other album states no result or score and must not imply
+ *     one exists.
  *   - No "tag yourselves" or any other invitation to identify someone in the
  *     photos.
  *   - letspepper.com/gallery is only linked when the album is actually in that
@@ -49,6 +52,8 @@
  * apparently others in this scope) uses; --venue/--teams/--event-date on the
  * builder override it when the parse is wrong or the shape differs.
  */
+
+import { isCollegeAlbum } from './rotation-result.mjs'
 
 const MONTHS = ['Jan.', 'Feb.', 'March', 'April', 'May', 'June', 'July', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.']
 
@@ -84,7 +89,7 @@ export function shortAlbumName(albumName = '', fallback) {
  * has no account-routing logic of its own to get out of sync with the builder's.
  */
 export function buildGalleryAnnounceCaption({
-  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series,
+  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series, result,
 }) {
   const parsed = parseAlbumName(albumName)
   const teamsLine = teams || parsed.teams
@@ -93,6 +98,9 @@ export function buildGalleryAnnounceCaption({
 
   const lines = [headline]
   if (venue) lines.push(venue)
+  // College only: the caller passes a result solely from rotation-result.mjs, which
+  // refuses non-college albums; this guard keeps the rule true if a caller forgets.
+  if (result?.line && isCollegeAlbum(albumName)) lines.push(result.line)
   lines.push('')
   // "from the gallery", not "favorites" — the pick is an unattended heuristic
   // selection, not a claim about what Nino personally likes best.
