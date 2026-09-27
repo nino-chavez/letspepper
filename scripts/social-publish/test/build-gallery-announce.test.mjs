@@ -45,10 +45,10 @@ test('slugify/createAlbumSlug replicate the photography site\'s own src/lib/util
   assert.equal(createAlbumSlug("Lewis vs Pepperdine - Winter 2026", 'pHqw25'), 'lewis-vs-pepperdine-winter-2026-pHqw25')
 })
 
-test('accountForSeries: letspepper for lpo, nino.chavez.photo\'s slug for everything else', () => {
-  assert.equal(accountForSeries('lpo'), 'letspepper')
-  assert.equal(accountForSeries('other'), 'ninophoto')
-  assert.equal(accountForSeries(undefined), 'ninophoto')
+test('accountForSeries: Flickday publishes every gallery announcement, regardless of series', () => {
+  assert.equal(accountForSeries('lpo'), 'flickday')
+  assert.equal(accountForSeries('other'), 'flickday')
+  assert.equal(accountForSeries(undefined), 'flickday')
 })
 
 test('appendGalleryAnnounceItem: adds a new item, keeps every existing one exactly as it was', () => {
@@ -127,9 +127,10 @@ test('main(): --dry-run produces a manifest at --out and touches nothing else', 
   try {
     const result = await main(['--album-key', 'Re7kho', '--series', 'other', '--dry-run', '--count', '3', '--out', out, '--strategy', 'caption'])
     assert.equal(result.outPath, out)
-    assert.equal(JSON.parse(readFileSync(out, 'utf8')).account, 'ninophoto')
-    assert.equal(result.manifest.account, 'ninophoto')
-    assert.equal(result.manifest.collaborators[0], 'flickday.media')
+    assert.equal(JSON.parse(readFileSync(out, 'utf8')).account, 'flickday')
+    assert.equal(result.manifest.account, 'flickday')
+    assert.deepEqual(result.item.collab, { status: 'ask' })
+    assert.deepEqual(result.item.collaborators, [])
     assert.equal(result.item.series, 'other', 'the item records its series so a later --refresh-caption survives --reassign')
     assert.equal(result.manifest.selected.length, 3)
     assert.match(result.manifest.assets, /^3 of \d+$/)

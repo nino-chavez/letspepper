@@ -34,8 +34,7 @@
  * composer already applies automatically to a non-9:16 upload, so it reads as normal rather
  * than as a compromise. The overlay uses the PHOTOGRAPHY site's own type system (Montserrat
  * display / Inter body, charcoal + gold — DESIGN.md), not Let's Pepper's Bebas Neue/Anton stack,
- * because this Story announces a photography gallery and posts from either owned account
- * depending on series.
+ * because this Story announces a photography gallery and posts from flickday.media.
  *
  * SAFE AREA (added 2026-09-26, same review): Instagram's own chrome covers roughly the top
  * ~250px of a Story (profile header) and the bottom ~300px (reply/message bar) — device- and
@@ -81,7 +80,8 @@
  * wired into the Worker's postDuePending) — a Story is never due before its carousel has
  * actually posted, and is permanently blocked if the carousel goes terminal (vetoed, or a
  * Graph error) first. The `linked_item_id` this module sets on the item is what that second
- * gate reads; nothing about the schedule offset alone stops a Story from outliving a carousel
+ * gate reads; the carousel's separate Collab-choice gate also keeps this Story waiting until
+ * Nino decides. Nothing about the schedule offset alone stops a Story from outliving a carousel
  * that never posted.
  */
 import { chromium } from 'playwright'

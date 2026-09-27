@@ -91,6 +91,9 @@ test('caption: a high-school album never states a result, even if a caller passe
   assert.doesNotMatch(caption, /won/)
 })
 
-test('seriesForAccount inverts accountForSeries, so a refreshed caption follows the posting account', () => {
-  for (const series of ['lpo', 'other']) assert.equal(seriesForAccount(accountForSeries(series)), series)
+test('seriesForAccount keeps its legacy fallback while Flickday is now the standing publishing account', () => {
+  assert.equal(accountForSeries('lpo'), 'flickday')
+  assert.equal(accountForSeries('other'), 'flickday')
+  assert.equal(seriesForAccount('letspepper'), 'lpo')
+  assert.equal(seriesForAccount('flickday'), 'other')
 })

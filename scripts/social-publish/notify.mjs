@@ -21,10 +21,11 @@
  * "i'm confused on what i'm supposed to do... hard to distinguish info from action"). The
  * rule now: say what will happen with NO action required, put the one action behind a
  * button, never print a terminal command into a phone alert.
- *   HELD    "Posts <next slot>: <short name> (<N> photos)" title, "Nothing to do. Cancel
- *           before <holdUntil> if you don't want it." body, Review (view) + Cancel post
- *           (http, one-tap, clears the notification) actions, tap-body → /review. No key →
- *           no actions/click, body says "It posts on its own," never a fallback command.
+ *   HELD    "Posts <next slot>: <short name> (<N> photos)" title. An unanswered carousel
+ *           says "This post is waiting for your Collab choice. Choose in Review. It will not
+ *           post until you decide." Review (view) + Cancel post (http, one-tap, clears the
+ *           notification) actions, tap-body → /review. No key → no actions/click; the alert
+ *           still says the Collab choice blocks publication, never a fallback command.
  *   POSTED  "Posted: <short name>" + a View-on-<channel> action to the permalink, plus (IG
  *           only, when a collaborator is set) a one-line Collab-acceptance reminder — Meta
  *           gives no API to accept an invite (see SETUP.md), so this is the only nudge.
@@ -261,17 +262,19 @@ export function reviewCancelUrlFor(reviewKey, itemId) {
  * notification for the Story would be exactly the extra-thing-to-read Nino's own correction on
  * this alert was about — so this only adds a short title suffix; the Story itself shows up
  * next to its carousel on /review (see worker/src/index.js's renderItemCard). */
-export function heldNotification({ shortName, photoCount, holdUntilIso, nextSlotIso, reviewUrl, reviewCancelUrl, pendingSchoolTeams = [], hasStory = false }) {
+export function heldNotification({ shortName, photoCount, holdUntilIso, nextSlotIso, reviewUrl, reviewCancelUrl, pendingSchoolTeams = [], hasStory = false, collabAsk = false }) {
   const plural = photoCount === 1 ? '' : 's'
   const actions = []
   if (reviewUrl) actions.push({ action: 'view', label: 'Review', url: reviewUrl })
   if (reviewCancelUrl) actions.push({ action: 'http', label: 'Cancel post', url: reviewCancelUrl, clear: true })
-  const cancelLine = reviewUrl
-    ? `Cancel before ${chicagoLabel(holdUntilIso)} if you don't want it.`
-    : 'It posts on its own.'
-  const outcomeLine = pendingSchoolTeams.length
-    ? `Tag by hand: ${pendingSchoolTeams.join(', ')}.`
-    : 'Nothing to do.'
+  const cancelLine = collabAsk
+    ? (reviewUrl ? 'Choose in Review. It will not post until you decide.' : 'It will not post until the Collab choice is recorded in Review.')
+    : (reviewUrl ? `Cancel before ${chicagoLabel(holdUntilIso)} if you don't want it.` : 'It posts on its own.')
+  const outcomeLine = collabAsk
+    ? 'This post is waiting for your Collab choice.'
+    : pendingSchoolTeams.length
+      ? `Tag by hand: ${pendingSchoolTeams.join(', ')}.`
+      : 'Nothing to do.'
   return {
     title: `Posts ${chicagoLabel(nextSlotIso)}: ${shortName} (${photoCount} photo${plural}${hasStory ? ' + Story' : ''})`,
     message: `${outcomeLine} ${cancelLine}`,

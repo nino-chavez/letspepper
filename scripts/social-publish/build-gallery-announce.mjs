@@ -12,17 +12,15 @@
  * and THAT it may run unattended; it does not cover WHAT gets posted for any
  * one album — this script decides that, per album, and stages every item
  * `held` so a bad pick or a caption problem can be caught before it goes live
- * (see hold-shape.mjs). --series is required, not defaulted, for the same
- * reason: many albums in this scope are high-school girls' volleyball, and a
- * silent default could route one to the wrong owned account.
+ * (see hold-shape.mjs). --series is required, not defaulted, because its
+ * factual caption and destination link depend on the album's real scope.
  *
- * Account by series, from Nino's answer ("by series and collab with
- * flickday"): Let's Pepper series albums publish from letspepper.open;
- * everything else from nino.chavez.photo. flickday.media is ALWAYS added as
- * a Collab collaborator, on every album, regardless of series. There is no
- * public read path to an album's gallery_scope (album_settings is read
- * anon-only, server-side, with no API route — checked in the photography
- * repo 2026-09-25), so --series is a required flag, not looked up here.
+ * Account is always flickday.media (Nino, 2026-09-27: "use flickday as teh
+ * standing post account and always ask if you should collab with me or someone
+ * else"). `--series` remains required only because the factual caption needs
+ * it to distinguish Let's Pepper galleries from other galleries; it never
+ * selects the publishing account. Every new carousel begins with an explicit
+ * unanswered Collab choice and cannot publish until Nino records one.
  *
  * Photo selection is delegated to select-gallery-photos.mjs (default) or
  * whatever module `--strategy <path>` points at, on purpose — see that
@@ -32,7 +30,8 @@
  *
  * Flags:
  *   --album-key <key>     required. The album's key (e.g. Re7kho).
- *   --series <lpo|other>  required. Routes the publishing account.
+ *   --series <lpo|other>  required. Selects factual caption/link treatment; the
+ *                          publishing account is always flickday.media.
  *   --dry-run             produce a manifest under .temp/, touch nothing else:
  *                          no R2 upload, no queue write, no wrangler call.
  *   --out <path>           dry-run only: write the manifest here instead of
@@ -129,12 +128,13 @@ export function createAlbumSlug(albumName, albumKey) { return `${slugify(albumNa
 
 export function cfLarge(id) { return cfLargeSource(id) }
 
-/** Account slug for the item, from Nino's "by series and collab with flickday" answer. */
-export function accountForSeries(series) { return series === 'lpo' ? 'letspepper' : 'ninophoto' }
+/** Gallery announcements always publish from Flickday; series still controls only caption facts. */
+export function accountForSeries(_series) { return 'flickday' }
 
 /** Inverse of accountForSeries — the series of an item built before items carried their own
  * `series` field (Re7kho, DWdCET). A reassigned item keeps its recorded series instead, because
- * an album's series is a fact about the album, not about the account that posts it. */
+ * an album's series is a fact about the album, not about the account that posts it. This is a
+ * legacy fallback for queue items created before every gallery announcement used Flickday. */
 export function seriesForAccount(account) { return account === 'letspepper' ? 'lpo' : 'other' }
 
 /**
@@ -370,7 +370,7 @@ export async function main(argv = process.argv.slice(2)) {
   const series = args.series === 'lpo' ? 'lpo' : args.series === 'other' ? 'other' : null
   if (!albumKey) throw new Error('Required: --album-key <key> --series <lpo|other>')
   if (args['refresh-caption']) return refreshCaption(args, albumKey, series)
-  if (!series) throw new Error('Required: --series <lpo|other> — there is no public read path to an album\'s gallery_scope, so this is not defaulted. Many albums in this scope are high-school girls\' volleyball; guess wrong and the wrong owned account announces it.')
+  if (!series) throw new Error('Required: --series <lpo|other> — there is no public read path to an album\'s gallery_scope, so this is not defaulted. It controls the factual caption and gallery destination.')
 
   const dryRun = !!args['dry-run']
   const count = Math.min(IG_CAROUSEL_MAX, Number(args.count ?? 10))
@@ -462,7 +462,8 @@ export async function main(argv = process.argv.slice(2)) {
     facebook_alt_text: facebookAltText,
     children: taggedChildren.map(({ _source, _image_key, ...c }) => c), // internal fields stay off the published payload
     user_tags: [],
-    collaborators: ['flickday.media'],
+    collaborators: [],
+    collab: { status: 'ask' },
     // Confirmed handles are already ON children[0].user_tags above (that's where Meta's own
     // /media reference puts a carousel child's tags); this is a review-surface record, not a
     // second copy the Worker publishes from. `pending` is what the /review page and the HELD
@@ -485,9 +486,9 @@ export async function main(argv = process.argv.slice(2)) {
 
   const manifest = {
     authority: 'Nino, 2026-09-25 (chat): "Standing auto-post" — a standing gallery-announcements route, by series, ' +
-      'collab with flickday, all galleries eligible. See graph-routes.json "gallery-announce".',
+      'collab choice required, all galleries eligible. See graph-routes.json "gallery-announce".',
     account,
-    collaborators: item.collaborators,
+    collab: item.collab,
     content: 'carousel',
     assets: selectedOf,
     selected: taggedChildren.map((c, i) => {
@@ -591,6 +592,7 @@ export async function main(argv = process.argv.slice(2)) {
     reviewCancelUrl: reviewCancelUrlFor(reviewKey, item.id),
     pendingSchoolTeams: schoolTags.pending.map((t) => t.albumTeamName),
     hasStory: true,
+    collabAsk: true,
   })
   const topic = resolveNtfyTopic()
   await notify({ topic, ...heldBuild })

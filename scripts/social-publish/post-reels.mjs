@@ -61,6 +61,7 @@ import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { assertGraphRoute, digestOf } from './route-gate.mjs'
 import { holdBlock, linkedItemBlock } from './hold-shape.mjs'
+import { collabBlock } from './collab-shape.mjs'
 import { tagParams } from './tag-params.mjs'
 import { carouselChildParams, carouselParentParams } from './carousel-container-params.mjs'
 
@@ -124,7 +125,7 @@ const ready = (it) => it.status !== 'posted' &&
 // isn't due, same as a hold; it does not need reviving. --force does not override it, same as
 // holdBlock above.
 const due = q.items.filter((it) => ready(it) && (!idFilter || it.id === idFilter) &&
-  (force || new Date(it.scheduledAt).getTime() <= now) && !holdBlock(it, new Date(now)) &&
+  (force || new Date(it.scheduledAt).getTime() <= now) && !holdBlock(it, new Date(now)) && !collabBlock(it) &&
   !linkedItemBlock(it, q.items))
 
 if (!due.length) {

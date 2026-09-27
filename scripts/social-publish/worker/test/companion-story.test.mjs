@@ -135,6 +135,17 @@ test('a Story is NOT selected while its carousel is genuinely still on hold — 
   assert.equal(story.status, 'pending', 'the Story is untouched, not errored — it just isn\'t due yet')
 })
 
+test('a Story waits with its carousel while Nino has not made the Collab choice', async () => {
+  const calls = []
+  const fetchImpl = async (input) => { calls.push(String(input)); throw new Error('should not be called') }
+  const q = carouselAndStory({ carouselStatus: 'pending' })
+  q.items[0].collab = { status: 'ask' }
+  const queue = await runQueue(q, fetchImpl)
+  assert.deepEqual(calls, [])
+  assert.equal(queue.items.find((it) => it.id === 'DWdCET-gallery-announce').status, 'pending')
+  assert.equal(queue.items.find((it) => it.id === 'DWdCET-gallery-announce-story').status, 'pending')
+})
+
 test('a Story does not jump ahead of its own carousel: with both due in the same tick, the carousel publishes and the Story waits', async () => {
   // A genuinely 'pending' (not held) carousel that hasn't posted yet is itself due — the single
   // published-item-per-tick rule (postDuePending picks ONE) means this run publishes the

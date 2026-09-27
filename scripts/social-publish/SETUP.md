@@ -15,6 +15,7 @@ gallery-announce-caption.mjs   facts-only caption template for build-gallery-ann
 rotation-result.mjs         looks up a college album's match result on therotation.tv (college only; a miss means no result line)
 school-tags.mjs             resolves + live-confirms both schools' Instagram handles for a college album, from therotation.tv's own socials map (college only; unconfirmed goes to "add by hand")
 held-item-shape.mjs         recaption() and reassign(): the edits seed-kv.mjs --recaption / --reassign make to one live item still held on both channels
+collab-shape.mjs            explicit Collab choice + Instagram-handle validation shared by both publishers, /review, and seed-kv.mjs
 notify.mjs               phone notifications (ntfy.sh) for HELD/POSTED/FAILED/VETOED — Worker-safe, no node: imports
 hold-shape.mjs           the held/vetoed check both publishers share (never opened by --force)
 veto-announce.mjs        kill one gallery-announce album locally before it publishes
@@ -26,7 +27,7 @@ route-shape.mjs          the standing-route check both publishers share
 graph-routes.json        tracked list of campaigns approved to publish through the API
 seed-kv.mjs              seeds a queue into the Worker's KV with its route copied from graph-routes.json
 worker/src/index.js      scheduled Instagram + Facebook Page publisher; also serves GET /review
-                         and POST /review/cancel (see "/review" below)
+                         and POST /review/cancel /review/collab (see "/review" below)
 ```
 
 ## Architecture
@@ -238,7 +239,7 @@ The `flickday-social` bucket has public dev access enabled for exactly this.
 The one route in graph-routes.json that isn't per-post: Nino approved a **standing**
 "gallery announcements" route (2026-09-25 — quoted in that entry's `reason`) so that
 every published photography album can post unattended, once its build has a hold
-window, Facebook crosspost, and alt text — this is that build.
+window, Facebook crosspost, alt text, and Nino's explicit Collab choice — this is that build.
 
 ```bash
 # 1. build (dry-run first — no R2 upload, no queue write, no Graph/wrangler call).
@@ -255,6 +256,11 @@ node scripts/social-publish/build-gallery-announce.mjs --album-key Re7kho --seri
 #    already started on (--replace is refused the moment anything has posted; this
 #    merges only the ids KV doesn't have yet):
 node scripts/social-publish/seed-kv.mjs --event gallery-announce --append --put
+
+# The carousel stays blocked until Nino decides. `none` clears Collab; `nino`
+# means @nino.chavez.photo; `handles` accepts one to three Instagram handles.
+node scripts/social-publish/seed-kv.mjs --event gallery-announce \
+  --collab Re7kho-gallery-announce --decision nino --put
 
 # Change the caption of an item already in KV, while it is still held on both channels
 # (e.g. to add a college result). Photos, alt text and schedule stay as queued; the
@@ -327,17 +333,19 @@ letspepper.com/gallery's own LPO listing). No PUBLIC read exposes it:
   high-school-volleyball concern above is about which OWNED account announces, not about
   hiding the field) — or a small public field/route exposing it by album key.
 
-Until one of those ships, `--series` stays required. `lpo` routes to `letspepper.open`;
-anything else routes to `nino.chavez.photo`. `flickday.media` is **always** added
-as a Collab collaborator on every album, regardless of series (Nino: "by series
-and collab with flickday").
+Until one of those ships, `--series` stays required for factual caption treatment only.
+Every gallery announcement now publishes from `flickday.media`, regardless of series.
+No Collab is added by default. Each carousel starts with `collab: { "status": "ask" }`
+and waits for Nino to choose No Collab, @nino.chavez.photo, or one to three other valid
+Instagram handles. Its linked Story waits for the carousel and never carries collaborators.
 
 **The hold window.** Every item is created `status: "held"` with `holdUntil` (default
 2h out — Nino, 2026-09-26: "2 hours" (was 12h until then); `--hold-hours` to change it) —
 hold-shape.mjs's `holdBlock()` refuses BOTH
 destinations in both publishers (post-reels.mjs and the Worker) until it passes, and
 `--force` does not open it. Once `holdUntil` passes the item becomes ordinarily
-publishable — nothing has to flip its status back to `pending`.
+publishable — nothing has to flip its status back to `pending`. The Collab question is a
+separate, non-expiring gate: `collab-shape.mjs` blocks both publishers until it is decided.
 
 **`scheduledAt` is a SEPARATE timestamp, not a copy of `holdUntil`** (fixed 2026-09-26 — it
 used to be the same value, so a hold clearing at 2am published at 2am, any hour). The Worker's
@@ -503,9 +511,10 @@ now: say the outcome first, put the one action behind a button, and never print 
 command into a phone alert (the pre-2026-09-26 shape did all three wrong). Four events:
 - **HELD** — sent by `build-gallery-announce.mjs` right after it appends a new item
   (non-dry-run only). Title: "Posts \<next ALLOWED_HOURS_UTC slot at/after holdUntil, in
-  America/Chicago\>: \<short album name\> (N photos)". Body: "Nothing to do. Cancel before
-  \<holdUntil, Chicago\> if you don't want it." Two ntfy Action buttons (not a click on the
-  body alone) — **Review** (opens `/review`) and **Cancel post** (one-tap `POST
+  America/Chicago\>: \<short album name\> (N photos)". New gallery carousels say:
+  "This post is waiting for your Collab choice. Choose in Review. It will not post until you
+  decide." Two ntfy Action buttons (not a click on the body alone) — **Review** (opens `/review`)
+  and **Cancel post** (one-tap `POST
   /review/cancel`, `clear=true` so the tap also dismisses the notification) — plus tapping
   the body itself also opens `/review`. If `REVIEW_KEY` can't be resolved: sends the title
   and "Nothing to do. It posts on its own." with no click and no action buttons, and logs
@@ -700,7 +709,10 @@ too when it differs, each slide's alt text, the publishing account (by handle, n
 `accounts.json` slug) and Collab, hold-until and the next posting slot in America/Chicago,
 and status. The last few posted/vetoed/error items are listed too, collapsed under a
 `<details>`, for context. No JS framework, inline CSS, dark neutral styling — the photos are
-the content.
+the content. An undecided carousel also asks: **Collab with @nino.chavez.photo**, **Someone
+else** (one to three valid Instagram handles), or **No Collab**. `POST /review/collab` records
+the choice with the same `REVIEW_KEY` authentication; then the ordinary timed hold and schedule
+still apply. Stories state that they follow their carousel and cannot use Collab.
 
 **Cancel** is a button per held/pending item — `POST /review/cancel` — that vetoes through
 the *exact* function `seed-kv.mjs --veto` uses (`veto()`, moved to `veto-shape.mjs` so the
@@ -850,8 +862,9 @@ In order:
    with the series from that album's own `gallery_scope`, then `seed-kv.mjs --event
    gallery-announce --append --put`. `--announce` there announces an already-public album,
    `--no-announce` skips it, and `LETSPEPPER_SOCIAL_DIR` points it at this directory if it is
-   not at `~/Workspace/dev/apps/letspepper/scripts/social-publish`. By hand, the same two
-   steps are:
+   not at `~/Workspace/dev/apps/letspepper/scripts/social-publish`. The seed only stages the
+   item: it cannot post until `/review` or `seed-kv.mjs --collab` records the Collab choice.
+   By hand, the same build-and-seed steps are:
    ```bash
    node scripts/social-publish/build-gallery-announce.mjs --album-key <key> --series <lpo|other>
    node scripts/social-publish/seed-kv.mjs --event gallery-announce --append --put
@@ -861,15 +874,10 @@ In order:
    the FIRST seed — there is no separate "first time" step; `--append` on an empty/missing
    KV key just adopts every local item (see `appendPayload`'s own header).
 
-5. **Collab acceptance — every post, not once.** The invite status
-   (`Accepted`/`Pending`) is tracked per POST, via `GET /{ig-media-id}/collaborators` (see
-   "Collaborators" above), and Meta gives no API to accept one. So this is not a one-time
-   per-account-pair step: after EVERY gallery-announce carousel posts, open Instagram as
-   `flickday.media` and accept that post's invite from Activity/Notifications, or it sits
-   `Pending` forever and `flickday.media` never shows as co-author on it. The POSTED
-   notification only reports that the post published, not whether the Collab was
-   accepted — nothing here polls `GET /{ig-media-id}/collaborators` to catch a forgotten
-   one; check it by hand if a post looks like it's missing its collaborator.
+5. **Collab acceptance — only when Nino chose one.** The selected account must accept its
+   own invite in Instagram; Meta offers no API to accept it. This is per post, not a one-time
+   account-pair step. No-Collab gallery announcements have no invite to accept. The POSTED
+   notification reports a selected Collab but does not confirm its acceptance.
 
 6. **Subscribing on iPhone.** Install the ntfy app (App Store), then Subscribe to topic →
    paste the value from `op read 'op://Developer Secrets/ntfy gallery-announce/credential'`

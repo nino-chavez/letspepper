@@ -138,6 +138,17 @@ test('GET /review: a pending item (elapsed hold) also shows a Cancel button; a p
   assert.ok(cancelForms.every((m) => !m[0].includes('posted-gallery-announce')))
 })
 
+test('GET /review: an undecided carousel asks Nino to choose its Collab, while its Story says it follows the carousel', async () => {
+  const carousel = heldItem({ collab: { status: 'ask' }, collaborators: [] })
+  const story = heldItem({ id: 'Re7kho-gallery-announce-story', media_type: 'STORIES', channels: ['instagram'], linked_item_id: carousel.id, collaborators: undefined, collab: undefined })
+  const html = await (await get(fakeKv(queueWith(carousel, story)), `/review?key=${KEY}`)).text()
+  assert.match(html, /This carousel is waiting for your Collab choice\./)
+  assert.match(html, /Collab with @nino\.chavez\.photo/)
+  assert.match(html, /Someone else/)
+  assert.match(html, /No Collab/)
+  assert.match(html, /Stories cannot use Collab/)
+})
+
 test('GET /review: shows hold-until and the next posting slot, straight from item.scheduledAt', async () => {
   const html = await (await get(fakeKv(queueWith(heldItem())), `/review?key=${KEY}`)).text()
   // holdUntil 2026-09-27T03:08:00Z = Sat 10:08 PM Central; item.scheduledAt (what the Worker
@@ -181,6 +192,43 @@ test('GET /review: no queue yet renders a page, not an error', async () => {
 })
 
 // -------------------------------------------------------------------------------- cancel
+
+test('POST /review/collab: requires REVIEW_KEY and validates a custom Instagram handle', async () => {
+  const item = heldItem({ collab: { status: 'ask' }, collaborators: [] })
+  let res = await post(fakeKv(queueWith(item)), '/review/collab', { form: { id: item.id, decision: 'none' } })
+  assert.equal(res.status, 403)
+
+  const kv = fakeKv(queueWith(item))
+  res = await post(kv, '/review/collab', { form: { key: KEY, id: item.id, decision: 'handles', handles: 'not a handle' } })
+  assert.equal(res.status, 400)
+  assert.match(await res.text(), /valid Instagram usernames/)
+  assert.deepEqual(JSON.parse(await kv.get(EVENT)).items[0].collab, { status: 'ask' })
+})
+
+test('POST /review/collab: records No Collab or a handle list and unblocks the carousel', async () => {
+  // New gallery items publish from flickday (2026-09-27), so nino.chavez.photo is a valid Collab.
+  const noneKv = fakeKv(queueWith(heldItem({ account: 'flickday', collab: { status: 'ask' }, collaborators: [] })))
+  let res = await post(noneKv, '/review/collab', { form: { key: KEY, id: 'Re7kho-gallery-announce', decision: 'none' } })
+  assert.equal(res.status, 303)
+  let saved = JSON.parse(await noneKv.get(EVENT)).items[0]
+  assert.deepEqual(saved.collab, { status: 'none' })
+  assert.deepEqual(saved.collaborators, [])
+
+  const handlesKv = fakeKv(queueWith(heldItem({ account: 'flickday', collab: { status: 'ask' }, collaborators: [] })))
+  res = await post(handlesKv, '/review/collab', { form: { key: KEY, id: 'Re7kho-gallery-announce', decision: 'handles', handles: '@nino.chavez.photo, other.account' } })
+  assert.equal(res.status, 303)
+  saved = JSON.parse(await handlesKv.get(EVENT)).items[0]
+  assert.deepEqual(saved.collab, { status: 'decided', handles: ['nino.chavez.photo', 'other.account'] })
+  assert.deepEqual(saved.collaborators, ['nino.chavez.photo', 'other.account'])
+})
+
+test('POST /review/collab: refuses the publishing account as its own Collab', async () => {
+  const kv = fakeKv(queueWith(heldItem({ account: 'flickday', collab: { status: 'ask' }, collaborators: [] })))
+  const res = await post(kv, '/review/collab', { form: { key: KEY, id: 'Re7kho-gallery-announce', decision: 'handles', handles: '@flickday.media' } })
+  assert.equal(res.status, 400)
+  assert.match(await res.text(), /publishes this post/)
+  assert.deepEqual(JSON.parse(await kv.get(EVENT)).items[0].collab, { status: 'ask' })
+})
 
 test('POST /review/cancel: 403 without the key', async () => {
   const kv = fakeKv(queueWith(heldItem()))

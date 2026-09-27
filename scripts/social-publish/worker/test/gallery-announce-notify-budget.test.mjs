@@ -245,3 +245,24 @@ test('/status counts an item whose holdUntil has already passed as pending, not 
   assert.equal(ev.pending, 1, 'the elapsed hold counts as pending, since the next tick would publish it')
   assert.deepEqual(ev.heldItems.map((h) => h.id), ['still-held'])
 })
+
+test('/status counts a carousel waiting for the Collab choice on its own, never as pending', async () => {
+  // Codex review of #67: an elapsed hold with an unanswered Collab choice will not be picked up
+  // by any tick, so reporting it as pending made it look runnable.
+  const kv = fakeKv({
+    event: EVENT, meta: { route: { ...ROUTE } },
+    items: [
+      { id: 'waiting', channels: ['instagram', 'facebook'], status: 'held', facebook_status: 'held', holdUntil: new Date(Date.now() - 1000).toISOString(), collab: { status: 'ask' } },
+      { id: 'decided', channels: ['instagram', 'facebook'], status: 'held', facebook_status: 'held', holdUntil: new Date(Date.now() - 1000).toISOString(), collab: { status: 'none' } },
+    ],
+  })
+  const res = await worker.fetch(
+    new Request('https://worker.example.test/status?key=trigger'),
+    { QUEUE: kv, TRIGGER_KEY: 'trigger', ACTIVE_EVENTS: EVENT, ALLOWED_HOURS_UTC: '0' },
+  )
+  const ev = (await res.json()).events[EVENT]
+  assert.equal(ev.awaitingCollab, 1)
+  assert.deepEqual(ev.awaitingCollabItems, ['waiting'])
+  assert.equal(ev.pending, 1, 'only the decided carousel is runnable')
+  assert.equal(ev.facebook.pending, 1)
+})

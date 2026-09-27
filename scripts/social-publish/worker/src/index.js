@@ -71,6 +71,7 @@
 
 import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route-shape.mjs'
 import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
+import { collabBlock, decideCollab } from '../../collab-shape.mjs'
 import { collaboratorParams, userTagsParams, tagParams } from '../../tag-params.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
@@ -301,9 +302,9 @@ const wantsFacebook = (it) => Array.isArray(it.channels) && it.channels.includes
 // 'held' counts as eligible once holdBlock() clears (holdUntil has passed) — the
 // item never needs a separate flip to 'pending', so nothing has to run at exactly
 // holdUntil to make it publishable again.
-const instagramPending = (it) => wantsInstagram(it) && !holdBlock(it) &&
+const instagramPending = (it) => wantsInstagram(it) && !holdBlock(it) && !collabBlock(it) &&
   (it.status === 'pending' || it.status === 'building' || it.status === 'held')
-const facebookPending = (it) => wantsFacebook(it) && !holdBlock(it) &&
+const facebookPending = (it) => wantsFacebook(it) && !holdBlock(it) && !collabBlock(it) &&
   ['pending', 'building', 'held'].includes(it.facebook_status || 'pending')
 
 // /review's own held/pending split — same live check as /status's heldNow/pendingNow (item
@@ -743,7 +744,7 @@ function hasInFlightProgress(it) {
 // the top-level parent/feed post doesn't yet).
 async function resumeIfBuilding(env, ev, budget) {
   const q = await loadQueue(env, ev); if (!q) return null
-  const building = q.items.filter((it) => !holdBlock(it) && hasInFlightProgress(it))
+  const building = q.items.filter((it) => !holdBlock(it) && !collabBlock(it) && hasInFlightProgress(it))
   if (!building.length) return null
   const [item] = await routed(env, ev, q, building)
   if (!item) return null
@@ -966,6 +967,7 @@ function itemAccountLabel(it) {
 }
 
 function itemStatusLabel(it) {
+  if (collabBlock(it)) return 'Waiting for your Collab choice'
   if (reviewHeldNow(it)) return 'Held'
   if (reviewPendingNow(it)) return 'Pending'
   return { posted: 'Posted', vetoed: 'Vetoed', building: 'Building', error: 'Error' }[it.status] || it.status || 'unknown'
@@ -1008,6 +1010,21 @@ function renderItemCard(it, { reviewKey }) {
   // appends both, carousel then Story, to the same queue) — this label is the only thing that
   // distinguishes them, since the header otherwise repeats the same album name.
   const isStory = it.media_type === 'STORIES'
+  const canDecideCollab = !isStory && it.collab?.status === 'ask' && reviewCancelEligible(it)
+  const collabHtml = isStory
+    ? '<div>Collab: this Story follows its carousel. Stories cannot use Collab.</div>'
+    : it.collab?.status === 'ask'
+      ? `<div class="collab-question"><strong>This carousel is waiting for your Collab choice.</strong><br>It will not post until you decide.</div>
+  ${canDecideCollab ? `<form method="POST" action="/review/collab" class="collab-form">
+    <input type="hidden" name="key" value="${esc(reviewKey)}">
+    <input type="hidden" name="id" value="${esc(it.id)}">
+    <label><input type="radio" name="decision" value="nino" required> Collab with @nino.chavez.photo</label>
+    <label><input type="radio" name="decision" value="handles"> Someone else</label>
+    <input name="handles" inputmode="text" autocomplete="off" placeholder="@handle or @handle, @handle">
+    <label><input type="radio" name="decision" value="none"> No Collab</label>
+    <button type="submit" class="collab-save">Save Collab choice</button>
+  </form>` : ''}`
+      : `<div>Collab: ${it.collab?.status === 'none' ? 'No Collab' : (it.collaborators?.length ? it.collaborators.map((handle) => `@${handle}`).join(', ') : 'None')}</div>`
   return `<section class="item" id="${esc(it.id)}">
   <header>
     <h2>${esc(it.album_name || it.album_key || it.id)}${isStory ? ' &middot; Story' : ''}</h2>
@@ -1015,9 +1032,10 @@ function renderItemCard(it, { reviewKey }) {
   </header>
   <div class="meta">
     ${isStory && it.linked_item_id ? `<div>Linked to: ${esc(it.linked_item_id)}</div>` : ''}
-    <div>Account: <strong>${esc(itemAccountLabel(it))}</strong>${Array.isArray(it.collaborators) && it.collaborators.length ? ` &middot; Collab: ${esc(it.collaborators.join(', '))}` : ''}${isStory && Array.isArray(it.user_tags) && it.user_tags.length ? ` &middot; Mentions: ${esc(it.user_tags.map((t) => t.username || t).join(', '))}` : ''}</div>
+    <div>Account: <strong>${esc(itemAccountLabel(it))}</strong>${isStory && Array.isArray(it.user_tags) && it.user_tags.length ? ` &middot; Mentions: ${esc(it.user_tags.map((t) => t.username || t).join(', '))}` : ''}</div>
     ${it.holdUntil ? `<div>Hold until: ${esc(chicagoLabel(it.holdUntil))}</div>` : ''}
     ${nextSlot ? `<div>Next posting slot: ${esc(chicagoLabel(nextSlot))}</div>` : ''}
+    ${collabHtml}
     ${schoolTagsHtml}
   </div>
   <div class="slides">${slides}</div>
@@ -1077,6 +1095,10 @@ pre { white-space: pre-wrap; word-break: break-word; font: 13px/1.5 -apple-syste
 form { margin-top: 10px; }
 button.cancel { width: 100%; padding: 12px; border: 1px solid #5a2020; background: #2a1414;
   color: #ff8a8a; border-radius: 8px; font-size: 15px; font-weight: 600; -webkit-appearance: none; }
+.collab-question { margin-top: 8px; color: #ffcf6a; }
+.collab-form { display: grid; gap: 8px; margin-top: 10px; }
+.collab-form input[name="handles"] { width: 100%; padding: 9px; border: 1px solid #555; border-radius: 6px; color: inherit; background: #14161a; }
+button.collab-save { width: 100%; padding: 12px; border: 1px solid #35613d; background: #17351d; color: #a9efb7; border-radius: 8px; font-size: 15px; font-weight: 600; -webkit-appearance: none; }
 details summary { cursor: pointer; color: #9aa0a6; margin: 8px 0; }
 </style>
 </head>
@@ -1128,15 +1150,20 @@ export default {
         // — nothing flips it back (see hold-shape.mjs's own header) — so counting by that
         // string alone would report an elapsed, about-to-publish hold as still held. isHeld()
         // is the same still-blocked check the publishers themselves use; "pending" here means
-        // "would be picked up by the next tick," which includes an elapsed hold.
-        const heldNow = (i) => i.status === 'held' && isHeld(i)
-        const pendingNow = (i) => i.status === 'pending' || (i.status === 'held' && !isHeld(i))
-        const facebookHeldNow = (i) => (i.facebook_status || 'pending') === 'held' && isHeld(i)
-        const facebookPendingNow = (i) => (i.facebook_status || 'pending') === 'pending' || ((i.facebook_status || 'pending') === 'held' && !isHeld(i))
+        // "would be picked up by the next tick," which includes an elapsed hold. A carousel waiting
+        // for Nino's Collab choice is neither: no tick will pick it up until he answers, so it is
+        // counted on its own (awaitingCollab) and kept out of both.
+        const awaitingCollab = (i) => !!collabBlock(i)
+        const heldNow = (i) => i.status === 'held' && isHeld(i) && !awaitingCollab(i)
+        const pendingNow = (i) => (i.status === 'pending' || (i.status === 'held' && !isHeld(i))) && !awaitingCollab(i)
+        const facebookHeldNow = (i) => (i.facebook_status || 'pending') === 'held' && isHeld(i) && !awaitingCollab(i)
+        const facebookPendingNow = (i) => ((i.facebook_status || 'pending') === 'pending' || ((i.facebook_status || 'pending') === 'held' && !isHeld(i))) && !awaitingCollab(i)
         out.events[ev] = { total: q.items.length, posted: by('posted'),
           pending: q.items.filter(pendingNow).length,
           held: q.items.filter(heldNow).length,
           heldItems: q.items.filter(heldNow).map((i) => ({ id: i.id, holdUntil: i.holdUntil })),
+          awaitingCollab: q.items.filter(awaitingCollab).length,
+          awaitingCollabItems: q.items.filter(awaitingCollab).map((i) => i.id),
           building: by('building'), error: by('error'),
           route: entry ? { approved: entry.approved, accounts: entry.accounts, expires: entry.expires ?? null }
             : q.meta?.route ? 'incomplete' : 'none',
@@ -1164,6 +1191,37 @@ export default {
       const q = await loadQueue(env, 'gallery-announce')
       const html = renderReviewPage({ queue: q, key: url.searchParams.get('key') })
       return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', ...NO_STORE } })
+    }
+    if (url.pathname === '/review/collab') {
+      if (req.method !== 'POST') return new Response('method not allowed', { status: 405, headers: NO_STORE })
+      let form = null
+      try { form = await req.formData() } catch { form = null }
+      const key = form?.get('key') ?? null
+      const id = form?.get('id') ?? null
+      const decision = form?.get('decision') ?? null
+      const handles = form?.get('handles') ?? null
+      if (!authorizedReview(env, key)) return new Response('forbidden', { status: 403, headers: NO_STORE })
+      if (!id) return new Response('missing id', { status: 400, headers: NO_STORE })
+      const q = await loadQueue(env, 'gallery-announce')
+      if (!q) return new Response('no gallery-announce queue', { status: 404, headers: NO_STORE })
+      const existing = q.items.find((it) => it.id === id)
+      if (existing && !reviewCancelEligible(existing)) {
+        const why = hasInFlightProgress(existing) ? 'a publish is already in flight for it' : `item is "${existing.status}", not held or pending`
+        return new Response(`not eligible to set Collab — ${why}`, { status: 400, headers: NO_STORE })
+      }
+      const result = decideCollab(q, id, { choice: decision, handles }, { accountHandles: Object.fromEntries(Object.entries(ACCOUNTS).map(([slug, acct]) => [slug, acct.handle])) })
+      if (result.refused) return new Response(result.refused, { status: 400, headers: NO_STORE })
+      // The Collab gate means the Worker cannot begin this carousel while it is unanswered.
+      // Still, keep the same re-read-before-write guard as /review/cancel: another human
+      // action can mutate this whole KV value between our read and write.
+      if (JSON.stringify(await loadQueue(env, 'gallery-announce')) !== JSON.stringify(q)) {
+        return new Response('the queue changed since this request read it — reload /review and try again', { status: 409, headers: NO_STORE })
+      }
+      await persistQueue(env, 'gallery-announce', result.queue)
+      return new Response(null, {
+        status: 303,
+        headers: { location: `${url.origin}/review?key=${encodeURIComponent(key)}#${encodeURIComponent(id)}`, ...NO_STORE },
+      })
     }
     if (url.pathname === '/review/cancel') {
       if (req.method !== 'POST') return new Response('method not allowed', { status: 405, headers: NO_STORE })

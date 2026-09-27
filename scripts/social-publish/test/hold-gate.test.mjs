@@ -39,7 +39,7 @@ function sandbox({ routes = { events: {} }, item, items = [item] } = {}) {
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
   mkdirSync(join(root, 'tools', 'lib'), { recursive: true })
-  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'tag-params.mjs', 'carousel-container-params.mjs', 'post-reels.mjs', 'accounts.json', 'vary-captions.mjs'])
+  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'collab-shape.mjs', 'tag-params.mjs', 'carousel-container-params.mjs', 'post-reels.mjs', 'accounts.json', 'vary-captions.mjs'])
     cpSync(join(SOCIAL, f), join(social, f))
   cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
   cpSync(join(REPO, 'reader-contract.json'), join(root, 'reader-contract.json'))
@@ -99,6 +99,17 @@ test('the same item publishes once holdUntil has passed', async () => {
     assert.equal(r.code, 0, `${r.out}\n${r.err}`)
     assert.ok(graph.seen.some((s) => s.endsWith('/media_publish')), `stub never saw a publish: ${graph.seen.join(', ')}`)
     assert.equal(JSON.parse(readFileSync(sb.queuePath, 'utf8')).items[0].status, 'posted')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('an undecided Collab carousel never publishes locally, even after its timed hold and with --force', async () => {
+  const item = baseItem({ status: 'held', holdUntil: new Date(Date.now() - 1000).toISOString(), collab: { status: 'ask' } })
+  const sb = sandbox({ routes: STANDING, item }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--force'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 0, `${r.out}\n${r.err}`)
+    assert.deepEqual(graph.seen, [], 'the Collab-ask carousel reached the Graph API')
+    assert.match(r.out, /Nothing due/)
   } finally { await graph.close(); sb.cleanup() }
 })
 

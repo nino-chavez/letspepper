@@ -268,6 +268,18 @@ test('heldNotification: hasStory adds a short title suffix, no second alert, mes
   assert.equal(withStory.message, without.message, 'the Story adds no extra reading — same outcome/action text')
 })
 
+test('heldNotification: an undecided Collab sends Nino directly to Review and never claims it posts on its own', () => {
+  const n = heldNotification({
+    shortName: 'JCA at ACC', photoCount: 10,
+    holdUntilIso: '2026-09-27T03:08:00.000Z', nextSlotIso: '2026-09-27T17:00:00.000Z',
+    reviewUrl: 'https://letspepper-reels-worker.biq.workers.dev/review?key=k#i',
+    reviewCancelUrl: 'https://letspepper-reels-worker.biq.workers.dev/review/cancel?key=k&id=i',
+    collabAsk: true,
+  })
+  assert.equal(n.message, 'This post is waiting for your Collab choice. Choose in Review. It will not post until you decide.')
+  assert.doesNotMatch(n.message, /posts on its own/i)
+})
+
 test('postedNotification: outcome-first title, a View-on-<channel> button, no account slug', () => {
   const n = postedNotification({ albumName: 'JCA at ACC', channel: 'instagram', permalink: 'https://instagram.com/p/abc', collaborator: 'flickday.media' })
   assert.equal(n.title, 'Posted: JCA at ACC')
