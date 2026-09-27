@@ -165,6 +165,39 @@ test('school tags: user_tags rides the FIRST child\'s own container request, nev
   assert.deepEqual(JSON.parse(parentCall.body.collaborators), ['nino.chavez.photo'])
 })
 
+test('school tags: a Graph rejection of the tagged slide retries WITHOUT tags rather than failing the whole carousel', async () => {
+  const queue = carouselQueue()
+  delete queue.items[0].channels
+  queue.items[0].channels = ['instagram']
+  queue.items[0].children[0].user_tags = [{ username: 'nccwomensvb', x: 0.08, y: 0.92 }]
+  const captured = []
+  let rejectNext = true
+  const fetchImpl = async (input, init = {}) => {
+    const url = new URL(String(input))
+    const method = init.method || 'GET'
+    const body = init.body instanceof URLSearchParams ? init.body : new URLSearchParams()
+    captured.push({ method, path: url.pathname, body: Object.fromEntries(body) })
+    if (method === 'POST' && url.pathname.endsWith('/17841474039989310/media')) {
+      if (body.get('user_tags') && rejectNext) {
+        rejectNext = false
+        return Response.json({ error: { message: 'Media could not be tagged with the specified user.' } }, { status: 400 })
+      }
+      return Response.json({ id: `ig-child-${captured.length}` })
+    }
+    if (method === 'POST' && url.pathname.endsWith('/17841474039989310/media_publish')) return Response.json({ id: 'ig-media' })
+    if (method === 'GET' && /\/ig-child-/.test(url.pathname)) return Response.json({ status_code: 'FINISHED' })
+    throw new Error(`Unexpected Graph request: ${method} ${url}`)
+  }
+  const result = await runQueue(queue, fetchImpl)
+  assert.equal(result.items[0].status, 'posted', 'the post still succeeds even though one slide\'s tags were rejected')
+  assert.match(result.items[0].school_tags_publish_error, /could not be tagged/)
+
+  const taggedAttempts = captured.filter((c) => c.path.endsWith('/17841474039989310/media') && c.body.user_tags)
+  assert.equal(taggedAttempts.length, 1, 'the tagged attempt was made exactly once, then not retried WITH tags again')
+  const retryCall = captured.find((c, i) => i > captured.indexOf(taggedAttempts[0]) && c.path.endsWith('/17841474039989310/media') && c.body.is_carousel_item === 'true' && !c.body.user_tags)
+  assert.ok(retryCall, 'the same slide was retried without user_tags')
+})
+
 test('a resumed carousel upload continues from the photo it already has, not from zero', async () => {
   const queue = carouselQueue()
   queue.items[0].facebook_status = 'building'

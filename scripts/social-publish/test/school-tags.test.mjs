@@ -100,6 +100,14 @@ test('confirmHandle: no token — never calls fetch, reason says why', async () 
   assert.match(r.reason, /no Meta token/)
 })
 
+test('confirmHandle: a handle with field-expression-breaking characters is refused before any fetch', async () => {
+  let called = false
+  const r = await confirmHandle('bad)handle{x', { token: 't', fetchImpl: async () => { called = true } })
+  assert.equal(r.confirmed, false)
+  assert.equal(called, false)
+  assert.match(r.reason, /not a plausible Instagram username/)
+})
+
 test('confirmHandle: a Graph error, a mismatched username, or a thrown fetch all fail closed, never throw', async () => {
   const errored = await confirmHandle('h', { token: 't', fetchImpl: async () => Response.json({ error: { message: 'bad' } }) })
   assert.equal(errored.confirmed, false)

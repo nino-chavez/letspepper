@@ -27,6 +27,15 @@ import { isCollegeAlbum, rotationDataUrl, findMatchupRow, normalizeTeamName } fr
 // publisher already uses (accounts.json).
 const BUSINESS_DISCOVERY_ID = '17841474039989310'
 const GRAPH = 'https://graph.facebook.com/v21.0'
+// Instagram's own username character set (letters, digits, periods, underscores; max 30).
+// Checked BEFORE a handle is pasted into the business_discovery field expression
+// (`business_discovery.username(<handle>){...}`) — that's a field-syntax position, not a URL
+// one, so encodeURIComponent (applied to the whole `fields` value, not this substring) does
+// not protect it: a handle containing `)` or `{` would change what the expression asks for.
+// The eventual username-echo check below already fails closed either way, so this is
+// defense in depth against a malformed handle (from a bad Rotation harvest, say) ever
+// reaching the request at all.
+const IG_USERNAME_RE = /^[A-Za-z0-9._]{1,30}$/
 
 /**
  * The album's two teams, independent of match `state` — reuses rotation-result.mjs's own
@@ -78,6 +87,7 @@ export function pickSocialHandle(socialEntries = []) {
  */
 export async function confirmHandle(handle, { fetchImpl = fetch, token } = {}) {
   if (!handle) return { confirmed: false, reason: 'no handle to confirm' }
+  if (!IG_USERNAME_RE.test(handle)) return { confirmed: false, reason: `"${handle}" is not a plausible Instagram username — refusing to send it to business_discovery` }
   if (!token) return { confirmed: false, reason: 'no Meta token available to confirm this handle' }
   try {
     const fields = `business_discovery.username(${handle}){username,name}`

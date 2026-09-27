@@ -230,10 +230,28 @@ async function buildContainer(token, ig, it, budget, persist) {
       // image or image media in a carousel" — an IMAGE child only, never VIDEO.
       // user_tags: same reference — supported on an image child's OWN request (never on the
       // VIDEO branch: x/y user_tags is an images-only field), never inherited from `it`.
+      const tagParamsForChild = userTagsParams(child)
       const base = child.media_type === 'VIDEO'
         ? { media_type: 'VIDEO', video_url: child.video_url }
-        : { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}), ...userTagsParams(child) }
-      const { id } = await api(token, `${ig}/media`, { ...base, is_carousel_item: 'true' })
+        : { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}), ...tagParamsForChild }
+      let id
+      try {
+        ({ id } = await api(token, `${ig}/media`, { ...base, is_carousel_item: 'true' }))
+      } catch (e) {
+        // A school tag Meta rejects (the tagged account restricts tagging, a malformed
+        // handle slipped through, etc.) must never fail the WHOLE carousel over one slide's
+        // decoration — confirmHandle() already re-confirmed the account exists, but Meta's
+        // media_publish-time tagging rules are a separate, undocumented check this code
+        // cannot predict. Retry the same slide once, without the tags, rather than losing
+        // the entire album's announcement over it. Never swallows a budget Deferred (that's
+        // "come back next tick," not "this request failed") or a VIDEO child (no tags ever
+        // sent there, so a rejection there is a real error).
+        if (e instanceof Deferred || child.media_type === 'VIDEO' || !tagParamsForChild.user_tags) throw e
+        console.error(`buildContainer: carousel child ${i} rejected with school tags (${e.message}) — retrying slide ${i + 1} without them`)
+        it.school_tags_publish_error = e.message
+        if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted retrying IG carousel child without tags')
+        ;({ id } = await api(token, `${ig}/media`, { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}), is_carousel_item: 'true' }))
+      }
       if (child.media_type === 'VIDEO') await pollStatus(token, id, 75000, budget)
       childIds.push(id)
       if (persist) await persist() // persist THIS child's id before starting the next one
@@ -950,7 +968,11 @@ function renderItemCard(it, { reviewKey }) {
   const pending = it.school_tags?.pending || []
   const schoolTagsHtml =
     (tagged.length ? `<div>School tags: ${tagged.map((t) => `@${esc(t.handle)} (${esc(t.albumTeamName)})`).join(', ')}</div>` : '') +
-    (pending.length ? `<div>Add by hand: ${pending.map((t) => `${esc(t.albumTeamName)}${t.handle ? ` (@${esc(t.handle)} unconfirmed)` : ' (no handle found)'}`).join('; ')}</div>` : '')
+    (pending.length ? `<div>Add by hand: ${pending.map((t) => `${esc(t.albumTeamName)}${t.handle ? ` (@${esc(t.handle)} unconfirmed)` : ' (no handle found)'}`).join('; ')}</div>` : '') +
+    // Set only when buildContainer retried a slide without its tags at PUBLISH time (Meta
+    // rejected them for a reason confirmHandle() could not predict) — a confirmed tag that
+    // still didn't make it onto the live post, worth a look even after the post is up.
+    (it.school_tags_publish_error ? `<div>Instagram rejected a school tag when posting: ${esc(it.school_tags_publish_error)} — posted without it.</div>` : '')
   return `<section class="item" id="${esc(it.id)}">
   <header>
     <h2>${esc(it.album_name || it.album_key || it.id)}</h2>
