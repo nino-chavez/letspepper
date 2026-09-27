@@ -106,6 +106,20 @@ function carouselFetch({ photoIds = ['fb-photo-1', 'fb-photo-2'], feedId = 'fb-f
   }
 }
 
+test('an undecided Collab carousel is not published by the Worker, even when scheduled and forced', async () => {
+  const calls = []
+  const queue = carouselQueue()
+  queue.items[0].collab = { status: 'ask' }
+  queue.items[0].collaborators = []
+  const result = await runQueue(queue, async (input) => {
+    calls.push(String(input))
+    throw new Error('the undecided carousel must not reach Graph')
+  })
+  assert.deepEqual(calls, [])
+  assert.equal(result.items[0].status, 'pending')
+  assert.equal(result.items[0].facebook_status, 'pending')
+})
+
 test('Facebook carousel crosspost: uploads each child unpublished with alt text, then attaches them to one feed post', async () => {
   const captured = []
   const queue = await runQueue(carouselQueue(), carouselFetch({ captured }))
