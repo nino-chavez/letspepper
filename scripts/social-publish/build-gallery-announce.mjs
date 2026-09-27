@@ -89,10 +89,10 @@ import { readLive } from './seed-kv.mjs'
 import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor } from './notify.mjs'
 import { loadRoutes, standingEntry } from './route-gate.mjs'
 import { companionStoryText, companionStoryHtml, companionStoryItem, renderCompanionStoryImage } from './companion-story.mjs'
+import { cfLarge as cfLargeSource, galleryPhotoSource, r2PutPhoto } from './gallery-photo-source.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
-const CF_HASH = 'wg34HB28-JkySWVm5fW4kA' // Cloudflare Images account hash (public) — same as build-album-carousel.mjs
 const IG_CAROUSEL_MAX = 10
 // Where a confirmed school tag lands on the carousel's first slide — near the bottom edge,
 // spread left/right so two tags never overlap and neither sits over the action in the frame
@@ -127,7 +127,7 @@ export function slugify(text = '') {
 }
 export function createAlbumSlug(albumName, albumKey) { return `${slugify(albumName)}-${albumKey}` }
 
-export function cfLarge(id) { return `https://imagedelivery.net/${CF_HASH}/${id}/large` }
+export function cfLarge(id) { return cfLargeSource(id) }
 
 /** Account slug for the item, from Nino's "by series and collab with flickday" answer. */
 export function accountForSeries(series) { return series === 'lpo' ? 'letspepper' : 'ninophoto' }
@@ -301,18 +301,10 @@ export function nextStepMessage(hasRoute) {
     : 'Next: seed-kv.mjs --event gallery-announce --append --put once graph-routes.json carries the standing route for "gallery-announce" — it does not yet.'
 }
 
-/** Re-hosts one photo on R2 as jpeg (Instagram rejects webp) — same approach as
- * build-album-carousel.mjs. NEVER called in --dry-run. */
-async function r2Put({ bucket, publicBase, event, cfId, key }) {
+/** Re-hosts exact JPEG bytes on R2. HDR rows use /api/hdr/<photo_id>; no transform occurs. */
+async function r2Put({ bucket, publicBase, event, photo, site, key }) {
   const tmp = join(tmpdir(), `galann-${key.replace(/\W/g, '_')}.jpg`)
-  const res = await fetch(cfLarge(cfId), { headers: { accept: 'image/jpeg' } })
-  const ct = res.headers.get('content-type') || ''
-  if (!res.ok || !/image\/jpeg/.test(ct)) throw new Error(`bad image for ${cfId} (${res.status} ${ct})`)
-  writeFileSync(tmp, Buffer.from(await res.arrayBuffer()))
-  const objectKey = `${event}/${key}.jpg`
-  execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${bucket}/${objectKey}`,
-    `--file=${tmp}`, '--content-type=image/jpeg', '--remote'], { stdio: ['ignore', 'ignore', 'inherit'] })
-  return `${publicBase}/${objectKey}`
+  return r2PutPhoto({ bucket, publicBase, event, photo, site, key, tmp })
 }
 
 /** Same wrangler upload r2Put() uses, but for a file already on disk (the rendered companion
@@ -411,8 +403,11 @@ export async function main(argv = process.argv.slice(2)) {
     ...(usingVision ? { apiKey: resolveOpenRouterKey(), model: typeof args.model === 'string' ? args.model : undefined } : {}),
   })
   if (!selection.picks.length) throw new Error('No images selected (all hard-blocked, or none had a cf_image_id).')
+  // Portraits are fine as they are: the 2026-09-26 Millikin carousel went out with 2:3 slides
+  // (1600x2399) and Instagram kept them 2:3 (1440x2159). Never crop here; it would strip HDR.
+  const { picks, selectedOf } = selection
 
-  console.log(`Album ${albumKey}: ${selection.selectedOf} selected` +
+  console.log(`Album ${albumKey}: ${selectedOf} selected` +
     (selection.strategy === 'vision'
       ? ` (vision model pick${selection.fallbackUsed ? `, FELL BACK: ${selection.fallbackReason}` : ` — cost $${(selection.costUsd ?? 0).toFixed(4)}`})`
       : selection.usedQuality ? ' (ranked by quality score)' : ' (quality score flat/unusable — ranked by caption heuristic)'))
@@ -431,21 +426,24 @@ export async function main(argv = process.argv.slice(2)) {
   // here so the alert's "Posts <slot>" title is no longer a claim the Worker can contradict.
   const nextSlot = nextAllowedSlot(holdUntil, allowedHoursUtc())
 
-  // Children: real R2 hosting for a live build, imagedelivery.net large URLs (unhosted,
-  // labeled as such) for --dry-run — never touch R2 in a dry run.
+  // Children: real R2 hosting for a live build. HDR rows fetch the photography
+  // site's JPEG and copy its bytes directly to R2; dry runs only name that source.
   const children = []
-  for (let i = 0; i < selection.picks.length; i++) {
-    const p = selection.picks[i]
+  for (let i = 0; i < picks.length; i++) {
+    const p = picks[i]
     const n = String(i + 1).padStart(2, '0')
     const altText = altTextFromCaption(p.caption)
-    const imageUrl = dryRun ? cfLarge(p.cf_image_id) : await r2Put({ bucket, publicBase, event: `${EVENT}-${albumKey}`, cfId: p.cf_image_id, key: `slide-${n}` })
-    children.push({ media_type: 'IMAGE', image_url: imageUrl, alt_text: altText, _source: dryRun ? 'imagedelivery.net (NOT yet re-hosted on R2 — dry-run only)' : 'r2', _image_key: p.image_key })
+    const source = galleryPhotoSource(p, site)
+    const hosted = dryRun
+      ? { url: source.url, source }
+      : await r2Put({ bucket, publicBase, event: `${EVENT}-${albumKey}`, photo: p, site, key: `slide-${n}` })
+    children.push({ media_type: 'IMAGE', image_url: hosted.url, alt_text: altText, _source: dryRun ? `${source.kind} (NOT yet re-hosted on R2 — dry-run only)` : `r2 (${hosted.source.kind})`, _image_key: p.image_key })
   }
   const taggedChildren = applySchoolTagsToChildren(children, schoolTags.tags)
 
   const captionArgs = {
     albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
-    galleryUrl, selectedOf: selection.selectedOf, series, result: matchResult, schoolTags: schoolTags.tags,
+    galleryUrl, selectedOf, series, result: matchResult, schoolTags: schoolTags.tags,
   }
   const caption = buildGalleryAnnounceCaption({ ...captionArgs, channel: 'instagram' })
   const facebookCaption = buildGalleryAnnounceCaption({ ...captionArgs, channel: 'facebook' })
@@ -491,7 +489,7 @@ export async function main(argv = process.argv.slice(2)) {
     account,
     collaborators: item.collaborators,
     content: 'carousel',
-    assets: selection.selectedOf,
+    assets: selectedOf,
     selected: taggedChildren.map((c, i) => {
       const p = perPhotoByKey.get(c._image_key)
       return {
