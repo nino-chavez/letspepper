@@ -90,6 +90,7 @@ test('HDR rows source the photography HDR route, copy its JPEG bytes unchanged t
   assert.deepEqual(written, bytes, 'the upload staging bytes must exactly equal the HDR response')
   assert.equal(result.url, 'https://pub.example.test/gallery-announce-Re7kho/slide-01.jpg')
   assert.equal(result.source.kind, 'hdr')
+  assert.ok(result.tmp, 'callers build the contact sheet from the staged file, so it must be returned')
   assert.equal(command[0], 'npx')
   assert.ok(command[1].includes('--file=/tmp/hdr-slide.jpg'))
 })

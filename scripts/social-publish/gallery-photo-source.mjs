@@ -43,5 +43,7 @@ export async function r2PutPhoto({ photo, site, bucket, publicBase, event, key, 
   const objectKey = `${event}/${key}.jpg`
   execFileSyncImpl('npx', ['wrangler', 'r2', 'object', 'put', `${bucket}/${objectKey}`,
     `--file=${tmp}`, '--content-type=image/jpeg', '--remote'], { stdio: ['ignore', 'ignore', 'inherit'] })
-  return { url: `${publicBase}/${objectKey}`, source }
+  // tmp: the staged file, which build-album-carousel.mjs and build-top-shots.mjs also feed to
+  // `montage` for the pre-publish contact sheet.
+  return { url: `${publicBase}/${objectKey}`, source, tmp }
 }
