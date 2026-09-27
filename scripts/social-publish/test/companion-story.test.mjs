@@ -203,7 +203,7 @@ test('control: the same 2:3 case DOES fail this check under object-fit:cover —
 
 // --- image dimensions (real render) ------------------------------------------
 
-test('renderCompanionStoryImage: writes an exact 1080x1920 PNG', async (t) => {
+test('renderCompanionStoryImage: writes an exact 1080x1920 PNG', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'companion-story-render-'))
   const outPath = join(dir, 'story.png')
   try {
