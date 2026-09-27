@@ -354,6 +354,34 @@ test('seed-kv copies the graph-routes.json entry into meta.route, and the Worker
   assert.equal(item.status, 'posted')
 })
 
+// media_types (2026-09-26, gallery-announce companion Story): the Worker cannot read
+// graph-routes.json at all, so this field's only path from Nino's approval to the deployed
+// queue is through here. Dropping it (as an earlier draft of seedPayload() did, by
+// destructuring only reason/approved/accounts/expires) would mean an approval that LOOKS
+// complete in the tracked file could never actually reach the Worker.
+test('seed-kv copies media_types through into meta.route when the entry carries one, and the Worker then honors it', async () => {
+  const q = withRoute(queueWithItem(), undefined)
+  q.items[0].media_type = 'STORIES'
+  q.items[0].channels = ['instagram'] // Stories have no Facebook crosspost in this pipeline
+  q.items[0].image_url = 'https://cdn.example.test/story.png'
+  const entry = { ...ROUTE, media_types: ['IMAGE', 'STORIES'] }
+  const { payload, refused } = seedPayload(q, EVENT, routesWith(entry))
+  assert.equal(refused, undefined)
+  assert.deepEqual(payload.meta.route.media_types, ['IMAGE', 'STORIES'])
+  // A minimal STORIES-capable stub (IMAGE containers skip pollStatus entirely, so graphFetch()'s
+  // existing handlers don't cover the GET status poll a non-IMAGE container needs).
+  const storiesFetch = async (input, init = {}) => {
+    const url = new URL(String(input))
+    const method = init.method || 'GET'
+    if (method === 'POST' && url.pathname.endsWith('/17841475435692331/media')) return Response.json({ id: 'ig-story-container' })
+    if (method === 'GET' && url.pathname.endsWith('/ig-story-container')) return Response.json({ status_code: 'FINISHED' })
+    if (method === 'POST' && url.pathname.endsWith('/media_publish')) return Response.json({ id: 'ig-story-media' })
+    throw new Error(`Unexpected Graph request: ${method} ${url}`)
+  }
+  const item = (await runQueue(payload, storiesFetch)).items[0]
+  assert.equal(item.status, 'posted', 'the Story actually published once media_types covered it')
+})
+
 test('seed-kv refuses without a complete, current entry naming every account', () => {
   const q = withRoute(queueWithItem(), undefined)
   assert.match(seedPayload(q, EVENT, { events: {} }).refused, /no complete entry/)

@@ -21,6 +21,13 @@
  *                   --graph-route "<Nino's words>" to the publishing command.
  *                   The receipt stays on the item in the queue ledger.
  *
+ * A standing route is also narrowed by MEDIA TYPE (2026-09-26, added for the gallery-announce
+ * companion Story): an entry with no `media_types` field covers every type except STORIES —
+ * unchanged behavior for every route approved before this field existed — and STORIES needs an
+ * explicit `"media_types": [..., "STORIES"]` opt-in. See route-shape.mjs's coversMediaType().
+ * "gallery-announce" was approved for carousels; Stories were never asked about, so that field
+ * stays OFF its entry until Nino says otherwise.
+ *
  * A one-off is ONE post, and it is the post Nino NAMED. Without a standing route
  * a run may publish exactly one item, and that item has to be picked with --id:
  * `--count 1` on a queue with several due items would otherwise publish whichever
@@ -52,7 +59,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { filled, standingEntry, entryCovers } from './route-shape.mjs'
+import { filled, standingEntry, entryCovers, coversMediaType } from './route-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 // Fixed path, no env override: an override would be a way to point the
@@ -80,9 +87,11 @@ export { standingEntry, entryCovers }
  * A standing route covers a run only for the accounts it names, and only until
  * it expires. `accounts` are the accounts this run would publish to, after any
  * --account override — so an approved campaign cannot be pointed somewhere else.
+ * `mediaTypes` (default `[]`, so every 3/4-arg caller is unaffected) additionally requires the
+ * entry to cover every media type in the batch — see route-shape.mjs's coversMediaType().
  */
-export function hasStandingRoute(event, routes, accounts = [], now = new Date()) {
-  return entryCovers(standingEntry(event, routes), accounts, now)
+export function hasStandingRoute(event, routes, accounts = [], now = new Date(), mediaTypes = []) {
+  return entryCovers(standingEntry(event, routes), accounts, now, mediaTypes)
 }
 
 const wellFormed = (r) => !!r && typeof r === 'object' && r.surface === 'graph' &&
@@ -166,7 +175,9 @@ export function makeReceipt(reason, via, now = new Date(), digest = '') {
  */
 export function checkRoute({ event, items, routes, reasonFlag, now = new Date(), named = true, candidates = items.length, account }) {
   const accounts = [...new Set(items.map((it) => account || it.account).filter(Boolean))]
-  if (hasStandingRoute(event, routes, accounts, now)) return { ok: true, kind: 'standing', missing: [], stale: [], changed: [], stamp: [] }
+  const mediaTypes = [...new Set(items.map((it) => it.media_type || 'REELS'))]
+  const entry = standingEntry(event, routes)
+  if (hasStandingRoute(event, routes, accounts, now, mediaTypes)) return { ok: true, kind: 'standing', missing: [], stale: [], changed: [], stamp: [] }
   const missing = items.filter((it) => !hasReceipt(it, now, account, event))
   const stale = items.filter((it) => isExpired(it, now))
   const changed = items.filter((it) => isChanged(it, now, account, event))
@@ -177,7 +188,12 @@ export function checkRoute({ event, items, routes, reasonFlag, now = new Date(),
   const reason = cleanReason(reasonFlag)
   if (reason) return { ok: true, kind: 'one-off', missing: [], stale: [], changed: [], stamp: missing, reason }
   if (reasonFlag !== undefined) return no('reason')
-  const entry = standingEntry(event, routes)
+  // A one-off reason is Nino's own words for THIS post, so it isn't gated by media_types
+  // (that field only narrows a STANDING campaign approval — see route-shape.mjs). But an entry
+  // that otherwise covers the account, missing only the media-type opt-in, gets its own
+  // refusal category rather than the generic "scope" one, so the message actually says what's
+  // missing (see refusal() below).
+  if (entry && !mediaTypes.every((mt) => coversMediaType(entry, mt))) return no('media_type')
   return no(entry ? 'scope' : 'route')
 }
 
@@ -200,6 +216,9 @@ export function refusal({ event, items = [], missing = [], stale = [], changed =
       : null,
     why === 'scope'
       ? `"${event}" has a standing route, but not for this run: it names the accounts it covers and may carry an expiry, and --account cannot point an approved campaign somewhere else. Read its entry in graph-routes.json.\n`
+      : null,
+    why === 'media_type'
+      ? `"${event}" has a standing route, but it does not cover ${[...new Set(items.map((it) => it.media_type || 'REELS'))].filter((t) => t !== 'CAROUSEL' && t !== 'REELS' && t !== 'IMAGE').join(', ') || 'this media type'}: a route with no "media_types" field covers every type except STORIES. Nino has to approve Stories for this campaign — add "media_types": [..., "STORIES"] to its graph-routes.json entry.\n`
       : null,
     stale.length
       ? `${list(stale)}: the route receipt is older than ${RECEIPT_TTL_HOURS}h. Approval for an ad hoc post means "now" — ask again before publishing it.\n`

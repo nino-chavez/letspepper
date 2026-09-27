@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createAlbumSlug, slugify, accountForSeries, appendGalleryAnnounceItem, nextStepMessage, main } from '../build-gallery-announce.mjs'
+import { verifyPng } from '../../story-assets/preflight.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const RE7KHO = JSON.parse(readFileSync(join(HERE, 'fixtures', 're7kho-photos.json'), 'utf8'))
@@ -109,6 +110,12 @@ test('main(): --dry-run produces a manifest at --out and touches nothing else', 
     assert.notEqual(result.item.scheduledAt, result.item.holdUntil)
     assert.ok(new Date(result.item.scheduledAt).getTime() >= new Date(result.item.holdUntil).getTime())
     assert.ok([17, 22].includes(new Date(result.item.scheduledAt).getUTCHours()), 'scheduledAt must land exactly on an ALLOWED_HOURS_UTC slot')
+
+    // Companion Story: rendered next to the manifest, linked to the carousel, exact dimensions.
+    assert.equal(result.story.item.linked_item_id, result.item.id)
+    assert.equal(result.story.item.media_type, 'STORIES')
+    assert.equal(result.story.item.account, result.item.account)
+    verifyPng(result.story.imagePath, { width: 1080, height: 1920 })
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 

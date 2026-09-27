@@ -59,6 +59,17 @@
  *   --site <url>           gallery base. Default https://ninochavez.co/photography.
  *   --bucket / --public-base   R2 target for a REAL (non-dry-run) build. Same
  *                          defaults as build-album-carousel.mjs (flickday-social).
+ *   --story-out <path>     dry-run only: write the companion Story PNG here instead of
+ *                          .temp/gallery-announce-<key>-story.dry-run.png.
+ *
+ * Companion Story (2026-09-26): every build also produces a Story item (media_type STORIES),
+ * linked to its carousel, same account and hold window, scheduled a few minutes after it. Its
+ * image is a fresh 1080x1920 render of the carousel's lead slide with a matchup + date overlay
+ * (companion-story.mjs) — appended to the SAME queue right after the carousel, so /review and
+ * the HELD alert show it next to its carousel. Vetoing the carousel cascades to the Story
+ * (veto-shape.mjs); the route gate refuses to publish it unless graph-routes.json's
+ * "gallery-announce" entry explicitly lists "STORIES" in a "media_types" array, which it does
+ * not yet — Nino has not approved Stories for this campaign (see SETUP.md).
  */
 import { writeFileSync, mkdirSync, readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -73,6 +84,7 @@ import { schoolTagsForAlbum } from './school-tags.mjs'
 import { readLive } from './seed-kv.mjs'
 import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor } from './notify.mjs'
 import { loadRoutes, standingEntry } from './route-gate.mjs'
+import { companionStoryText, companionStoryHtml, companionStoryItem, renderCompanionStoryImage } from './companion-story.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
@@ -299,6 +311,15 @@ async function r2Put({ bucket, publicBase, event, cfId, key }) {
   return `${publicBase}/${objectKey}`
 }
 
+/** Same wrangler upload r2Put() uses, but for a file already on disk (the rendered companion
+ * Story PNG) instead of a Cloudflare Images fetch — NEVER called in --dry-run. */
+function r2PutLocalFile({ bucket, publicBase, event, filePath, key, contentType = 'image/png' }) {
+  const objectKey = `${event}/${key}`
+  execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${bucket}/${objectKey}`,
+    `--file=${filePath}`, `--content-type=${contentType}`, '--remote'], { stdio: ['ignore', 'ignore', 'inherit'] })
+  return `${publicBase}/${objectKey}`
+}
+
 /**
  * --refresh-caption: rebuild the caption of this album's LIVE queue item. KV, not the local
  * queue file, is the record of what the Worker has published, so both the item's facts
@@ -507,6 +528,25 @@ export async function main(argv = process.argv.slice(2)) {
     usedQuality: selection.usedQuality,
   }
 
+  // Companion Story (2026-09-26) — one per carousel, linked to it, same account and hold
+  // window, scheduled STORY_DELAY_MINUTES after the carousel's own scheduledAt. Derived
+  // entirely from `item` (already built above) so the two can never disagree on account,
+  // series, schedule, or which school tags were actually confirmed. See companion-story.mjs's
+  // header for the crop choice, the tag rules, and what Stories do and don't support.
+  const storyText = companionStoryText(albumName, { teams: args.teams, eventDateLabel: args['event-date'] })
+  const storyHtml = companionStoryHtml({ imageUrl: children[0].image_url, matchup: storyText.matchup, dateLabel: storyText.dateLabel })
+  // Dry run: rendered next to the manifest so it can be opened and eyeballed, same --out
+  // convention as the manifest itself. Real build: rendered to a scratch temp file, then
+  // uploaded to R2 like every carousel slide — the local render is never the published asset.
+  const storyOutDir = dryRun ? (typeof args.out === 'string' ? dirname(args.out) : join(HERE, '..', '..', '.temp')) : tmpdir()
+  const storyLocalPath = typeof args['story-out'] === 'string' ? args['story-out']
+    : join(storyOutDir, dryRun ? `gallery-announce-${albumKey}-story.dry-run.png` : `galann-${albumKey}-story.png`)
+  await renderCompanionStoryImage({ html: storyHtml, outPath: storyLocalPath })
+  const storyImageUrl = dryRun
+    ? pathToFileURL(storyLocalPath).href // local file, unhosted — mirrors the carousel's own dry-run convention
+    : r2PutLocalFile({ bucket, publicBase, event: `${EVENT}-${albumKey}`, filePath: storyLocalPath, key: 'story.png' })
+  const storyItem = companionStoryItem(item, { imageUrl: storyImageUrl })
+
   if (dryRun) {
     // --out lets a test (or an operator comparing two runs) point the manifest
     // somewhere other than the repo's real .temp/ — otherwise a test run's
@@ -517,17 +557,22 @@ export async function main(argv = process.argv.slice(2)) {
     const outPath = typeof args.out === 'string' ? args.out : join(outDir, `gallery-announce-${albumKey}.dry-run.json`)
     writeFileSync(outPath, JSON.stringify(manifest, null, 2))
     console.log(`\n[dry-run] Wrote manifest: ${outPath}`)
+    console.log(`[dry-run] Wrote companion Story image: ${storyLocalPath}`)
     console.log('[dry-run] No R2 upload, no queue write, no Graph call, no wrangler call.')
-    return { manifest, outPath, item }
+    return { manifest, outPath, item, story: { item: storyItem, imagePath: storyLocalPath } }
   }
 
   const queuePath = join(HERE, 'queue', `${EVENT}.json`)
   const existing = existsSync(queuePath) ? JSON.parse(readFileSync(queuePath, 'utf8')) : { event: EVENT, items: [] }
-  const result = appendGalleryAnnounceItem(existing, item)
-  if (result.refused) { console.error(`REFUSED — ${result.refused}`); process.exitCode = 1; return { refused: result.refused } }
+  let queue = existing
+  for (const it of [item, storyItem]) {
+    const result = appendGalleryAnnounceItem(queue, it)
+    if (result.refused) { console.error(`REFUSED — ${result.refused}`); process.exitCode = 1; return { refused: result.refused } }
+    queue = result.queue
+  }
   mkdirSync(dirname(queuePath), { recursive: true })
-  writeFileSync(queuePath, JSON.stringify(result.queue, null, 2))
-  console.log(`Appended ${item.id} to ${queuePath} (${result.queue.items.length} items total). Held until ${holdUntil}.`)
+  writeFileSync(queuePath, JSON.stringify(queue, null, 2))
+  console.log(`Appended ${item.id} and ${storyItem.id} to ${queuePath} (${queue.items.length} items total). Held until ${holdUntil}.`)
   const hasRoute = !!standingEntry(EVENT, loadRoutes())
   console.log(nextStepMessage(hasRoute))
 
@@ -543,11 +588,12 @@ export async function main(argv = process.argv.slice(2)) {
     reviewUrl: reviewUrlFor(reviewKey, item.id),
     reviewCancelUrl: reviewCancelUrlFor(reviewKey, item.id),
     pendingSchoolTeams: schoolTags.pending.map((t) => t.albumTeamName),
+    hasStory: true,
   })
   const topic = resolveNtfyTopic()
   await notify({ topic, ...heldBuild })
 
-  return { item, queuePath }
+  return { item, story: { item: storyItem }, queuePath }
 }
 
 // realpathSync before comparing: see hold-shape.mjs-adjacent scripts (veto-announce.mjs,

@@ -69,7 +69,7 @@
  * written by whoever writes KV.
  */
 
-import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
+import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route-shape.mjs'
 import { holdBlock, isHeld } from '../../hold-shape.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
@@ -270,12 +270,18 @@ async function buildContainer(token, ig, it, budget, persist) {
     return id
   }
   if (it.media_type === 'STORIES') {
-    // Stories containers take media only — no caption/user_tags (Graph v16+).
-    // Mirrors post-reels.mjs's STORIES branch; image containers finish fast so
-    // the non-IMAGE pollStatus below returns FINISHED same-run.
+    // Stories containers take no caption, no collaborators, and no sticker (link/poll/
+    // location) — but DO take user_tags (mentions): Meta's IG User /media reference (fetched
+    // 2026-09-26) added user_tags support for image/video Stories on 2025-07-09, x/y "required
+    // for images, optional for stories". Corrected here 2026-09-26 for the gallery-announce
+    // companion Story (school mentions + flickday.media) — this comment previously said "no
+    // caption/user_tags," which was true when it was written and is no longer true of the API.
+    // post-reels.mjs's own local STORIES branch (a separate, ad hoc publisher) still doesn't
+    // send user_tags; out of scope for this change. Image containers finish fast so the
+    // non-IMAGE pollStatus below returns FINISHED same-run.
     if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG story container')
     const media = it.video_url ? { video_url: it.video_url } : { image_url: it.image_url }
-    const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media })
+    const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media, ...userTagsParams(it) })
     return id
   }
   if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG reels container')
@@ -335,6 +341,12 @@ function routeRefusal(q, ev, item, now) {
   if (!entry) return `no route: meta.route for "${ev}" is incomplete (needs reason, approved YYYY-MM-DD, accounts[], optional expires YYYY-MM-DD)`
   if (!inDate(entry, now)) return `no route: meta.route for "${ev}" expired ${entry.expires}`
   if (!entryCovers(entry, [item.account], now)) return `no route: meta.route for "${ev}" does not list account "${item.account}"`
+  // media_types (2026-09-26, gallery-announce companion Story): an entry with no media_types
+  // field covers every type except STORIES — Stories need an explicit, listed opt-in, because
+  // "gallery-announce" was approved for carousels, never asked about Stories. See
+  // route-shape.mjs's coversMediaType() and companion-story.mjs's header.
+  const mediaType = item.media_type || 'REELS'
+  if (!coversMediaType(entry, mediaType)) return `no route: meta.route for "${ev}" does not cover ${mediaType} items — it needs "media_types" listing "${mediaType}", and Nino has to approve that first (see graph-routes.json)`
   return null
 }
 
@@ -951,7 +963,11 @@ function renderSlide(child, i) {
 
 function renderItemCard(it, { reviewKey }) {
   const canCancel = reviewCancelEligible(it)
-  const slides = (it.children || []).map(renderSlide).join('\n')
+  // A Story item has no `children` — its one image lives on `image_url` directly (same shape
+  // as a standalone IMAGE item) — render it as a single slide so the card isn't blank.
+  const slides = Array.isArray(it.children) && it.children.length
+    ? it.children.map(renderSlide).join('\n')
+    : it.image_url ? renderSlide({ image_url: it.image_url }, 0) : ''
   const fbCaptionBlock = it.facebook_caption && it.facebook_caption !== it.caption
     ? `<div class="caption"><h3>Facebook caption</h3><pre>${esc(it.facebook_caption)}</pre></div>` : ''
   // The next posting slot is item.scheduledAt itself, not a re-derived guess — that field is
@@ -973,19 +989,24 @@ function renderItemCard(it, { reviewKey }) {
     // rejected them for a reason confirmHandle() could not predict) — a confirmed tag that
     // still didn't make it onto the live post, worth a look even after the post is up.
     (it.school_tags_publish_error ? `<div>Instagram rejected a school tag when posting: ${esc(it.school_tags_publish_error)} — posted without it.</div>` : '')
+  // Companion Story cards render right after their carousel (build-gallery-announce.mjs
+  // appends both, carousel then Story, to the same queue) — this label is the only thing that
+  // distinguishes them, since the header otherwise repeats the same album name.
+  const isStory = it.media_type === 'STORIES'
   return `<section class="item" id="${esc(it.id)}">
   <header>
-    <h2>${esc(it.album_name || it.album_key || it.id)}</h2>
+    <h2>${esc(it.album_name || it.album_key || it.id)}${isStory ? ' &middot; Story' : ''}</h2>
     <span class="badge badge-${esc(it.status || 'unknown')}">${esc(itemStatusLabel(it))}</span>
   </header>
   <div class="meta">
-    <div>Account: <strong>${esc(itemAccountLabel(it))}</strong>${Array.isArray(it.collaborators) && it.collaborators.length ? ` &middot; Collab: ${esc(it.collaborators.join(', '))}` : ''}</div>
+    ${isStory && it.linked_item_id ? `<div>Linked to: ${esc(it.linked_item_id)}</div>` : ''}
+    <div>Account: <strong>${esc(itemAccountLabel(it))}</strong>${Array.isArray(it.collaborators) && it.collaborators.length ? ` &middot; Collab: ${esc(it.collaborators.join(', '))}` : ''}${isStory && Array.isArray(it.user_tags) && it.user_tags.length ? ` &middot; Mentions: ${esc(it.user_tags.map((t) => t.username || t).join(', '))}` : ''}</div>
     ${it.holdUntil ? `<div>Hold until: ${esc(chicagoLabel(it.holdUntil))}</div>` : ''}
     ${nextSlot ? `<div>Next posting slot: ${esc(chicagoLabel(nextSlot))}</div>` : ''}
     ${schoolTagsHtml}
   </div>
   <div class="slides">${slides}</div>
-  <div class="caption"><h3>Instagram caption</h3><pre>${esc(it.caption || '')}</pre></div>
+  ${isStory ? '' : `<div class="caption"><h3>Instagram caption</h3><pre>${esc(it.caption || '')}</pre></div>`}
   ${fbCaptionBlock}
   ${canCancel ? `<form method="POST" action="/review/cancel">
     <input type="hidden" name="key" value="${esc(reviewKey)}">

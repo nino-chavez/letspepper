@@ -545,6 +545,76 @@ uses `isHeld()` (the same live check the publishers use) to split `held` (still 
 with each item's `id` + `holdUntil` in `heldItems`) from `pending` (would be picked up by
 the next tick, including an elapsed hold). Same split on the Facebook side.
 
+## Companion Story (2026-09-26)
+
+Every gallery-announce build now ALSO produces one Instagram Story per carousel — so schools
+and followers see the new gallery in Stories too, not only in the feed. `companion-story.mjs`
+owns the design; this section is the operative summary.
+
+**One Story per carousel, linked to it.** `build-gallery-announce.mjs` appends the Story item
+right after its carousel to the SAME queue (`id: "<album-key>-gallery-announce-story"`,
+`linked_item_id` pointing at the carousel's own id) — same account, same `holdUntil`, and
+`scheduledAt` set to the carousel's own `scheduledAt` plus `STORY_DELAY_MINUTES` (15). /review
+and the HELD phone alert (now titled "... (N photos + Story)") show it next to its carousel.
+
+**Image.** A fresh 1080x1920 render of the carousel's lead (first) slide — full-bleed
+(`object-fit: cover`, `object-position: 50% 40%`, the SAME crop convention this repo's other
+photo-led social renders already use for volleyball action), a bottom scrim, and a small
+matchup + date overlay parsed the SAME way the caption is (`gallery-announce-caption.mjs`'s
+`parseAlbumName`, so the two can never disagree). Chosen over a letterboxed full frame because
+it is the one choice consistent with both the photography site's own "the chrome must never
+compete with the photograph" rule (DESIGN.md) and every existing Let's Pepper social render in
+this repo — a letterbox bar is chrome competing with the photo, and nothing else here is built
+that way. Uses the PHOTOGRAPHY site's own type system (Montserrat display / Inter body,
+charcoal + gold — DESIGN.md), not Let's Pepper's Bebas Neue/Anton stack, because a
+gallery-announce album can post from either owned account. Rendered with Playwright + this
+repo's established `story-assets/preflight.mjs` machinery (localFonts/assertPageReady/
+verifyPng) — the same renderer every other social image here already uses — at
+deviceScaleFactor 1, so the written file is exactly 1080x1920, not the 2x-supersampled size the
+more heavily typographic Let's Pepper renders use. `montserrat-700.woff2` /`inter-{400,600}.woff2`
+were added to `story-assets/fonts/` for this (copied from the photography site's own
+self-hosted font and from the `@fontsource/inter` package already a dependency here — no new
+network fetch at render time). Dry run: rendered next to the manifest
+(`.temp/gallery-announce-<key>-story.dry-run.png`, `--story-out <path>` to override) so it can
+be opened and eyeballed before anything is queued — this DOES fetch the real lead photo over
+the network (there's no way to preview a real image without decoding it), unlike the rest of a
+dry run, which never touches R2 or fetches photo bytes. Real build: rendered to a scratch temp
+file, then uploaded to R2 exactly like a carousel slide (`r2PutLocalFile()`).
+
+**Tags.** `user_tags` (mentions) — both schools' CONFIRMED handles (school-tags.mjs's `tags`,
+never `pending` — the same two-gate rule the carousel's own tags follow) plus
+`flickday.media`. **No caption, no collaborators, no sticker of any kind** (link/poll/location)
+— confirmed directly against Meta's IG User /media reference (fetched 2026-09-26): a Story
+does not support them. `user_tags` on an image/video Story IS supported (Meta added it to that
+endpoint 2025-07-09; x/y is "required for images, optional for stories") — this corrects
+worker/src/index.js's own prior comment, which said Stories took "media only," true when it was
+written and no longer true of the API. `buildContainer()`'s STORIES branch now sends
+`user_tags` the same way a carousel child does.
+
+**Vetoing or refusing the carousel also stops the Story.** `veto-shape.mjs`'s `veto()` now
+cascades forward: vetoing an item also vetoes any item whose `linked_item_id` points at it — so
+`seed-kv.mjs --veto`, `/review`'s Cancel button, and `veto-announce.mjs` all stop the Story for
+free, with no second veto call. Vetoing just the Story on its own does NOT cascade back to the
+carousel (an operator may want the gallery announced without its Story).
+
+**The route gate refuses a Story until Nino approves Stories specifically.** The standing
+"gallery-announce" route was approved for carousels (see its `reason` above) — Stories were
+never asked about. `route-shape.mjs`'s `coversMediaType()` is the rule: an entry with no
+`media_types` field covers every media type EXCEPT `STORIES`; Stories need an explicit,
+listed opt-in. Both route-gate.mjs (local) and the Worker's `routeRefusal()` (scheduled) enforce
+this — a Story built today queues as `held`, then once its hold clears sits `pending` forever,
+refused every tick with `route_error: "... does not cover STORIES items ..."`, until either
+line below ships. **To approve it, Nino adds ONE line to `graph-routes.json`'s
+"gallery-announce" entry**:
+
+```
+"media_types": ["CAROUSEL", "STORIES"]
+```
+
+`seed-kv.mjs`'s `seedPayload()` copies `media_types` through into `meta.route` the same way it
+already copies `expires` — the Worker cannot read `graph-routes.json` at all, so this is the
+only path an approval can take to actually reach the deployed queue.
+
 ## `/review` — see and cancel what's on hold, from a phone (2026-09-26)
 
 The answer to "i don't understand the utility of ntfy or where i go to see what is on hold
@@ -865,8 +935,8 @@ that item via `post-reels.mjs --id`. Reads the token from 1Password itself if
 - **Collab:** item `collaborators: ["flickday.media"]` → co-author invite (reels/image/carousel; not Stories; public accounts only). `collaborators` is community-confirmed but not in Meta's main doc — first live call verifies it; on rejection the item is marked `error` with the API message, not silently dropped. Verified working on a five-image carousel 2026-09-21. An invite is not an accept: `GET /{ig-media-id}/collaborators` reports Pending/Accepted/Declined, and the invited account has to accept it itself — nothing here does that on flickday.media's behalf. **Supported is not approved:** an ad hoc Collab goes out through native Instagram unless Nino named the API for it — the route gate refuses it otherwise.
 - **Alt text (2026-09-25):** `alt_text` on an item/child → Instagram's `alt_text` on a single image or an image carousel child (never video/reels/stories, confirmed from Meta's current IG media reference). `facebook_alt_text` → Facebook's `alt_text_custom` on an IMAGE post or each CAROUSEL child photo. See alt-text.mjs for how gallery-announce derives it from the site's own caption.
 - **Media types:** `media_type` = `REELS` (default) | `IMAGE` (`image_url`) | `STORIES` (`image_url` or `video_url`; bare media) | `CAROUSEL` (`children: [{media_type,image_url|video_url,alt_text}]`).
-- **Stories:** published via the API since 2026-07-12 (Business accounts; `media_type=STORIES`). Bare media only — sticker/link/tag decoration is NOT in the API (see STORIES-SPEC.md for the decorated-firehose design). Accidental story? `DELETE /{ig-media-id}` works (verified live) — feed-media delete is unverified.
-- **Hold + veto (2026-09-25):** item `status: "held"` + `holdUntil` → neither destination publishes before that timestamp, in either publisher, even with `--force` (hold-shape.mjs). `status: "vetoed"` is the same gate, permanently. See "Gallery announcements" above; veto-announce.mjs is the CLI for it.
+- **Stories:** published via the API since 2026-07-12 (Business accounts; `media_type=STORIES`). No caption, no collaborators, and no link/poll/location sticker — none of that is in the API (see STORIES-SPEC.md for the decorated-firehose design this doesn't cover). **Corrected 2026-09-26:** `user_tags` (mentions) IS supported on an image/video Story — Meta added it to the IG User /media endpoint 2025-07-09, x/y optional — see "Companion Story" above; this doc previously said Stories took bare media with no exception, which stopped being true then. Accidental story? `DELETE /{ig-media-id}` works (verified live) — feed-media delete is unverified.
+- **Hold + veto (2026-09-25):** item `status: "held"` + `holdUntil` → neither destination publishes before that timestamp, in either publisher, even with `--force` (hold-shape.mjs). `status: "vetoed"` is the same gate, permanently, and (2026-09-26) cascades to any item whose `linked_item_id` points at the vetoed one — see "Companion Story" above. See "Gallery announcements" above; veto-announce.mjs is the CLI for it.
 
 ## Notes
 - Queue is the source of truth; saved after every publish; posted items are skipped (no double-post).
