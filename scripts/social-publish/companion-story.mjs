@@ -40,10 +40,22 @@
  * SAFE AREA (added 2026-09-26, same review): Instagram's own chrome covers roughly the top
  * ~250px of a Story (profile header) and the bottom ~300px (reply/message bar) — device- and
  * app-version-dependent, so treat these as conservative, not exact. SAFE_TOP/SAFE_BOTTOM below
- * are the named bounds the text overlay's box must stay inside; `renderCompanionStoryImage`'s
- * sibling `measureOverlayBox()` renders the same HTML and returns the overlay's real bounding
- * box so a test can assert it never regresses into either zone. The reviewer measured the
- * shipped overlay at ~1665-1810px — inside the bottom zone — before this fix.
+ * are the named bounds; `measureOverlayBox()` renders the same HTML and returns any element's
+ * real rendered bounding box, so a test can assert something never regresses into either zone
+ * without eyeballing a screenshot. Two things are checked against it, for different reasons:
+ *   `.stack` (the text overlay) must stay inside it so the text is actually readable — the
+ *     reviewer measured the shipped overlay at ~1665-1810px, inside the bottom zone, before
+ *     this fix.
+ *   `.photo` (the sharp foreground) must ALSO stay inside it — a SECOND review pass caught
+ *     that the first version of the crop fix above contained the whole photo into the FULL
+ *     1080x1920 canvas, which stopped the slicing but not the underlying visibility problem: for
+ *     DWdCET (1600x2399), that centers the contained image at y=150-1769 — clear of this
+ *     canvas's own edge, but still starting 100px inside the 250px header zone, so the ball that
+ *     used to be sliced now sits under the app's own header instead. `.photo` is now itself
+ *     constrained to `top: SAFE_TOP, height: SAFE_BOTTOM - SAFE_TOP` before object-fit:contain
+ *     runs, so the ENTIRE photo — not just its edges — sits inside the same safe box the text
+ *     does, for any source aspect ratio. The backdrop is NOT constrained this way; it's blurred
+ *     atmosphere, never content a viewer needs to actually see.
  *
  * Rendered with Playwright + this repo's own story-assets/preflight.mjs machinery (localFonts,
  * assertPageReady, verifyPng) — the established renderer for every other social image here
@@ -122,13 +134,19 @@ ${fonts}
 html,body{width:${width}px;height:${height}px;background:${CHARCOAL_950};overflow:hidden}
 body{position:relative;font-family:'Inter',sans-serif;color:${CHARCOAL_50}}
 /* Backdrop: same photo, full-bleed, blurred to pure atmosphere — never legible detail, so it
-   never reads as a second competing image. transform:scale hides the blur's own soft edge. */
+   never reads as a second competing image. transform:scale hides the blur's own soft edge. Not
+   safe-area-constrained: it's atmosphere, never a subject a viewer needs to actually see. */
 .backdrop{position:absolute;inset:0;width:${width}px;height:${height}px;object-fit:cover;
   filter:blur(60px) brightness(0.55) saturate(1.15);transform:scale(1.15)}
-/* Foreground: the SAME photo, contain-fit — the entire original frame, always, so nothing
-   framed close to an edge in-camera (see this file's header) can ever be sliced by this
-   render, regardless of its aspect ratio. */
-.photo{position:absolute;inset:0;width:${width}px;height:${height}px;object-fit:contain}
+/* Foreground: the SAME photo, contain-fit, constrained to the SAFE AREA box (not the full
+   canvas) — the entire original frame, always, so nothing framed close to an edge in-camera can
+   ever be sliced by this render, AND its content never sits where Instagram's own header/reply
+   bar can hide it either. A contain-fit into the full canvas (the first version of this fix)
+   guarantees the first half of that but not the second: code review 2026-09-26 measured the
+   DWdCET render's contained photo starting at y=150 — clear of this file's own top edge, but
+   still inside SAFE_TOP's 250px header zone, which is exactly the kind of "technically not
+   cropped, still not actually visible" gap a device review exists to catch. */
+.photo{position:absolute;left:0;width:${width}px;top:${SAFE_TOP}px;height:${SAFE_BOTTOM - SAFE_TOP}px;object-fit:contain}
 .scrim{position:absolute;left:0;right:0;bottom:0;height:38%;
   background:linear-gradient(180deg, rgba(24,24,27,0) 0%, rgba(24,24,27,0.55) 40%, rgba(24,24,27,0.92) 100%)}
 .frame{position:absolute;left:0;right:0;bottom:0;padding:0 72px ${FRAME_BOTTOM_PADDING}px}
@@ -180,21 +198,23 @@ export async function renderCompanionStoryImage({ html, outPath, width = STORY_W
 }
 
 /**
- * Renders `html` headlessly (no PNG written) and returns the text overlay's real bounding box
- * — `.stack`'s rendered `{x,y,width,height}` — so a test can prove it stays inside the safe
- * area (SAFE_TOP/SAFE_BOTTOM above) without eyeballing a screenshot every time this changes.
- * Never fetches a real image over the network on its own: pass a `data:` URI imageUrl (as the
- * tests do) to keep this offline and fast — the box only depends on text layout, not on which
- * photo is behind it.
+ * Renders `html` headlessly (no PNG written) and returns one element's real rendered bounding
+ * box, so a test can prove it stays inside the safe area (SAFE_TOP/SAFE_BOTTOM above) without
+ * eyeballing a screenshot every time this changes. `selector` defaults to `.stack` (the text
+ * overlay); pass `.photo` to check the foreground photo's own box instead — both must stay
+ * inside the same bounds, for different reasons (text must be readable; photo content must not
+ * sit where it can be sliced OR hidden by Instagram's own header/reply-bar chrome — see this
+ * file's header, "code review 2026-09-26"). Never fetches a real image over the network on its
+ * own: pass a `data:` URI imageUrl (as the tests do) to keep this offline and fast.
  *
  * Navigates via a temp file + `page.goto(file://...)`, exactly like renderCompanionStoryImage —
  * NOT `page.setContent()`, which loads the page at an `about:blank`-ish origin where Chromium's
  * local-font `@font-face url(file://...)` references (localFonts()'s own mechanism) silently
  * fail to load, in turn making assertPageReady() throw "font not loaded" on every call. Same
- * file:// origin the real render uses is what makes the fonts (and therefore the measured text
+ * file:// origin the real render uses is what makes the fonts (and therefore the measured
  * layout) match what actually gets published.
  */
-export async function measureOverlayBox(html, { width = STORY_WIDTH, height = STORY_HEIGHT } = {}) {
+export async function measureOverlayBox(html, { width = STORY_WIDTH, height = STORY_HEIGHT, selector = '.stack' } = {}) {
   const tmpHtml = join(tmpdir(), `companion-story-measure-${randomUUID()}.html`)
   writeFileSync(tmpHtml, html)
   const browser = await chromium.launch()
@@ -202,7 +222,7 @@ export async function measureOverlayBox(html, { width = STORY_WIDTH, height = ST
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 })
     await page.goto(pathToFileURL(tmpHtml).href, { waitUntil: 'networkidle' })
     await assertPageReady(page, FAMILIES)
-    return await page.locator('.stack').boundingBox()
+    return await page.locator(selector).boundingBox()
   } finally {
     await browser.close()
     rmSync(tmpHtml, { force: true })

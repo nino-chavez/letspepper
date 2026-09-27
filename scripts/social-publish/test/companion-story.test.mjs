@@ -150,6 +150,37 @@ test('the overlay box stays inside the safe area with no date line at all', asyn
   assert.ok(box.y + box.height <= SAFE_BOTTOM)
 })
 
+// --- the photo itself must also stay inside the safe area (code review 2026-09-26, second
+// pass): containing the WHOLE photo into the full 1080x1920 canvas stopped the slicing but not
+// the underlying visibility problem — for DWdCET's own 1600x2399 the contained image centers at
+// y=150-1769, clear of the canvas edge but still 100px inside the 250px header zone. `.photo`
+// is now itself constrained to [SAFE_TOP, SAFE_BOTTOM] before object-fit:contain runs. ---------
+
+function svgDataUri(w, h) {
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="#334455"/></svg>`)
+}
+
+test('the photo box stays fully inside the safe area for a 2:3 portrait source (DWdCET\'s own served dimensions)', async () => {
+  const html = companionStoryHtml({ imageUrl: svgDataUri(1600, 2399), matchup: 'x' })
+  const box = await measureOverlayBox(html, { selector: '.photo' })
+  assert.ok(box.y >= SAFE_TOP, `photo top ${box.y} must not sit above SAFE_TOP ${SAFE_TOP}`)
+  assert.ok(box.y + box.height <= SAFE_BOTTOM, `photo bottom ${box.y + box.height} must not extend below SAFE_BOTTOM ${SAFE_BOTTOM}`)
+})
+
+test('the photo box stays fully inside the safe area for a near-9:16 source (near-zero contain margin)', async () => {
+  const html = companionStoryHtml({ imageUrl: svgDataUri(1080, 1920), matchup: 'x' })
+  const box = await measureOverlayBox(html, { selector: '.photo' })
+  assert.ok(box.y >= SAFE_TOP)
+  assert.ok(box.y + box.height <= SAFE_BOTTOM)
+})
+
+test('the photo box stays fully inside the safe area for a landscape source (Re7kho\'s acc-v-jca-02, aspect_ratio 1.5)', async () => {
+  const html = companionStoryHtml({ imageUrl: svgDataUri(1600, 1067), matchup: 'x' })
+  const box = await measureOverlayBox(html, { selector: '.photo' })
+  assert.ok(box.y >= SAFE_TOP)
+  assert.ok(box.y + box.height <= SAFE_BOTTOM)
+})
+
 // --- image dimensions (real render) ------------------------------------------
 
 test('renderCompanionStoryImage: writes an exact 1080x1920 PNG', async (t) => {
