@@ -218,7 +218,8 @@ function main() {
   let addedIds = null
   if (collabId) {
     if (!live) refuse(`KV has no key "${event}" — nothing has been seeded yet.`)
-    const r = decideCollab(live, collabId, { choice: collabDecision, handles: collabHandles })
+    const accounts = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
+    const r = decideCollab(live, collabId, { choice: collabDecision, handles: collabHandles }, { accountHandles: Object.fromEntries(Object.entries(accounts).map(([slug, acct]) => [slug, acct.handle])) })
     if (r.refused) refuse(r.refused)
     console.log(`${collabId}: Collab choice recorded as ${r.item.collab.status}${r.item.collaborators.length ? ` (${r.item.collaborators.join(', ')})` : ''}.\n`)
     queue = r.queue

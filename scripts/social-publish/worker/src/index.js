@@ -967,6 +967,7 @@ function itemAccountLabel(it) {
 }
 
 function itemStatusLabel(it) {
+  if (collabBlock(it)) return 'Waiting for your Collab choice'
   if (reviewHeldNow(it)) return 'Held'
   if (reviewPendingNow(it)) return 'Pending'
   return { posted: 'Posted', vetoed: 'Vetoed', building: 'Building', error: 'Error' }[it.status] || it.status || 'unknown'
@@ -1149,15 +1150,20 @@ export default {
         // — nothing flips it back (see hold-shape.mjs's own header) — so counting by that
         // string alone would report an elapsed, about-to-publish hold as still held. isHeld()
         // is the same still-blocked check the publishers themselves use; "pending" here means
-        // "would be picked up by the next tick," which includes an elapsed hold.
-        const heldNow = (i) => i.status === 'held' && isHeld(i)
-        const pendingNow = (i) => i.status === 'pending' || (i.status === 'held' && !isHeld(i))
-        const facebookHeldNow = (i) => (i.facebook_status || 'pending') === 'held' && isHeld(i)
-        const facebookPendingNow = (i) => (i.facebook_status || 'pending') === 'pending' || ((i.facebook_status || 'pending') === 'held' && !isHeld(i))
+        // "would be picked up by the next tick," which includes an elapsed hold. A carousel waiting
+        // for Nino's Collab choice is neither: no tick will pick it up until he answers, so it is
+        // counted on its own (awaitingCollab) and kept out of both.
+        const awaitingCollab = (i) => !!collabBlock(i)
+        const heldNow = (i) => i.status === 'held' && isHeld(i) && !awaitingCollab(i)
+        const pendingNow = (i) => (i.status === 'pending' || (i.status === 'held' && !isHeld(i))) && !awaitingCollab(i)
+        const facebookHeldNow = (i) => (i.facebook_status || 'pending') === 'held' && isHeld(i) && !awaitingCollab(i)
+        const facebookPendingNow = (i) => ((i.facebook_status || 'pending') === 'pending' || ((i.facebook_status || 'pending') === 'held' && !isHeld(i))) && !awaitingCollab(i)
         out.events[ev] = { total: q.items.length, posted: by('posted'),
           pending: q.items.filter(pendingNow).length,
           held: q.items.filter(heldNow).length,
           heldItems: q.items.filter(heldNow).map((i) => ({ id: i.id, holdUntil: i.holdUntil })),
+          awaitingCollab: q.items.filter(awaitingCollab).length,
+          awaitingCollabItems: q.items.filter(awaitingCollab).map((i) => i.id),
           building: by('building'), error: by('error'),
           route: entry ? { approved: entry.approved, accounts: entry.accounts, expires: entry.expires ?? null }
             : q.meta?.route ? 'incomplete' : 'none',
@@ -1203,7 +1209,7 @@ export default {
         const why = hasInFlightProgress(existing) ? 'a publish is already in flight for it' : `item is "${existing.status}", not held or pending`
         return new Response(`not eligible to set Collab — ${why}`, { status: 400, headers: NO_STORE })
       }
-      const result = decideCollab(q, id, { choice: decision, handles })
+      const result = decideCollab(q, id, { choice: decision, handles }, { accountHandles: Object.fromEntries(Object.entries(ACCOUNTS).map(([slug, acct]) => [slug, acct.handle])) })
       if (result.refused) return new Response(result.refused, { status: 400, headers: NO_STORE })
       // The Collab gate means the Worker cannot begin this carousel while it is unanswered.
       // Still, keep the same re-read-before-write guard as /review/cancel: another human

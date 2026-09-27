@@ -39,7 +39,8 @@ export function collabBlock(item) {
  * is `none`, `nino`, or `handles`; the decided handles live both in the durable
  * decision record and in `collaborators`, the exact Graph payload field.
  */
-export function decideCollab(queue, id, { choice, handles } = {}) {
+export function decideCollab(queue, id, { choice, handles } = {}, { accountHandles } = {}) {
+  if (!accountHandles) throw new Error('decideCollab needs accountHandles ({ slug: handle }) to refuse a self-Collab.')
   const next = structuredClone(queue)
   const item = (next.items || []).find((candidate) => candidate.id === id)
   if (!item) return { refused: `no item with id "${id}" in the live queue.` }
@@ -63,6 +64,13 @@ export function decideCollab(queue, id, { choice, handles } = {}) {
     collab = { status: 'decided', handles: collaborators }
   } else {
     return { refused: 'choose "none", "nino", or "handles" for the Collab decision.' }
+  }
+
+  // An account cannot invite itself: Meta rejects the parent container, which makes the
+  // Instagram leg terminal and takes the linked Story down with it (Codex review of #67).
+  const publisher = accountHandles[item.account]
+  if (publisher && collaborators.some((handle) => handle.toLowerCase() === publisher.toLowerCase())) {
+    return { refused: `@${publisher} publishes this post, so it cannot also be its Collab. Choose another account or No Collab.` }
   }
 
   item.collab = collab

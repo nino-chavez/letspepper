@@ -206,19 +206,28 @@ test('POST /review/collab: requires REVIEW_KEY and validates a custom Instagram 
 })
 
 test('POST /review/collab: records No Collab or a handle list and unblocks the carousel', async () => {
-  const noneKv = fakeKv(queueWith(heldItem({ collab: { status: 'ask' }, collaborators: [] })))
+  // New gallery items publish from flickday (2026-09-27), so nino.chavez.photo is a valid Collab.
+  const noneKv = fakeKv(queueWith(heldItem({ account: 'flickday', collab: { status: 'ask' }, collaborators: [] })))
   let res = await post(noneKv, '/review/collab', { form: { key: KEY, id: 'Re7kho-gallery-announce', decision: 'none' } })
   assert.equal(res.status, 303)
   let saved = JSON.parse(await noneKv.get(EVENT)).items[0]
   assert.deepEqual(saved.collab, { status: 'none' })
   assert.deepEqual(saved.collaborators, [])
 
-  const handlesKv = fakeKv(queueWith(heldItem({ collab: { status: 'ask' }, collaborators: [] })))
+  const handlesKv = fakeKv(queueWith(heldItem({ account: 'flickday', collab: { status: 'ask' }, collaborators: [] })))
   res = await post(handlesKv, '/review/collab', { form: { key: KEY, id: 'Re7kho-gallery-announce', decision: 'handles', handles: '@nino.chavez.photo, other.account' } })
   assert.equal(res.status, 303)
   saved = JSON.parse(await handlesKv.get(EVENT)).items[0]
   assert.deepEqual(saved.collab, { status: 'decided', handles: ['nino.chavez.photo', 'other.account'] })
   assert.deepEqual(saved.collaborators, ['nino.chavez.photo', 'other.account'])
+})
+
+test('POST /review/collab: refuses the publishing account as its own Collab', async () => {
+  const kv = fakeKv(queueWith(heldItem({ account: 'flickday', collab: { status: 'ask' }, collaborators: [] })))
+  const res = await post(kv, '/review/collab', { form: { key: KEY, id: 'Re7kho-gallery-announce', decision: 'handles', handles: '@flickday.media' } })
+  assert.equal(res.status, 400)
+  assert.match(await res.text(), /publishes this post/)
+  assert.deepEqual(JSON.parse(await kv.get(EVENT)).items[0].collab, { status: 'ask' })
 })
 
 test('POST /review/cancel: 403 without the key', async () => {
