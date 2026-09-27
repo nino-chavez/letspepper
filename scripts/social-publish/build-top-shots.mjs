@@ -33,7 +33,7 @@ import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
-import { hasInstagramCompatibleAspectRatio, r2PutPhoto } from './gallery-photo-source.mjs'
+import { r2PutPhoto } from './gallery-photo-source.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const IG_CAROUSEL_MAX = 10
@@ -90,9 +90,6 @@ async function fetchTopPhotos() {
   }))
   return top
     .map((photo) => ({ ...photo, ...(albums.get(photo.album_key)?.get(photo.image_key) || {}) }))
-    // Both source paths preserve the original ratio. Never queue an image that
-    // Meta will reject rather than re-encoding HDR into a cropped SDR JPEG.
-    .filter(hasInstagramCompatibleAspectRatio)
 }
 
 // 2. Re-host one photo on R2 as jpeg; return the public URL + temp path.

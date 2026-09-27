@@ -39,7 +39,7 @@ import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
-import { hasInstagramCompatibleAspectRatio, r2PutPhoto } from './gallery-photo-source.mjs'
+import { r2PutPhoto } from './gallery-photo-source.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const IG_CAROUSEL_MAX = 10
@@ -166,10 +166,7 @@ function defaultCaption(name, total, n) {
 const photos = await fetchAllPhotos()
 if (!photos.length) { console.error(`No photos for album "${albumKey}" at ${site}`); process.exit(1) }
 const total = photos.length
-// CF `large` does not crop to Meta's accepted range. Keep HDR bytes intact and
-// omit known-invalid rows rather than re-encoding a 2:3 portrait into SDR.
-const instagramSafePhotos = photos.filter(hasInstagramCompatibleAspectRatio)
-const picks = select(instagramSafePhotos)
+const picks = select(photos)
 if (!picks.length) { console.error('No images selected (after filters). Try --keys or a higher --count.'); process.exit(1) }
 console.log(`Album ${albumKey}: ${total} photos → selecting ${picks.length}` +
   (explicitKeys ? ' (explicit --keys)' : photos.some((p) => qualityScore(p) != null) ? ' (by quality score)' : ' (by caption heuristic — album unscored)'))

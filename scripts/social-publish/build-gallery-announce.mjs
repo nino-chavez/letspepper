@@ -89,7 +89,7 @@ import { readLive } from './seed-kv.mjs'
 import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor } from './notify.mjs'
 import { loadRoutes, standingEntry } from './route-gate.mjs'
 import { companionStoryText, companionStoryHtml, companionStoryItem, renderCompanionStoryImage } from './companion-story.mjs'
-import { cfLarge as cfLargeSource, galleryPhotoSource, hasInstagramCompatibleAspectRatio, r2PutPhoto } from './gallery-photo-source.mjs'
+import { cfLarge as cfLargeSource, galleryPhotoSource, r2PutPhoto } from './gallery-photo-source.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
@@ -403,13 +403,9 @@ export async function main(argv = process.argv.slice(2)) {
     ...(usingVision ? { apiKey: resolveOpenRouterKey(), model: typeof args.model === 'string' ? args.model : undefined } : {}),
   })
   if (!selection.picks.length) throw new Error('No images selected (all hard-blocked, or none had a cf_image_id).')
-  // Both CF `large` and the HDR original preserve the source aspect ratio. Meta
-  // accepts images from 4:5 through 1.91:1, so do not queue a known 2:3 portrait
-  // that Meta will reject. No crop/re-encode is allowed here because it strips HDR.
-  const picks = selection.picks.filter(hasInstagramCompatibleAspectRatio)
-  const rejectedForAspectRatio = selection.picks.length - picks.length
-  if (!picks.length) throw new Error('No images selected with an Instagram-compatible aspect ratio (4:5 through 1.91:1).')
-  const selectedOf = `${picks.length} of ${photos.length}`
+  // Portraits are fine as they are: the 2026-09-26 Millikin carousel went out with 2:3 slides
+  // (1600x2399) and Instagram kept them 2:3 (1440x2159). Never crop here; it would strip HDR.
+  const { picks, selectedOf } = selection
 
   console.log(`Album ${albumKey}: ${selectedOf} selected` +
     (selection.strategy === 'vision'
@@ -514,7 +510,6 @@ export async function main(argv = process.argv.slice(2)) {
     album_name: albumName,
     gallery_url: galleryUrl,
     selection_strategy: selection.strategy || 'caption',
-    ...(rejectedForAspectRatio ? { rejected_for_instagram_aspect_ratio: rejectedForAspectRatio } : {}),
     ...(selection.strategy === 'vision' ? {
       selection_totals: {
         selected_of: selection.selectedOf,

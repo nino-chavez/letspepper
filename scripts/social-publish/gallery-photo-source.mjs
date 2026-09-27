@@ -10,8 +10,6 @@ import { writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
 export const CF_HASH = 'wg34HB28-JkySWVm5fW4kA'
-export const IG_MIN_ASPECT_RATIO = 4 / 5
-export const IG_MAX_ASPECT_RATIO = 1.91
 
 export function cfLarge(id) { return `https://imagedelivery.net/${CF_HASH}/${id}/large` }
 
@@ -21,17 +19,6 @@ export function photoIdFor(photo) {
   if (photo?.id) return photo.id
   if (photo?.album_key && photo?.image_key) return `${photo.album_key}-${photo.image_key}`
   return null
-}
-
-/**
- * A known ratio outside Meta's image-container range must not be queued. An
- * absent ratio remains compatible with legacy rows; the photography API now
- * supplies it for current rows.
- */
-export function hasInstagramCompatibleAspectRatio(photo) {
-  if (photo?.aspect_ratio == null || photo.aspect_ratio === '') return true
-  const ratio = Number(photo.aspect_ratio)
-  return !Number.isFinite(ratio) || (ratio >= IG_MIN_ASPECT_RATIO && ratio <= IG_MAX_ASPECT_RATIO)
 }
 
 export function galleryPhotoSource(photo, site) {

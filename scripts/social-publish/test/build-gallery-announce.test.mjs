@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createAlbumSlug, slugify, accountForSeries, appendGalleryAnnounceItem, nextStepMessage, main } from '../build-gallery-announce.mjs'
-import { galleryPhotoSource, hasInstagramCompatibleAspectRatio, r2PutPhoto } from '../gallery-photo-source.mjs'
+import { galleryPhotoSource, r2PutPhoto } from '../gallery-photo-source.mjs'
 import { verifyPng } from '../../story-assets/preflight.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -101,12 +101,6 @@ test('non-HDR rows keep the existing Cloudflare large fallback', () => {
   })
 })
 
-test('known 2:3 portraits are excluded before a Meta-invalid carousel can be staged', () => {
-  assert.equal(hasInstagramCompatibleAspectRatio({ aspect_ratio: 2 / 3 }), false)
-  assert.equal(hasInstagramCompatibleAspectRatio({ aspect_ratio: 4 / 5 }), true)
-  assert.equal(hasInstagramCompatibleAspectRatio({ aspect_ratio: 1.91 }), true)
-  assert.equal(hasInstagramCompatibleAspectRatio({ aspect_ratio: null }), true, 'legacy rows without a measured ratio retain today\'s behavior')
-})
 
 // --- main(), against a stubbed fetch (the real Re7kho fixture, no live network) ---
 // build-gallery-announce.mjs itself has been run live against the real album
