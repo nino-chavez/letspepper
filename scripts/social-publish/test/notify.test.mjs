@@ -257,6 +257,17 @@ test('heldNotification: no pending school tags (default, or explicitly empty) re
   assert.equal(n.message, "Nothing to do. Cancel before Sat 10:08 PM Central if you don't want it.")
 })
 
+// companion-story.mjs, added 2026-09-26: ONE alert per album, not a second push for the Story —
+// see heldNotification's own comment on why this is a title suffix, not a second notification.
+test('heldNotification: hasStory adds a short title suffix, no second alert, message unchanged', () => {
+  const base = { shortName: 'JCA at ACC', photoCount: 10, holdUntilIso: '2026-09-27T03:08:00.000Z', nextSlotIso: '2026-09-27T17:00:00.000Z' }
+  const without = heldNotification(base)
+  const withStory = heldNotification({ ...base, hasStory: true })
+  assert.equal(without.title, 'Posts Sun 12:00 PM Central: JCA at ACC (10 photos)')
+  assert.equal(withStory.title, 'Posts Sun 12:00 PM Central: JCA at ACC (10 photos + Story)')
+  assert.equal(withStory.message, without.message, 'the Story adds no extra reading — same outcome/action text')
+})
+
 test('postedNotification: outcome-first title, a View-on-<channel> button, no account slug', () => {
   const n = postedNotification({ albumName: 'JCA at ACC', channel: 'instagram', permalink: 'https://instagram.com/p/abc', collaborator: 'flickday.media' })
   assert.equal(n.title, 'Posted: JCA at ACC')

@@ -28,6 +28,7 @@ import {
   checkRoute, hasStandingRoute, hasReceipt, cleanReason, makeReceipt, digestOf, refusal, REFUSED, RECEIPT_TTL_HOURS,
   standingEntry,
 } from '../route-gate.mjs'
+import { coversMediaType } from '../route-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SOCIAL = join(HERE, '..')
@@ -530,6 +531,57 @@ test('the tracked route gate accepts gallery-announce for its three publishing a
   // adhoc can never hold a standing route, tracked file or not — standingEntry() special-cases it.
   assert.equal(hasStandingRoute('adhoc', tracked, ['letspepper']), false)
   assert.equal(checkRoute({ event: 'adhoc', items: incidentQueue().items, routes: tracked }).ok, false)
+})
+
+// --- media_types: STORIES needs an explicit opt-in (2026-09-26, companion Story) ------------
+
+test('coversMediaType: every type but STORIES is covered by an entry with no media_types field at all', () => {
+  const entry = { reason: 'r', approved: '2026-09-21', accounts: ['flickday'] }
+  for (const type of ['CAROUSEL', 'IMAGE', 'REELS', undefined])
+    assert.equal(coversMediaType(entry, type), true, type)
+  assert.equal(coversMediaType(entry, 'STORIES'), false)
+  assert.equal(coversMediaType({ ...entry, media_types: ['CAROUSEL'] }, 'STORIES'), false, 'listing CAROUSEL does not imply STORIES')
+  assert.equal(coversMediaType({ ...entry, media_types: ['CAROUSEL', 'STORIES'] }, 'STORIES'), true)
+  assert.equal(coversMediaType(null, 'STORIES'), false, 'no entry covers nothing')
+})
+
+test('the REAL tracked gallery-announce route does not cover STORIES today — Nino has not approved Stories for it', () => {
+  const tracked = JSON.parse(readFileSync(join(SOCIAL, 'graph-routes.json'), 'utf8'))
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto'], new Date(), ['CAROUSEL']), true, 'the carousel itself is unaffected')
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto'], new Date(), ['STORIES']), false,
+    'a companion Story must NOT be able to publish through this route until "media_types" explicitly lists STORIES')
+})
+
+test('checkRoute: refuses a lone STORIES item under a standing route that only covers other types, with its own "media_type" reason', () => {
+  const routes = { events: { [EVENT]: { reason: 'test fixture: gallery-announce-shaped standing route', approved: '2026-09-21', accounts: ['flickday'] } } }
+  const storyItem = { id: 'story-1', account: 'flickday', media_type: 'STORIES', image_url: 'https://x/1.jpg' }
+  const verdict = checkRoute({ event: EVENT, items: [storyItem], routes })
+  assert.equal(verdict.ok, false)
+  assert.equal(verdict.why, 'media_type')
+  const text = refusal({ event: EVENT, items: [storyItem], script: 'test', why: 'media_type' })
+  assert.match(text, /does not cover STORIES/)
+  assert.match(text, /media_types/)
+  assert.match(text, /Nino has to approve Stories/)
+})
+
+test('checkRoute: the SAME entry extended with "media_types": ["CAROUSEL","STORIES"] covers the Story too', () => {
+  const routes = { events: { [EVENT]: { reason: 'test fixture', approved: '2026-09-21', accounts: ['flickday'], media_types: ['CAROUSEL', 'STORIES'] } } }
+  const storyItem = { id: 'story-1', account: 'flickday', media_type: 'STORIES', image_url: 'https://x/1.jpg' }
+  assert.equal(checkRoute({ event: EVENT, items: [storyItem], routes }).ok, true)
+})
+
+test('standingEntry: a malformed media_types field (not an array, or non-string entries) approves nothing', () => {
+  const base = { reason: 'r', approved: '2026-09-21', accounts: ['flickday'] }
+  assert.ok(standingEntry(EVENT, { events: { [EVENT]: { ...base, media_types: ['CAROUSEL', 'STORIES'] } } }), 'a well-formed array is fine')
+  assert.equal(standingEntry(EVENT, { events: { [EVENT]: { ...base, media_types: 'STORIES' } } }), null, 'a bare string is not an array')
+  assert.equal(standingEntry(EVENT, { events: { [EVENT]: { ...base, media_types: [''] } } }), null, 'an empty string entry does not name a media type')
+})
+
+test('checkRoute: a one-off --graph-route reason is NOT gated by media_types — Nino\'s own words for THAT post cover a Story just like anything else', () => {
+  const storyItem = { id: 'story-1', account: 'flickday', media_type: 'STORIES', image_url: 'https://x/1.jpg' }
+  const verdict = checkRoute({ event: EVENT, items: [storyItem], routes: { events: {} }, reasonFlag: 'Nino: use the Graph API for this Story' })
+  assert.equal(verdict.ok, true)
+  assert.equal(verdict.kind, 'one-off')
 })
 
 test('refusal text: says what happened, where the post should go, and what counts as approval', () => {

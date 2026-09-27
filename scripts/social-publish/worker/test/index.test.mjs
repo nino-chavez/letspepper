@@ -354,6 +354,34 @@ test('seed-kv copies the graph-routes.json entry into meta.route, and the Worker
   assert.equal(item.status, 'posted')
 })
 
+// media_types (2026-09-26, gallery-announce companion Story): the Worker cannot read
+// graph-routes.json at all, so this field's only path from Nino's approval to the deployed
+// queue is through here. Dropping it (as an earlier draft of seedPayload() did, by
+// destructuring only reason/approved/accounts/expires) would mean an approval that LOOKS
+// complete in the tracked file could never actually reach the Worker.
+test('seed-kv copies media_types through into meta.route when the entry carries one, and the Worker then honors it', async () => {
+  const q = withRoute(queueWithItem(), undefined)
+  q.items[0].media_type = 'STORIES'
+  q.items[0].channels = ['instagram'] // Stories have no Facebook crosspost in this pipeline
+  q.items[0].image_url = 'https://cdn.example.test/story.png'
+  const entry = { ...ROUTE, media_types: ['IMAGE', 'STORIES'] }
+  const { payload, refused } = seedPayload(q, EVENT, routesWith(entry))
+  assert.equal(refused, undefined)
+  assert.deepEqual(payload.meta.route.media_types, ['IMAGE', 'STORIES'])
+  // A minimal STORIES-capable stub (IMAGE containers skip pollStatus entirely, so graphFetch()'s
+  // existing handlers don't cover the GET status poll a non-IMAGE container needs).
+  const storiesFetch = async (input, init = {}) => {
+    const url = new URL(String(input))
+    const method = init.method || 'GET'
+    if (method === 'POST' && url.pathname.endsWith('/17841475435692331/media')) return Response.json({ id: 'ig-story-container' })
+    if (method === 'GET' && url.pathname.endsWith('/ig-story-container')) return Response.json({ status_code: 'FINISHED' })
+    if (method === 'POST' && url.pathname.endsWith('/media_publish')) return Response.json({ id: 'ig-story-media' })
+    throw new Error(`Unexpected Graph request: ${method} ${url}`)
+  }
+  const item = (await runQueue(payload, storiesFetch)).items[0]
+  assert.equal(item.status, 'posted', 'the Story actually published once media_types covered it')
+})
+
 test('seed-kv refuses without a complete, current entry naming every account', () => {
   const q = withRoute(queueWithItem(), undefined)
   assert.match(seedPayload(q, EVENT, { events: {} }).refused, /no complete entry/)
@@ -393,6 +421,50 @@ test('seed-kv --revive leaves a Graph error terminal', () => {
   const item = revive(q, ['dual-image']).queue.items[0]
   assert.equal(item.status, 'error')
   assert.equal(item.facebook_status, 'pending')
+})
+
+// --- revive() cascades to a linked companion Story (code review 2026-09-26) -----------------
+// Without this, reviving a gallery-announce carousel that had been route-refused left its
+// Story stranded in `error` — blocked ONLY by linkedItemBlock() because the carousel hadn't
+// posted, never revived unless named separately (easy to forget).
+
+test('seed-kv --revive: reviving a carousel also revives its Story, when the Story was blocked ONLY by the linked-item gate', () => {
+  const q = {
+    items: [
+      { id: 'carousel', account: 'letspepper', status: 'error', error: 'no route: x', route_error: 'no route: x' },
+      { id: 'story', account: 'letspepper', linked_item_id: 'carousel', status: 'error', error: 'its linked post failed to publish', route_error: 'its linked post failed to publish' },
+    ],
+  }
+  const { queue, cascaded } = revive(q, ['carousel'])
+  assert.deepEqual(cascaded, ['story'])
+  assert.equal(queue.items.find((i) => i.id === 'carousel').status, 'pending')
+  const story = queue.items.find((i) => i.id === 'story')
+  assert.equal(story.status, 'pending')
+  assert.equal(story.route_error, undefined)
+})
+
+test('seed-kv --revive: does NOT cascade to a Story refused for its OWN reason (e.g. missing media_types) — that needs its own revive', () => {
+  const q = {
+    items: [
+      { id: 'carousel', account: 'letspepper', status: 'error', error: 'no route: x', route_error: 'no route: x' },
+      { id: 'story', account: 'letspepper', linked_item_id: 'carousel', status: 'error', error: 'no route: ... does not cover STORIES items ...', route_error: 'no route: ... does not cover STORIES items ...' },
+    ],
+  }
+  const { queue, cascaded } = revive(q, ['carousel'])
+  assert.deepEqual(cascaded, [])
+  assert.equal(queue.items.find((i) => i.id === 'story').status, 'error', 'the Story\'s own refusal reason is untouched by reviving the carousel')
+})
+
+test('seed-kv --revive: reviving just the Story does not cascade back to (or require) the carousel', () => {
+  const q = {
+    items: [
+      { id: 'carousel', account: 'letspepper', status: 'posted' },
+      { id: 'story', account: 'letspepper', linked_item_id: 'carousel', status: 'error', error: 'no route: x', route_error: 'no route: x' },
+    ],
+  }
+  const { queue, cascaded } = revive(q, ['story'])
+  assert.deepEqual(cascaded, [])
+  assert.equal(queue.items.find((i) => i.id === 'story').status, 'pending')
 })
 
 test('an Instagram-less item left building is not resumed through Instagram', async () => {

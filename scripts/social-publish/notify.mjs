@@ -254,8 +254,14 @@ export function reviewCancelUrlFor(reviewKey, itemId) {
  * action, and Nino's 2026-09-26 correction on this exact alert ("hard to distinguish info
  * from action") is why informational detail belongs on /review, not stacked into this body.
  * A non-college or fully-confirmed album passes nothing (or an empty array) and the alert
- * reads exactly as it did before this field existed. */
-export function heldNotification({ shortName, photoCount, holdUntilIso, nextSlotIso, reviewUrl, reviewCancelUrl, pendingSchoolTeams = [] }) {
+ * reads exactly as it did before this field existed.
+ *
+ * `hasStory` (added 2026-09-26, companion-story.mjs): true when this album also got a
+ * companion Story queued alongside its carousel. ONE alert per album, not two — a second push
+ * notification for the Story would be exactly the extra-thing-to-read Nino's own correction on
+ * this alert was about — so this only adds a short title suffix; the Story itself shows up
+ * next to its carousel on /review (see worker/src/index.js's renderItemCard). */
+export function heldNotification({ shortName, photoCount, holdUntilIso, nextSlotIso, reviewUrl, reviewCancelUrl, pendingSchoolTeams = [], hasStory = false }) {
   const plural = photoCount === 1 ? '' : 's'
   const actions = []
   if (reviewUrl) actions.push({ action: 'view', label: 'Review', url: reviewUrl })
@@ -267,7 +273,7 @@ export function heldNotification({ shortName, photoCount, holdUntilIso, nextSlot
     ? `Tag by hand: ${pendingSchoolTeams.join(', ')}.`
     : 'Nothing to do.'
   return {
-    title: `Posts ${chicagoLabel(nextSlotIso)}: ${shortName} (${photoCount} photo${plural})`,
+    title: `Posts ${chicagoLabel(nextSlotIso)}: ${shortName} (${photoCount} photo${plural}${hasStory ? ' + Story' : ''})`,
     message: `${outcomeLine} ${cancelLine}`,
     priority: 'default',
     click: reviewUrl || undefined,

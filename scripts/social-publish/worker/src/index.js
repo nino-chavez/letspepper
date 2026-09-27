@@ -69,8 +69,8 @@
  * written by whoever writes KV.
  */
 
-import { standingEntry, inDate, entryCovers } from '../../route-shape.mjs'
-import { holdBlock, isHeld } from '../../hold-shape.mjs'
+import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route-shape.mjs'
+import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
   chicagoLabel, reviewUrlFor,
@@ -270,13 +270,33 @@ async function buildContainer(token, ig, it, budget, persist) {
     return id
   }
   if (it.media_type === 'STORIES') {
-    // Stories containers take media only — no caption/user_tags (Graph v16+).
-    // Mirrors post-reels.mjs's STORIES branch; image containers finish fast so
-    // the non-IMAGE pollStatus below returns FINISHED same-run.
+    // Stories containers take no caption, no collaborators, and no sticker (link/poll/
+    // location) — but DO take user_tags (mentions): Meta's IG User /media reference (fetched
+    // 2026-09-26) added user_tags support for image/video Stories on 2025-07-09, x/y "required
+    // for images, optional for stories". Corrected here 2026-09-26 for the gallery-announce
+    // companion Story (school mentions + flickday.media) — this comment previously said "no
+    // caption/user_tags," which was true when it was written and is no longer true of the API.
+    // post-reels.mjs's own local STORIES branch (a separate, ad hoc publisher) still doesn't
+    // send user_tags; out of scope for this change. Image containers finish fast so the
+    // non-IMAGE pollStatus below returns FINISHED same-run.
     if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG story container')
     const media = it.video_url ? { video_url: it.video_url } : { image_url: it.image_url }
-    const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media })
-    return id
+    const tagParamsForStory = userTagsParams(it)
+    try {
+      const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media, ...tagParamsForStory })
+      return id
+    } catch (e) {
+      // Same rule as the CAROUSEL child branch above, and for the same reason: a confirmed
+      // handle can still be rejected by Meta's undocumented publish-time tagging check, and a
+      // mention must never cost the whole Story — code review 2026-09-26 caught that this
+      // branch had the media but not the retry.
+      if (e instanceof Deferred || !tagParamsForStory.user_tags) throw e
+      console.error(`buildContainer: Story rejected with tags (${e.message}) — retrying without them`)
+      it.school_tags_publish_error = e.message
+      if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted retrying IG story without tags')
+      const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media })
+      return id
+    }
   }
   if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG reels container')
   const thumb_offset = String(500 + Math.floor(Math.random() * 5500)) // random cover frame
@@ -335,6 +355,12 @@ function routeRefusal(q, ev, item, now) {
   if (!entry) return `no route: meta.route for "${ev}" is incomplete (needs reason, approved YYYY-MM-DD, accounts[], optional expires YYYY-MM-DD)`
   if (!inDate(entry, now)) return `no route: meta.route for "${ev}" expired ${entry.expires}`
   if (!entryCovers(entry, [item.account], now)) return `no route: meta.route for "${ev}" does not list account "${item.account}"`
+  // media_types (2026-09-26, gallery-announce companion Story): an entry with no media_types
+  // field covers every type except STORIES — Stories need an explicit, listed opt-in, because
+  // "gallery-announce" was approved for carousels, never asked about Stories. See
+  // route-shape.mjs's coversMediaType() and companion-story.mjs's header.
+  const mediaType = item.media_type || 'REELS'
+  if (!coversMediaType(entry, mediaType)) return `no route: meta.route for "${ev}" does not cover ${mediaType} items — it needs "media_types" listing "${mediaType}", and Nino has to approve that first (see graph-routes.json)`
   return null
 }
 
@@ -753,16 +779,36 @@ function eligibleNow(it, nowMs, hourAllowed) {
   return hourAllowed
 }
 
+// The companion-Story gate: a linked item (a Story's `linked_item_id` pointing at its
+// carousel) that is permanently dead (vetoed or a terminal Graph error) takes the Story down
+// with it — terminal on both destinations, same shape as a route refusal, so it never retries.
+// Persisted once, before any item in THIS tick is selected, so a Story that just went terminal
+// this same run is excluded from `due` below rather than racing it. A dangling/self link
+// (linkedItemBlock returns null) or a link that's still waiting is untouched here.
+async function blockLinkedTerminal(env, ev, q) {
+  let changed = false
+  for (const it of q.items) {
+    const block = linkedItemBlock(it, q.items)
+    if (block?.terminal && (instagramPending(it) || facebookPending(it))) {
+      refuse(it, block.reason)
+      changed = true
+    }
+  }
+  if (changed) await persistQueue(env, ev, q)
+}
+
 // Post one due pending item from this event. Scheduled items go earliest-first
 // (deterministic calendar order); legacy (no-scheduledAt) items keep the random
 // pick. Returns result, or null if nothing is due.
 async function postDuePending(env, ev, hourAllowed, budget) {
   const q = await loadQueue(env, ev); if (!q) return null
+  await blockLinkedTerminal(env, ev, q)
   const now = Date.now()
   const due = await routed(env, ev, q, q.items.filter((it) =>
     (instagramPending(it) || facebookPending(it)) &&
     hasMedia(it) &&
-    eligibleNow(it, now, hourAllowed)))
+    eligibleNow(it, now, hourAllowed) &&
+    !linkedItemBlock(it, q.items))) // still-waiting (non-terminal) — not due yet, no state change
   if (!due.length) return null
   const scheduled = due.filter((it) => it.scheduledAt).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
   const item = scheduled.length ? scheduled[0] : due[Math.floor(Math.random() * due.length)]
@@ -951,7 +997,11 @@ function renderSlide(child, i) {
 
 function renderItemCard(it, { reviewKey }) {
   const canCancel = reviewCancelEligible(it)
-  const slides = (it.children || []).map(renderSlide).join('\n')
+  // A Story item has no `children` — its one image lives on `image_url` directly (same shape
+  // as a standalone IMAGE item) — render it as a single slide so the card isn't blank.
+  const slides = Array.isArray(it.children) && it.children.length
+    ? it.children.map(renderSlide).join('\n')
+    : it.image_url ? renderSlide({ image_url: it.image_url }, 0) : ''
   const fbCaptionBlock = it.facebook_caption && it.facebook_caption !== it.caption
     ? `<div class="caption"><h3>Facebook caption</h3><pre>${esc(it.facebook_caption)}</pre></div>` : ''
   // The next posting slot is item.scheduledAt itself, not a re-derived guess — that field is
@@ -973,19 +1023,24 @@ function renderItemCard(it, { reviewKey }) {
     // rejected them for a reason confirmHandle() could not predict) — a confirmed tag that
     // still didn't make it onto the live post, worth a look even after the post is up.
     (it.school_tags_publish_error ? `<div>Instagram rejected a school tag when posting: ${esc(it.school_tags_publish_error)} — posted without it.</div>` : '')
+  // Companion Story cards render right after their carousel (build-gallery-announce.mjs
+  // appends both, carousel then Story, to the same queue) — this label is the only thing that
+  // distinguishes them, since the header otherwise repeats the same album name.
+  const isStory = it.media_type === 'STORIES'
   return `<section class="item" id="${esc(it.id)}">
   <header>
-    <h2>${esc(it.album_name || it.album_key || it.id)}</h2>
+    <h2>${esc(it.album_name || it.album_key || it.id)}${isStory ? ' &middot; Story' : ''}</h2>
     <span class="badge badge-${esc(it.status || 'unknown')}">${esc(itemStatusLabel(it))}</span>
   </header>
   <div class="meta">
-    <div>Account: <strong>${esc(itemAccountLabel(it))}</strong>${Array.isArray(it.collaborators) && it.collaborators.length ? ` &middot; Collab: ${esc(it.collaborators.join(', '))}` : ''}</div>
+    ${isStory && it.linked_item_id ? `<div>Linked to: ${esc(it.linked_item_id)}</div>` : ''}
+    <div>Account: <strong>${esc(itemAccountLabel(it))}</strong>${Array.isArray(it.collaborators) && it.collaborators.length ? ` &middot; Collab: ${esc(it.collaborators.join(', '))}` : ''}${isStory && Array.isArray(it.user_tags) && it.user_tags.length ? ` &middot; Mentions: ${esc(it.user_tags.map((t) => t.username || t).join(', '))}` : ''}</div>
     ${it.holdUntil ? `<div>Hold until: ${esc(chicagoLabel(it.holdUntil))}</div>` : ''}
     ${nextSlot ? `<div>Next posting slot: ${esc(chicagoLabel(nextSlot))}</div>` : ''}
     ${schoolTagsHtml}
   </div>
   <div class="slides">${slides}</div>
-  <div class="caption"><h3>Instagram caption</h3><pre>${esc(it.caption || '')}</pre></div>
+  ${isStory ? '' : `<div class="caption"><h3>Instagram caption</h3><pre>${esc(it.caption || '')}</pre></div>`}
   ${fbCaptionBlock}
   ${canCancel ? `<form method="POST" action="/review/cancel">
     <input type="hidden" name="key" value="${esc(reviewKey)}">

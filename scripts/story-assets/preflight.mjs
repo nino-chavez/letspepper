@@ -38,6 +38,18 @@ const FACES = {
     { weight: 500, file: 'jetbrains-mono-500.woff2' },
     { weight: 700, file: 'jetbrains-mono-700.woff2' },
   ],
+  // Photography brand (DESIGN.md: charcoal + gold, Montserrat display / Inter body) — added
+  // for the gallery-announce companion Story render, the first asset in this repo to use the
+  // photography site's own type system instead of Let's Pepper's Bebas Neue/Anton stack.
+  // montserrat-700.woff2 is copied verbatim from the photography site's own self-hosted
+  // static/fonts/montserrat-latin.woff2 (a 300-700 variable font); declared at 700 only, since
+  // this render only needs the bold display weight. inter-{400,600}.woff2 are copied from the
+  // @fontsource/inter package already a letspepper dependency.
+  'Montserrat': [{ weight: 700, file: 'montserrat-700.woff2' }],
+  'Inter': [
+    { weight: 400, file: 'inter-400.woff2' },
+    { weight: 600, file: 'inter-600.woff2' },
+  ],
 }
 
 export function requiredAsset(path, hint = '') {

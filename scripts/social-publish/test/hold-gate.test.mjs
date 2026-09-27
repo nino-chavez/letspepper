@@ -14,7 +14,7 @@ import { mkdtempSync, mkdirSync, cpSync, writeFileSync, readFileSync, rmSync } f
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { holdBlock, isHeld, isVetoed } from '../hold-shape.mjs'
+import { holdBlock, isHeld, isVetoed, linkedItemBlock } from '../hold-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SOCIAL = join(HERE, '..')
@@ -34,7 +34,7 @@ const baseItem = (extra = {}) => ({
   ...extra,
 })
 
-function sandbox({ routes = { events: {} }, item } = {}) {
+function sandbox({ routes = { events: {} }, item, items = [item] } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'hold-gate-'))
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
@@ -44,7 +44,7 @@ function sandbox({ routes = { events: {} }, item } = {}) {
   cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
   cpSync(join(REPO, 'reader-contract.json'), join(root, 'reader-contract.json'))
   writeFileSync(join(social, 'graph-routes.json'), JSON.stringify(routes, null, 2))
-  const queue = { event: EVENT, items: [item] }
+  const queue = { event: EVENT, items }
   writeFileSync(join(social, 'queue', `${EVENT}.json`), JSON.stringify(queue, null, 2))
   return {
     root, social,
@@ -123,6 +123,34 @@ test('control: an ordinary pending item (no hold, no veto) with the same fixture
   } finally { await graph.close(); sb.cleanup() }
 })
 
+// --- the linked-carousel gate applies to THIS publisher too (code review 2026-09-26) --------
+// post-reels.mjs is a separate publisher over the same queue shape the Worker uses for
+// gallery-announce — a real, unblocked path was `post-reels.mjs --event gallery-announce --id
+// <story-id>` before this, since only the Worker's own postDuePending checked linkedItemBlock.
+
+test('post-reels.mjs never publishes a Story whose carousel has not posted yet, even named directly with --id', async () => {
+  const carousel = baseItem({ id: 'holdtest-carousel', status: 'pending' })
+  const story = baseItem({ id: 'holdtest-story', linked_item_id: 'holdtest-carousel', status: 'pending' })
+  const sb = sandbox({ routes: STANDING, items: [carousel, story] }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', 'holdtest-story'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 1, `${r.out}\n${r.err}`) // "no due item" — same exit as a missing/already-posted id
+    assert.deepEqual(graph.seen, [], 'the Story reached the Graph API before its carousel posted')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('post-reels.mjs publishes the Story once its carousel is already posted', async () => {
+  const carousel = baseItem({ id: 'holdtest-carousel', status: 'posted' })
+  const story = baseItem({ id: 'holdtest-story', linked_item_id: 'holdtest-carousel', status: 'pending' })
+  const sb = sandbox({ routes: STANDING, items: [carousel, story] }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', 'holdtest-story'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 0, `${r.out}\n${r.err}`)
+    const items = JSON.parse(readFileSync(sb.queuePath, 'utf8')).items
+    assert.equal(items.find((i) => i.id === 'holdtest-story').status, 'posted')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
 // --- pure logic --------------------------------------------------------------
 
 test('hold-shape: pure decision table', () => {
@@ -139,4 +167,45 @@ test('hold-shape: pure decision table', () => {
   assert.equal(holdBlock({ status: 'pending' }, now), null)
   // vetoed wins over an already-cleared hold, and over a still-open one
   assert.match(holdBlock({ status: 'vetoed', holdUntil: '2026-09-25T18:00:00Z' }, now), /vetoed/)
+})
+
+// --- linkedItemBlock: the companion-Story gate (2026-09-26) ------------------
+// Code review 2026-09-26 caught that the only link between a Story and its carousel was time
+// (a fixed schedule offset) — a carousel that got vetoed or failed left its Story to publish
+// anyway, pointing at a feed post that never happened. linkedItemBlock() is the fix.
+
+test('linkedItemBlock: no linked_item_id at all is never blocked', () => {
+  assert.equal(linkedItemBlock({ id: 'a' }, [{ id: 'a' }]), null)
+})
+
+test('linkedItemBlock: a dangling reference (the linked item is not in this queue) is not blocked here', () => {
+  assert.equal(linkedItemBlock({ id: 'story', linked_item_id: 'nope' }, [{ id: 'story', linked_item_id: 'nope' }]), null)
+})
+
+test('linkedItemBlock: waiting for the carousel to post is non-terminal — try again next tick, no state change', () => {
+  for (const status of ['held', 'pending', 'building']) {
+    const items = [{ id: 'carousel', status }, { id: 'story', linked_item_id: 'carousel' }]
+    const block = linkedItemBlock(items[1], items)
+    assert.equal(block.terminal, false, status)
+    assert.match(block.reason, /waiting for its linked post/)
+  }
+})
+
+test('linkedItemBlock: a vetoed carousel permanently blocks its Story', () => {
+  const items = [{ id: 'carousel', status: 'vetoed' }, { id: 'story', linked_item_id: 'carousel' }]
+  const block = linkedItemBlock(items[1], items)
+  assert.equal(block.terminal, true)
+  assert.match(block.reason, /vetoed/)
+})
+
+test('linkedItemBlock: a carousel that failed with a terminal Graph error permanently blocks its Story', () => {
+  const items = [{ id: 'carousel', status: 'error', error: 'container ERROR' }, { id: 'story', linked_item_id: 'carousel' }]
+  const block = linkedItemBlock(items[1], items)
+  assert.equal(block.terminal, true)
+  assert.match(block.reason, /failed to publish/)
+})
+
+test('linkedItemBlock: a POSTED carousel unblocks its Story', () => {
+  const items = [{ id: 'carousel', status: 'posted' }, { id: 'story', linked_item_id: 'carousel' }]
+  assert.equal(linkedItemBlock(items[1], items), null)
 })
