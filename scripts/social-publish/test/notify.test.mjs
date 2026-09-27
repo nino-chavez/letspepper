@@ -231,6 +231,32 @@ test('heldNotification: singular "photo" for a one-slide carousel', () => {
   assert.match(n.title, /\(1 photo\)$/)
 })
 
+// school-tags.mjs, added 2026-09-26: an unconfirmed school handle is a REAL action Nino can
+// take during the hold, so "Nothing to do" would be false. Confirmed/auto-tagged accounts are
+// deliberately absent from this alert (see heldNotification's own comment) — only `pending`
+// ever reaches it.
+test('heldNotification: a pending school tag replaces "Nothing to do" with the one action, tagged accounts never appear', () => {
+  const n = heldNotification({
+    shortName: 'Millikin at North Central', photoCount: 10,
+    holdUntilIso: '2026-09-27T03:08:00.000Z', nextSlotIso: '2026-09-27T17:00:00.000Z',
+    reviewUrl: 'https://letspepper-reels-worker.biq.workers.dev/review?key=k#i',
+    reviewCancelUrl: 'https://letspepper-reels-worker.biq.workers.dev/review/cancel?key=k&id=i',
+    pendingSchoolTeams: ['North Central'],
+  })
+  assert.equal(n.message, "Tag by hand: North Central. Cancel before Sat 10:08 PM Central if you don't want it.")
+  assert.doesNotMatch(n.message, /Nothing to do/)
+})
+
+test('heldNotification: no pending school tags (default, or explicitly empty) reads exactly as before this field existed', () => {
+  const n = heldNotification({
+    shortName: 'x', photoCount: 10, holdUntilIso: '2026-09-27T03:08:00.000Z', nextSlotIso: '2026-09-27T17:00:00.000Z',
+    reviewUrl: 'https://letspepper-reels-worker.biq.workers.dev/review?key=k#i',
+    reviewCancelUrl: 'https://letspepper-reels-worker.biq.workers.dev/review/cancel?key=k&id=i',
+    pendingSchoolTeams: [],
+  })
+  assert.equal(n.message, "Nothing to do. Cancel before Sat 10:08 PM Central if you don't want it.")
+})
+
 test('postedNotification: outcome-first title, a View-on-<channel> button, no account slug', () => {
   const n = postedNotification({ albumName: 'JCA at ACC', channel: 'instagram', permalink: 'https://instagram.com/p/abc', collaborator: 'flickday.media' })
   assert.equal(n.title, 'Posted: JCA at ACC')

@@ -118,3 +118,19 @@ test('the generated Re7kho caption passes pnpm reader:check:social (--strict) un
       `--root=${sb.root}`, '--surface=social publishing queue', '--strict'], { stdio: 'pipe' })
   } finally { sb.cleanup() }
 })
+
+test('a college caption carrying the school @-mention line also passes the reader-contract gate', () => {
+  const DWDCET = "College Women's VB - Millikin at North Central - 09-23-2026"
+  const caption = buildGalleryAnnounceCaption({
+    albumName: DWDCET, venue: 'Gregory Arena, Naperville', selectedOf: '10 of 43', series: 'other',
+    result: { line: 'North Central won 3-0.' }, schoolTags: [{ handle: 'nccwomensvb' }, { handle: 'mubigblue' }],
+  })
+  assert.match(caption, /@nccwomensvb.*@mubigblue/)
+  const sb = sandbox()
+  try {
+    writeFileSync(join(sb.root, 'scripts', 'social-publish', 'queue', 'gallery-announce.json'),
+      JSON.stringify({ event: 'gallery-announce', items: [{ id: 'DWdCET-gallery-announce', caption }] }, null, 2))
+    execFileSync('node', [join(sb.root, 'tools', 'lib', 'encounter-audit.mjs'),
+      `--root=${sb.root}`, '--surface=social publishing queue', '--strict'], { stdio: 'pipe' })
+  } finally { sb.cleanup() }
+})

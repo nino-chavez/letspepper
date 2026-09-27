@@ -43,6 +43,13 @@
  *     series — Re7kho is an indoor high-school match (its own captions say
  *     "polished court"), and tagging it grass volleyball would be false, not
  *     just off-brand.
+ *   - A school @-mention line (e.g. "@nccwomensvb · @mubigblue") is added on the
+ *     Instagram caption ONLY, for a COLLEGE album, and ONLY for handles the caller
+ *     already confirmed (school-tags.mjs's `tags`, never `pending`) — the same two gates
+ *     (The Rotation's own `verified: 'graph'`, re-confirmed live) that gate the carousel's
+ *     user_tags on the first slide. Facebook doesn't resolve an Instagram @handle, so the
+ *     Facebook caption never carries one (channel === 'facebook' skips this line
+ *     entirely, independent of what `schoolTags` the caller passes).
  *
  * Album metadata beyond the display name (venue, a real event date, team
  * names) has no public read path in the photography repo — album_settings
@@ -91,7 +98,7 @@ export function shortAlbumName(albumName = '', fallback) {
  * has no account-routing logic of its own to get out of sync with the builder's.
  */
 export function buildGalleryAnnounceCaption({
-  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series, result, channel = 'instagram',
+  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series, result, channel = 'instagram', schoolTags,
 }) {
   const parsed = parseAlbumName(albumName)
   const teamsLine = teams || parsed.teams
@@ -103,6 +110,12 @@ export function buildGalleryAnnounceCaption({
   // College only: the caller passes a result solely from rotation-result.mjs, which
   // refuses non-college albums; this guard keeps the rule true if a caller forgets.
   if (result?.line && isCollegeAlbum(albumName)) lines.push(result.line)
+  // College + Instagram + confirmed only — same guard shape as the result line above, for
+  // the same reason: keep the rule true even if a caller passes school-tags.mjs's `pending`
+  // list by mistake (an unconfirmed handle must never reach a caption either).
+  if (channel === 'instagram' && isCollegeAlbum(albumName) && Array.isArray(schoolTags) && schoolTags.length) {
+    lines.push(schoolTags.map((t) => `@${t.handle}`).join(' · '))
+  }
   lines.push('')
   // "from the gallery", not "favorites" — the pick is an unattended heuristic
   // selection, not a claim about what Nino personally likes best.

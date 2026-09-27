@@ -68,7 +68,8 @@ import { execFileSync } from 'node:child_process'
 import selectGalleryPhotosDefault, { selectGalleryPhotosByCaption } from './select-gallery-photos.mjs'
 import { altTextFromCaption } from './alt-text.mjs'
 import { buildGalleryAnnounceCaption, shortAlbumName } from './gallery-announce-caption.mjs'
-import { lookupCollegeResult } from './rotation-result.mjs'
+import { isCollegeAlbum, lookupCollegeResult } from './rotation-result.mjs'
+import { schoolTagsForAlbum } from './school-tags.mjs'
 import { readLive } from './seed-kv.mjs'
 import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUrlFor } from './notify.mjs'
 import { loadRoutes, standingEntry } from './route-gate.mjs'
@@ -77,6 +78,12 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
 const CF_HASH = 'wg34HB28-JkySWVm5fW4kA' // Cloudflare Images account hash (public) — same as build-album-carousel.mjs
 const IG_CAROUSEL_MAX = 10
+// Where a confirmed school tag lands on the carousel's first slide — near the bottom edge,
+// spread left/right so two tags never overlap and neither sits over the action in the frame
+// (which these galleries generally center). Meta's IG User /media reference requires x/y for
+// an image user_tag (fetched 2026-09-26): both float 0.0-1.0, "percentage distance from left
+// edge" (x) / "top edge" (y) of the published image.
+const SCHOOL_TAG_POSITIONS = [{ x: 0.08, y: 0.92 }, { x: 0.92, y: 0.92 }]
 const DEFAULT_HOLD_HOURS = 2 // Nino, 2026-09-26: "2 hours" (was 12)
 const DEFAULT_ALLOWED_HOURS_UTC = [17, 22] // mirrors worker/wrangler.jsonc's ALLOWED_HOURS_UTC var — this
 // script cannot read the live Worker config, so it mirrors the tracked default; override with
@@ -113,6 +120,20 @@ export function accountForSeries(series) { return series === 'lpo' ? 'letspepper
  * `series` field (Re7kho, DWdCET). A reassigned item keeps its recorded series instead, because
  * an album's series is a fact about the album, not about the account that posts it. */
 export function seriesForAccount(account) { return account === 'letspepper' ? 'lpo' : 'other' }
+
+/**
+ * Attaches confirmed school tags to a carousel's FIRST slide only — never spread across
+ * slides, never on the parent container (Meta's Carousel Containers request syntax lists
+ * `collaborators` but not `user_tags`; each carousel child's own image-container request is
+ * where `user_tags` belongs — fetched from Meta's IG User /media reference 2026-09-26). Pure,
+ * and a no-op when there are no confirmed tags or no children, so it's safe to call
+ * unconditionally. Mutates nothing — returns a new children array.
+ */
+export function applySchoolTagsToChildren(children, tags = []) {
+  if (!children.length || !tags.length) return children
+  const user_tags = tags.map((t, i) => ({ username: t.handle, ...(SCHOOL_TAG_POSITIONS[i] || SCHOOL_TAG_POSITIONS.at(-1)) }))
+  return children.map((c, i) => (i === 0 ? { ...c, user_tags } : c))
+}
 
 /**
  * Append `item` to `queue` without touching any existing item — the growing-
@@ -189,6 +210,27 @@ function resolveOpenRouterKey() {
     return execFileSync('op', ['read', 'op://Developer Secrets/OpenRouter photography/credential'], { stdio: ['ignore', 'pipe', 'ignore'] })
       .toString().trim()
   } catch { return undefined }
+}
+
+/** school-tags.mjs's live re-confirmation needs the same Instagram System User token
+ * post-reels.mjs uses to publish — read here, not in that module, same pattern as
+ * resolveOpenRouterKey() above (the module only ever takes a token as a parameter, never
+ * looks one up or logs one). NTFY_DISABLED doubles as this project's "don't touch 1Password
+ * or the network" test flag (see resolveNtfyTopic/resolveReviewKey below) — reused here so a
+ * test run never shells out to `op` OR calls the real business_discovery endpoint; a test
+ * that wants to exercise confirmHandle() passes its own token/fetchImpl straight through to
+ * schoolTagsForAlbum instead. Missing/unresolvable is not fatal: every candidate handle then
+ * simply fails confirmation and lands in `pending`, never `tags` — fail-closed, not fail-open. */
+function resolveMetaToken() {
+  if (process.env.IG_ACCESS_TOKEN) return process.env.IG_ACCESS_TOKEN
+  if (process.env.NTFY_DISABLED) return undefined
+  try {
+    return execFileSync('op', ['read', 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim()
+  } catch (e) {
+    console.error(`resolveMetaToken: could not read a Meta token (${e.message}) — no school-tag handle can be confirmed; every candidate goes to "pending".`)
+    return undefined
+  }
 }
 
 /** notify.mjs is Worker-safe (no node: imports) and never looks up its own topic — the `op
@@ -280,10 +322,17 @@ async function refreshCaption(args, albumKey, seriesArg) {
   const albumName = await resolveAlbumName(site, albumKey, args.name)
   const { result, reason } = await lookupCollegeResult(albumName)
   console.log(result ? `Result (The Rotation): ${result.line}` : `No result line: ${reason}`)
+  // The live item's own school_tags.tagged (set once, at the original build — see main()'s
+  // schoolTagsForAlbum() call) is the confirmed-tag record; a caption refresh only rebuilds
+  // TEXT (never children[0].user_tags, which is already published or already queued), so it
+  // reads the recorded confirmation instead of re-confirming live again. An item built before
+  // this field existed has no `school_tags` and gets no mention line on refresh — accurate,
+  // since nothing was ever confirmed for it.
+  const existingTags = (item.school_tags?.tagged) || []
   const captionArgs = {
     albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
     galleryUrl: `${site}/albums/${createAlbumSlug(albumName, albumKey)}`,
-    selectedOf: `${item.children.length} of ${photos.length}`, series, result,
+    selectedOf: `${item.children.length} of ${photos.length}`, series, result, schoolTags: existingTags,
   }
   const captions = {
     caption: buildGalleryAnnounceCaption({ ...captionArgs, channel: 'instagram' }),
@@ -321,6 +370,13 @@ export async function main(argv = process.argv.slice(2)) {
   const albumName = await resolveAlbumName(site, albumKey, args.name)
   const { result: matchResult, reason: resultReason } = await lookupCollegeResult(albumName)
   console.log(matchResult ? `Result (The Rotation): ${matchResult.line}` : `No result line: ${resultReason}`)
+
+  // resolveMetaToken() shells out to `op` when IG_ACCESS_TOKEN isn't set — only pay that
+  // cost (and only risk that side effect) for an album school-tags.mjs will actually use it
+  // for; isCollegeAlbum() itself never touches the network.
+  const schoolTags = await schoolTagsForAlbum(albumName, { token: isCollegeAlbum(albumName) ? resolveMetaToken() : undefined })
+  if (schoolTags.tags.length) console.log(`School tags: ${schoolTags.tags.map((t) => `@${t.handle} (${t.albumTeamName})`).join(', ')}`)
+  if (schoolTags.pending.length) console.log(`School tags to add by hand: ${schoolTags.pending.map((t) => `${t.albumTeamName}${t.handle ? ` (@${t.handle})` : ''} — ${t.reason}`).join('; ')}`)
 
   const strategyArg = typeof args.strategy === 'string' ? args.strategy : null
   const selectPhotos = await loadStrategy(strategyArg)
@@ -360,10 +416,11 @@ export async function main(argv = process.argv.slice(2)) {
     const imageUrl = dryRun ? cfLarge(p.cf_image_id) : await r2Put({ bucket, publicBase, event: `${EVENT}-${albumKey}`, cfId: p.cf_image_id, key: `slide-${n}` })
     children.push({ media_type: 'IMAGE', image_url: imageUrl, alt_text: altText, _source: dryRun ? 'imagedelivery.net (NOT yet re-hosted on R2 — dry-run only)' : 'r2', _image_key: p.image_key })
   }
+  const taggedChildren = applySchoolTagsToChildren(children, schoolTags.tags)
 
   const captionArgs = {
     albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
-    galleryUrl, selectedOf: selection.selectedOf, series, result: matchResult,
+    galleryUrl, selectedOf: selection.selectedOf, series, result: matchResult, schoolTags: schoolTags.tags,
   }
   const caption = buildGalleryAnnounceCaption({ ...captionArgs, channel: 'instagram' })
   const facebookCaption = buildGalleryAnnounceCaption({ ...captionArgs, channel: 'facebook' })
@@ -380,9 +437,14 @@ export async function main(argv = process.argv.slice(2)) {
     caption,
     facebook_caption: facebookCaption,
     facebook_alt_text: facebookAltText,
-    children: children.map(({ _source, _image_key, ...c }) => c), // internal fields stay off the published payload
+    children: taggedChildren.map(({ _source, _image_key, ...c }) => c), // internal fields stay off the published payload
     user_tags: [],
     collaborators: ['flickday.media'],
+    // Confirmed handles are already ON children[0].user_tags above (that's where Meta's own
+    // /media reference puts a carousel child's tags); this is a review-surface record, not a
+    // second copy the Worker publishes from. `pending` is what the /review page and the HELD
+    // notification's own alert (see notify.mjs) point Nino at for "add by hand".
+    school_tags: { tagged: schoolTags.tags, pending: schoolTags.pending },
     scheduledAt: nextSlot,
     holdUntil,
     status: 'held',
@@ -405,15 +467,18 @@ export async function main(argv = process.argv.slice(2)) {
     collaborators: item.collaborators,
     content: 'carousel',
     assets: selection.selectedOf,
-    selected: children.map((c, i) => {
+    selected: taggedChildren.map((c, i) => {
       const p = perPhotoByKey.get(c._image_key)
       return {
         order: i + 1, image_key: c._image_key, url: c.image_url, source: c._source, alt_text: c.alt_text,
+        ...(c.user_tags ? { user_tags: c.user_tags } : {}),
         ...(p ? { why_kept: p.why_kept, sharpness: p.sharpness, orientation: p.orientation, model_reason: p.reason } : {}),
       }
     }),
     caption,
-    alt_text: children.map((c) => c.alt_text),
+    alt_text: taggedChildren.map((c) => c.alt_text),
+    // Confirmed vs. "add by hand" — see item.school_tags for the same shape carried into KV.
+    school_tags: { tagged: schoolTags.tags, pending: schoolTags.pending },
     surface: 'Graph publisher standing route gallery-announce',
     route_reason: 'standing route, see graph-routes.json "gallery-announce"',
     holdUntil,
@@ -477,6 +542,7 @@ export async function main(argv = process.argv.slice(2)) {
     nextSlotIso: nextSlot, // the SAME value now written onto item.scheduledAt — one computation, not two
     reviewUrl: reviewUrlFor(reviewKey, item.id),
     reviewCancelUrl: reviewCancelUrlFor(reviewKey, item.id),
+    pendingSchoolTeams: schoolTags.pending.map((t) => t.albumTeamName),
   })
   const topic = resolveNtfyTopic()
   await notify({ topic, ...heldBuild })

@@ -245,17 +245,30 @@ export function reviewCancelUrlFor(reviewKey, itemId) {
  * album name itself. Fail-soft shape: pass reviewUrl/reviewCancelUrl only when REVIEW_KEY
  * resolved — with neither, this sends the outcome alone and no action can be taken from the
  * alert (the caller already logged why; see resolveReviewKey()). Never a terminal command
- * in the body — that was the pre-2026-09-26 shape Nino read as "too much to parse." */
-export function heldNotification({ shortName, photoCount, holdUntilIso, nextSlotIso, reviewUrl, reviewCancelUrl }) {
+ * in the body — that was the pre-2026-09-26 shape Nino read as "too much to parse."
+ *
+ * `pendingSchoolTeams` (added 2026-09-26, school-tags.mjs): names of any college teams whose
+ * Instagram handle could NOT be confirmed (school-tags.mjs's `pending`, never `tagged`) — a
+ * REAL action Nino can take during the hold, so "Nothing to do" would be false when this is
+ * non-empty. Confirmed/auto-tagged accounts are deliberately NOT listed here: they need no
+ * action, and Nino's 2026-09-26 correction on this exact alert ("hard to distinguish info
+ * from action") is why informational detail belongs on /review, not stacked into this body.
+ * A non-college or fully-confirmed album passes nothing (or an empty array) and the alert
+ * reads exactly as it did before this field existed. */
+export function heldNotification({ shortName, photoCount, holdUntilIso, nextSlotIso, reviewUrl, reviewCancelUrl, pendingSchoolTeams = [] }) {
   const plural = photoCount === 1 ? '' : 's'
   const actions = []
   if (reviewUrl) actions.push({ action: 'view', label: 'Review', url: reviewUrl })
   if (reviewCancelUrl) actions.push({ action: 'http', label: 'Cancel post', url: reviewCancelUrl, clear: true })
+  const cancelLine = reviewUrl
+    ? `Cancel before ${chicagoLabel(holdUntilIso)} if you don't want it.`
+    : 'It posts on its own.'
+  const outcomeLine = pendingSchoolTeams.length
+    ? `Tag by hand: ${pendingSchoolTeams.join(', ')}.`
+    : 'Nothing to do.'
   return {
     title: `Posts ${chicagoLabel(nextSlotIso)}: ${shortName} (${photoCount} photo${plural})`,
-    message: reviewUrl
-      ? `Nothing to do. Cancel before ${chicagoLabel(holdUntilIso)} if you don't want it.`
-      : 'Nothing to do. It posts on its own.',
+    message: `${outcomeLine} ${cancelLine}`,
     priority: 'default',
     click: reviewUrl || undefined,
     actions,
