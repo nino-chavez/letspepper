@@ -29,6 +29,7 @@ import {
   standingEntry,
 } from '../route-gate.mjs'
 import { coversMediaType } from '../route-shape.mjs'
+import { carouselChildParams, carouselParentParams } from '../carousel-container-params.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SOCIAL = join(HERE, '..')
@@ -70,7 +71,7 @@ function sandbox({ routes = { events: {} }, queue = incidentQueue() } = {}) {
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
   mkdirSync(join(root, 'tools', 'lib'), { recursive: true })
-  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'post-reels.mjs', 'post-now.mjs', 'accounts.json', 'vary-captions.mjs'])
+  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'tag-params.mjs', 'carousel-container-params.mjs', 'post-reels.mjs', 'post-now.mjs', 'accounts.json', 'vary-captions.mjs'])
     cpSync(join(SOCIAL, f), join(social, f))
   cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
   cpSync(join(REPO, 'reader-contract.json'), join(root, 'reader-contract.json'))
@@ -159,6 +160,26 @@ test('control: with a recorded one-off route the same item publishes, and the st
     assert.equal(item.route.reason, reason, 'the reason stays on the ledger item as the route receipt')
     assert.match(item.route.via, /post-reels\.mjs --graph-route/)
   } finally { await graph.close(); sb.cleanup() }
+})
+
+test('carousel user_tags go to every image child, never the parent or a video child', () => {
+  const q = incidentQueue()
+  const item = q.items[0]
+  item.user_tags = [{ username: 'nccwomensvb', x: 0.08, y: 0.92 }]
+  item.children = [
+    { media_type: 'IMAGE', image_url: 'https://media.invalid/first.jpg', user_tags: [{ username: 'first-slide', x: 0.5, y: 0.5 }] },
+    { media_type: 'VIDEO', video_url: 'https://media.invalid/interlude.mp4' },
+    { media_type: 'IMAGE', image_url: 'https://media.invalid/last.jpg' },
+  ]
+  const childRequests = item.children.map((child) => carouselChildParams(item, child))
+  const imageChildRequests = childRequests.filter((params) => params.image_url)
+  assert.equal(imageChildRequests.length, 2)
+  assert.deepEqual(JSON.parse(imageChildRequests[0].user_tags), item.children[0].user_tags, 'a child-specific tag list wins, matching the Worker')
+  assert.deepEqual(JSON.parse(imageChildRequests[1].user_tags), item.user_tags, 'a legacy item-level tag list reaches every untagged image child')
+  assert.equal(childRequests.find((params) => params.media_type === 'VIDEO').user_tags, undefined)
+  const parentParams = carouselParentParams(item, ['child-1', 'child-2', 'child-3'])
+  assert.equal(parentParams.user_tags, undefined)
+  assert.deepEqual(JSON.parse(parentParams.collaborators), item.collaborators)
 })
 
 test('a standing route in graph-routes.json lets a campaign publish several items with no per-post reason', async () => {

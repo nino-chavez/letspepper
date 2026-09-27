@@ -17,14 +17,16 @@
  *   media_type     REELS | IMAGE | CAROUSEL | STORIES
  *   video_url      REELS / STORIES video / carousel video child
  *   image_url      IMAGE / STORIES image / carousel image child
- *   children       [{media_type,image_url|video_url}, ...]  (CAROUSEL only)
+ *   children       [{media_type,image_url|video_url,user_tags?}, ...]  (CAROUSEL only)
  *   caption        post caption
  *   user_tags      ["username", ...] or [{username,x,y}, ...]   real Graph API
  *                  tags (not caption mentions) — IGNORED on STORIES (Graph API
  *                  has no caption/tag support for Stories, media only). On a
- *                  single IMAGE, tagParams() defaults bare usernames to a
+ *                  IMAGE (including a carousel image child), tagParams() defaults bare usernames to a
  *                  dead-center (0.5, 0.5) position — pass {username,x,y} for
- *                  a precise spot. CAROUSEL/REELS take bare usernames as-is.
+ *                  a precise spot. On CAROUSELs, tags go on each image child,
+ *                  never the parent; a child's tags override the item-level
+ *                  fallback. REELS take bare usernames as-is.
  *   collaborators  ["username", ...]      send Collab co-author invites
  *
  * Flags: --count N (default 2) · --account slug (override) · --id <item-id>
@@ -59,6 +61,8 @@ import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { assertGraphRoute, digestOf } from './route-gate.mjs'
 import { holdBlock, linkedItemBlock } from './hold-shape.mjs'
+import { tagParams } from './tag-params.mjs'
+import { carouselChildParams, carouselParentParams } from './carousel-container-params.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -197,46 +201,22 @@ async function publishWithRetry(ig, creationId, attempts = 5) {
   }
 }
 
-// optional cross-account params shared by single + carousel-parent containers.
-// A single feed IMAGE tag REQUIRES x/y (fractional position on the photo) —
-// verified live 2026-07-20: omitting it 400s with error_subcode 2207063
-// ("User tag positions are required for image."). CAROUSEL/REELS tags don't
-// pin to a point on a photo, so no coordinates needed there. Default bare
-// usernames to dead-center (0.5, 0.5) on IMAGE; pass {username,x,y} in
-// user_tags for a precise position instead.
-function tagParams(it) {
-  const p = {}
-  if (Array.isArray(it.user_tags) && it.user_tags.length)
-    p.user_tags = JSON.stringify(it.user_tags.map((u) => {
-      if (typeof u !== 'string') return u
-      return it.media_type === 'IMAGE' ? { username: u, x: 0.5, y: 0.5 } : { username: u }
-    }))
-  if (Array.isArray(it.collaborators) && it.collaborators.length)
-    p.collaborators = JSON.stringify(it.collaborators)
-  return p
-}
-
 async function buildContainer(ig, it) {
   if (it.media_type === 'CAROUSEL') {
     const childIds = []
     for (const child of it.children) {
       // alt_text: Meta's IG media reference lists it as "supported on a single
       // image or image media in a carousel" — an IMAGE child only, never VIDEO.
-      const base = child.media_type === 'VIDEO'
-        ? { media_type: 'VIDEO', video_url: child.video_url }
-        : { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}) }
-      const { id } = await api(`${ig}/media`, { ...base, is_carousel_item: 'true' })
+      const { id } = await api(`${ig}/media`, carouselChildParams(it, child))
       if (child.media_type === 'VIDEO') await waitFinished(id)
       childIds.push(id)
     }
-    const { id } = await api(`${ig}/media`, {
-      media_type: 'CAROUSEL', children: childIds.join(','), caption: it.caption, ...tagParams(it),
-    })
+    const { id } = await api(`${ig}/media`, carouselParentParams(it, childIds))
     return id
   }
   if (it.media_type === 'IMAGE') {
     const { id } = await api(`${ig}/media`, {
-      image_url: it.image_url, caption: it.caption, ...(it.alt_text ? { alt_text: it.alt_text } : {}), ...tagParams(it),
+      image_url: it.image_url, caption: it.caption, ...(it.alt_text ? { alt_text: it.alt_text } : {}), ...tagParams(it, { image: true }),
     })
     return id
   }
