@@ -63,13 +63,17 @@
  *                          .temp/gallery-announce-<key>-story.dry-run.png.
  *
  * Companion Story (2026-09-26): every build also produces a Story item (media_type STORIES),
- * linked to its carousel, same account and hold window, scheduled a few minutes after it. Its
- * image is a fresh 1080x1920 render of the carousel's lead slide with a matchup + date overlay
- * (companion-story.mjs) — appended to the SAME queue right after the carousel, so /review and
- * the HELD alert show it next to its carousel. Vetoing the carousel cascades to the Story
- * (veto-shape.mjs); the route gate refuses to publish it unless graph-routes.json's
- * "gallery-announce" entry explicitly lists "STORIES" in a "media_types" array, which it does
- * not yet — Nino has not approved Stories for this campaign (see SETUP.md).
+ * linked to its carousel (`linked_item_id`), same account and hold window, scheduled a few
+ * minutes after it. Its image is a fresh 1080x1920 render of the carousel's lead slide with a
+ * matchup + date overlay (companion-story.mjs) — appended to the SAME queue right after the
+ * carousel, so /review and the HELD alert show it next to its carousel. Vetoing the carousel
+ * cascades to the Story (veto-shape.mjs); a carousel that fails or is still transcoding holds
+ * the Story back too, and permanently blocks it once the carousel goes terminal
+ * (hold-shape.mjs's linkedItemBlock(), wired into the Worker's postDuePending — the schedule
+ * offset alone is never the only thing gating this). The route gate separately refuses to
+ * publish the Story at all unless graph-routes.json's "gallery-announce" entry explicitly lists
+ * "STORIES" in a "media_types" array, which it does not yet — Nino has not approved Stories for
+ * this campaign (see SETUP.md).
  */
 import { writeFileSync, mkdirSync, readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join, dirname } from 'node:path'

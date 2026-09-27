@@ -70,7 +70,7 @@
  */
 
 import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route-shape.mjs'
-import { holdBlock, isHeld } from '../../hold-shape.mjs'
+import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
   chicagoLabel, reviewUrlFor,
@@ -281,8 +281,22 @@ async function buildContainer(token, ig, it, budget, persist) {
     // non-IMAGE pollStatus below returns FINISHED same-run.
     if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG story container')
     const media = it.video_url ? { video_url: it.video_url } : { image_url: it.image_url }
-    const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media, ...userTagsParams(it) })
-    return id
+    const tagParamsForStory = userTagsParams(it)
+    try {
+      const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media, ...tagParamsForStory })
+      return id
+    } catch (e) {
+      // Same rule as the CAROUSEL child branch above, and for the same reason: a confirmed
+      // handle can still be rejected by Meta's undocumented publish-time tagging check, and a
+      // mention must never cost the whole Story — code review 2026-09-26 caught that this
+      // branch had the media but not the retry.
+      if (e instanceof Deferred || !tagParamsForStory.user_tags) throw e
+      console.error(`buildContainer: Story rejected with tags (${e.message}) — retrying without them`)
+      it.school_tags_publish_error = e.message
+      if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted retrying IG story without tags')
+      const { id } = await api(token, `${ig}/media`, { media_type: 'STORIES', ...media })
+      return id
+    }
   }
   if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG reels container')
   const thumb_offset = String(500 + Math.floor(Math.random() * 5500)) // random cover frame
@@ -765,16 +779,36 @@ function eligibleNow(it, nowMs, hourAllowed) {
   return hourAllowed
 }
 
+// The companion-Story gate: a linked item (a Story's `linked_item_id` pointing at its
+// carousel) that is permanently dead (vetoed or a terminal Graph error) takes the Story down
+// with it — terminal on both destinations, same shape as a route refusal, so it never retries.
+// Persisted once, before any item in THIS tick is selected, so a Story that just went terminal
+// this same run is excluded from `due` below rather than racing it. A dangling/self link
+// (linkedItemBlock returns null) or a link that's still waiting is untouched here.
+async function blockLinkedTerminal(env, ev, q) {
+  let changed = false
+  for (const it of q.items) {
+    const block = linkedItemBlock(it, q.items)
+    if (block?.terminal && (instagramPending(it) || facebookPending(it))) {
+      refuse(it, block.reason)
+      changed = true
+    }
+  }
+  if (changed) await persistQueue(env, ev, q)
+}
+
 // Post one due pending item from this event. Scheduled items go earliest-first
 // (deterministic calendar order); legacy (no-scheduledAt) items keep the random
 // pick. Returns result, or null if nothing is due.
 async function postDuePending(env, ev, hourAllowed, budget) {
   const q = await loadQueue(env, ev); if (!q) return null
+  await blockLinkedTerminal(env, ev, q)
   const now = Date.now()
   const due = await routed(env, ev, q, q.items.filter((it) =>
     (instagramPending(it) || facebookPending(it)) &&
     hasMedia(it) &&
-    eligibleNow(it, now, hourAllowed)))
+    eligibleNow(it, now, hourAllowed) &&
+    !linkedItemBlock(it, q.items))) // still-waiting (non-terminal) — not due yet, no state change
   if (!due.length) return null
   const scheduled = due.filter((it) => it.scheduledAt).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
   const item = scheduled.length ? scheduled[0] : due[Math.floor(Math.random() * due.length)]

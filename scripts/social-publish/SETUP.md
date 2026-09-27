@@ -602,9 +602,12 @@ carousel (an operator may want the gallery announced without its Story).
 never asked about. `route-shape.mjs`'s `coversMediaType()` is the rule: an entry with no
 `media_types` field covers every media type EXCEPT `STORIES`; Stories need an explicit,
 listed opt-in. Both route-gate.mjs (local) and the Worker's `routeRefusal()` (scheduled) enforce
-this — a Story built today queues as `held`, then once its hold clears sits `pending` forever,
-refused every tick with `route_error: "... does not cover STORIES items ..."`, until either
-line below ships. **To approve it, Nino adds ONE line to `graph-routes.json`'s
+this. **Same as any other route refusal, this goes TERMINAL, not "keeps waiting"**: the first
+tick a Story's hold clears, `refuse()` marks it `error` with `route_error: "... does not cover
+STORIES items ..."`, and — because `error` isn't one of `instagramPending()`'s eligible
+statuses — nothing retries it on its own (this is the same "Anything else goes terminal" rule
+the Route gate section above already documents for every other route refusal; a Story is not a
+special case here). **To approve it, Nino adds ONE line to `graph-routes.json`'s
 "gallery-announce" entry**:
 
 ```
@@ -613,7 +616,24 @@ line below ships. **To approve it, Nino adds ONE line to `graph-routes.json`'s
 
 `seed-kv.mjs`'s `seedPayload()` copies `media_types` through into `meta.route` the same way it
 already copies `expires` — the Worker cannot read `graph-routes.json` at all, so this is the
-only path an approval can take to actually reach the deployed queue.
+only path an approval can take to actually reach the deployed queue. **The approval alone does
+NOT revive a Story already sitting `error`** — `seed-kv.mjs --event gallery-announce --revive
+<id> --put` re-opens it (the same command any other route-refused item uses), and its
+`scheduledAt` is already in the past by then, so it posts on the Worker's very next tick, not on
+any particular schedule. A Story built AFTER the approval ships needs no revive; its route check
+simply passes the first time it's checked.
+
+**The linked-carousel dependency gate is separate from the route gate above, and is not
+optional.** Even once Stories are approved, a Story never publishes before, or instead of, the
+carousel it's linked to (`hold-shape.mjs`'s `linkedItemBlock()`, wired into
+`worker/src/index.js`'s `postDuePending`): while the carousel is still `held`/`pending`/
+`building`, the Story simply isn't due yet (no state change, tried again next tick); once the
+carousel is `posted`, the Story is due; if the carousel goes permanently dead first (`vetoed`,
+or a terminal Graph `error`), the Story is marked terminal too, the same shape a route refusal
+uses (`route_error`, e.g. "its linked post was vetoed"). Added after code review caught that the
+only original link between the two was a fixed 15-minute schedule offset, which does not survive
+a carousel that fails, gets vetoed, or is simply still transcoding when the Story's own
+scheduledAt arrives.
 
 ## `/review` — see and cancel what's on hold, from a phone (2026-09-26)
 

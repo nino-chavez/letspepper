@@ -103,3 +103,95 @@ test('a STORIES item is refused if the route covers the account but the campaign
   const queue = await runQueue(queueOf(storyItem(), ROUTE_NO_STORIES), async () => { throw new Error('should not be called') })
   assert.doesNotMatch(queue.items[0].route_error, /does not list account/, 'the account IS listed — only the media type is missing')
 })
+
+// --- the linked-carousel dependency gate (added after code review 2026-09-26) --------------
+// The route gate above proves approval; these prove the SEPARATE rule that a Story must never
+// go out before, or in place of, a carousel that never actually posted.
+
+function carouselAndStory({ carouselStatus, extraStoryFields = {} } = {}) {
+  const carousel = {
+    id: 'DWdCET-gallery-announce',
+    account: 'ninophoto',
+    media_type: 'CAROUSEL',
+    channels: ['instagram'],
+    children: [{ media_type: 'IMAGE', image_url: 'https://cdn.example.test/DWdCET/01.jpg' }],
+    caption: 'x',
+    collaborators: [],
+    scheduledAt: '2026-09-25T00:00:00.000Z',
+    status: carouselStatus,
+  }
+  const story = storyItem({ scheduledAt: '2000-01-01T00:00:00.000Z', ...extraStoryFields })
+  return { event: EVENT, meta: { route: ROUTE_WITH_STORIES }, items: [carousel, story] }
+}
+
+test('a Story is NOT selected while its carousel is genuinely still on hold — no Graph request, no state change', async () => {
+  const calls = []
+  const fetchImpl = async (input) => { calls.push(String(input)); throw new Error('should not be called') }
+  const q = carouselAndStory({ carouselStatus: 'held' })
+  q.items[0].holdUntil = new Date(Date.now() + 3600_000).toISOString() // actually on hold, not just labeled 'held'
+  const queue = await runQueue(q, fetchImpl)
+  const story = queue.items.find((it) => it.id === 'DWdCET-gallery-announce-story')
+  assert.deepEqual(calls, [])
+  assert.equal(story.status, 'pending', 'the Story is untouched, not errored — it just isn\'t due yet')
+})
+
+test('a Story does not jump ahead of its own carousel: with both due in the same tick, the carousel publishes and the Story waits', async () => {
+  // A genuinely 'pending' (not held) carousel that hasn't posted yet is itself due — the single
+  // published-item-per-tick rule (postDuePending picks ONE) means this run publishes the
+  // carousel, not the Story, even though the Story's own scheduledAt is earlier. That's the
+  // gate working, not a bug: the Story becomes eligible on a LATER tick, once status is 'posted'.
+  const fetchImpl = async (input, init = {}) => {
+    const url = new URL(String(input)); const method = init.method || 'GET'
+    if (method === 'POST' && url.pathname.endsWith('/17841401886738878/media')) return Response.json({ id: 'ig-carousel-child' })
+    if (method === 'GET' && url.pathname.endsWith('/ig-carousel-child')) return Response.json({ status_code: 'FINISHED' })
+    if (method === 'POST' && url.pathname.endsWith('/media_publish')) return Response.json({ id: 'ig-carousel-media' })
+    throw new Error(`Unexpected Graph request: ${method} ${url}`)
+  }
+  const queue = await runQueue(carouselAndStory({ carouselStatus: 'pending' }), fetchImpl)
+  assert.equal(queue.items.find((it) => it.id === 'DWdCET-gallery-announce').status, 'posted')
+  assert.equal(queue.items.find((it) => it.id === 'DWdCET-gallery-announce-story').status, 'pending', 'the Story was not touched this tick')
+})
+
+test('a Story publishes once its carousel is actually posted', async () => {
+  const fetchImpl = async (input, init = {}) => {
+    const url = new URL(String(input))
+    const method = init.method || 'GET'
+    if (method === 'POST' && url.pathname.endsWith('/17841401886738878/media')) return Response.json({ id: 'ig-story-container' })
+    if (method === 'GET' && url.pathname.endsWith('/ig-story-container')) return Response.json({ status_code: 'FINISHED' })
+    if (method === 'POST' && url.pathname.endsWith('/media_publish')) return Response.json({ id: 'ig-story-media' })
+    throw new Error(`Unexpected Graph request: ${method} ${url}`)
+  }
+  const queue = await runQueue(carouselAndStory({ carouselStatus: 'posted' }), fetchImpl)
+  assert.equal(queue.items.find((it) => it.id === 'DWdCET-gallery-announce-story').status, 'posted')
+})
+
+test('a vetoed carousel takes its Story down too — terminal, not just skipped', async () => {
+  const calls = []
+  const fetchImpl = async (input) => { calls.push(String(input)); throw new Error('should not be called') }
+  const queue = await runQueue(carouselAndStory({ carouselStatus: 'vetoed' }), fetchImpl)
+  const story = queue.items.find((it) => it.id === 'DWdCET-gallery-announce-story')
+  assert.deepEqual(calls, [])
+  assert.equal(story.status, 'error')
+  assert.match(story.route_error, /linked post was vetoed/)
+})
+
+test('a carousel that failed with a terminal Graph error takes its Story down too', async () => {
+  const calls = []
+  const fetchImpl = async (input) => { calls.push(String(input)); throw new Error('should not be called') }
+  const queue = await runQueue(carouselAndStory({ carouselStatus: 'error' }), fetchImpl)
+  const story = queue.items.find((it) => it.id === 'DWdCET-gallery-announce-story')
+  assert.deepEqual(calls, [])
+  assert.equal(story.status, 'error')
+  assert.match(story.route_error, /linked post failed to publish/)
+})
+
+test('an ordinary item with no linked_item_id is completely unaffected by this gate', async () => {
+  const queue = await runQueue(queueOf({ ...storyItem(), linked_item_id: undefined }, ROUTE_WITH_STORIES), async (input, init = {}) => {
+    const url = new URL(String(input)); const method = init.method || 'GET'
+    if (method === 'POST' && url.pathname.endsWith('/17841401886738878/media')) return Response.json({ id: 'c' })
+    if (method === 'GET' && url.pathname.endsWith('/c')) return Response.json({ status_code: 'FINISHED' })
+    if (method === 'POST' && url.pathname.endsWith('/media_publish')) return Response.json({ id: 'm' })
+    throw new Error(`unexpected: ${method} ${url}`)
+  })
+  assert.equal(queue.items[0].status, 'posted')
+})

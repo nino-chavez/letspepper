@@ -32,7 +32,18 @@
  * same two-gate rule the carousel's own tags follow) plus flickday.media, and sends no caption,
  * no collaborators, and no sticker of any kind. worker/src/index.js's buildContainer() STORIES
  * branch is what actually sends user_tags on the Graph request; this module only builds the
- * item and the image.
+ * item and the image. That branch also retries once without tags if Meta rejects them at
+ * publish time — the same rule the carousel's own tagged child already follows, so a mention
+ * Meta refuses never costs the whole Story.
+ *
+ * Publish is gated TWICE, independently: the route gate (this campaign's standing route must
+ * explicitly list "STORIES" in its media_types — see route-shape.mjs's coversMediaType(), not
+ * yet approved), and the linked-carousel dependency gate (hold-shape.mjs's linkedItemBlock(),
+ * wired into the Worker's postDuePending) — a Story is never due before its carousel has
+ * actually posted, and is permanently blocked if the carousel goes terminal (vetoed, or a
+ * Graph error) first. The `linked_item_id` this module sets on the item is what that second
+ * gate reads; nothing about the schedule offset alone stops a Story from outliving a carousel
+ * that never posted.
  */
 import { chromium } from 'playwright'
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs'

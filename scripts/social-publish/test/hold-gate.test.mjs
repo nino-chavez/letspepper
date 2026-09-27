@@ -14,7 +14,7 @@ import { mkdtempSync, mkdirSync, cpSync, writeFileSync, readFileSync, rmSync } f
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { holdBlock, isHeld, isVetoed } from '../hold-shape.mjs'
+import { holdBlock, isHeld, isVetoed, linkedItemBlock } from '../hold-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SOCIAL = join(HERE, '..')
@@ -139,4 +139,45 @@ test('hold-shape: pure decision table', () => {
   assert.equal(holdBlock({ status: 'pending' }, now), null)
   // vetoed wins over an already-cleared hold, and over a still-open one
   assert.match(holdBlock({ status: 'vetoed', holdUntil: '2026-09-25T18:00:00Z' }, now), /vetoed/)
+})
+
+// --- linkedItemBlock: the companion-Story gate (2026-09-26) ------------------
+// Code review 2026-09-26 caught that the only link between a Story and its carousel was time
+// (a fixed schedule offset) — a carousel that got vetoed or failed left its Story to publish
+// anyway, pointing at a feed post that never happened. linkedItemBlock() is the fix.
+
+test('linkedItemBlock: no linked_item_id at all is never blocked', () => {
+  assert.equal(linkedItemBlock({ id: 'a' }, [{ id: 'a' }]), null)
+})
+
+test('linkedItemBlock: a dangling reference (the linked item is not in this queue) is not blocked here', () => {
+  assert.equal(linkedItemBlock({ id: 'story', linked_item_id: 'nope' }, [{ id: 'story', linked_item_id: 'nope' }]), null)
+})
+
+test('linkedItemBlock: waiting for the carousel to post is non-terminal — try again next tick, no state change', () => {
+  for (const status of ['held', 'pending', 'building']) {
+    const items = [{ id: 'carousel', status }, { id: 'story', linked_item_id: 'carousel' }]
+    const block = linkedItemBlock(items[1], items)
+    assert.equal(block.terminal, false, status)
+    assert.match(block.reason, /waiting for its linked post/)
+  }
+})
+
+test('linkedItemBlock: a vetoed carousel permanently blocks its Story', () => {
+  const items = [{ id: 'carousel', status: 'vetoed' }, { id: 'story', linked_item_id: 'carousel' }]
+  const block = linkedItemBlock(items[1], items)
+  assert.equal(block.terminal, true)
+  assert.match(block.reason, /vetoed/)
+})
+
+test('linkedItemBlock: a carousel that failed with a terminal Graph error permanently blocks its Story', () => {
+  const items = [{ id: 'carousel', status: 'error', error: 'container ERROR' }, { id: 'story', linked_item_id: 'carousel' }]
+  const block = linkedItemBlock(items[1], items)
+  assert.equal(block.terminal, true)
+  assert.match(block.reason, /failed to publish/)
+})
+
+test('linkedItemBlock: a POSTED carousel unblocks its Story', () => {
+  const items = [{ id: 'carousel', status: 'posted' }, { id: 'story', linked_item_id: 'carousel' }]
+  assert.equal(linkedItemBlock(items[1], items), null)
 })
