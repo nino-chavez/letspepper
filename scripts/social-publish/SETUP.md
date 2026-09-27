@@ -612,10 +612,18 @@ app-version-dependent, so these are conservative bounds, not exact ones.
 them; the frame's own bottom padding is derived from `SAFE_BOTTOM`, not a second number kept in
 sync by hand. The first render's text sat at ~1665-1810px — inside the bottom zone — before this
 fix. `measureOverlayBox()` renders the same HTML headlessly and returns any element's real
-bounding box, so tests assert both `.stack` (the text — a short matchup, a long one that wraps
-to two lines, and no date line at all) AND `.photo` itself (a 2:3 portrait, a near-9:16 portrait,
-and a landscape source) stay inside `[SAFE_TOP, SAFE_BOTTOM]`, without eyeballing a screenshot
-every time this changes.
+bounding box, so tests assert `.stack` (the text — a short matchup, a long one that wraps to two
+lines, and no date line at all) stays inside `[SAFE_TOP, SAFE_BOTTOM]`, without eyeballing a
+screenshot every time this changes. `.photo`'s own CSS box is NOT the right thing to check the
+same way — it's fixed by CSS at `[SAFE_TOP, SAFE_BOTTOM]` regardless of the source image or its
+object-fit value, so that check would pass unconditionally (a third review pass caught this: it
+would even pass under `object-fit: cover`, which crops real content while the element box stays
+put). `measureDrawnPhotoBox()` instead computes the photo's ACTUAL drawn extent from its
+`naturalWidth`/`naturalHeight`, its element box, and its computed `object-fit` — tests assert
+that drawn extent (not the element box) stays inside the safe area for a 2:3 portrait, a
+near-9:16 portrait, and a landscape source, plus a computed-`object-fit === 'contain'` check and
+a control test that proves the same 2:3 case DOES fail this check under `object-fit: cover` —
+the regression class code review was worried about.
 
 **Tags.** `user_tags` (mentions) — both schools' CONFIRMED handles (school-tags.mjs's `tags`,
 never `pending` — the same two-gate rule the carousel's own tags follow) plus

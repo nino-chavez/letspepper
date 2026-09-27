@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  companionStoryItem, companionStoryText, companionStoryHtml, renderCompanionStoryImage, measureOverlayBox,
+  companionStoryItem, companionStoryText, companionStoryHtml, renderCompanionStoryImage,
+  measureOverlayBox, measureDrawnPhotoBox,
   STORY_WIDTH, STORY_HEIGHT, STORY_DELAY_MINUTES, SAFE_TOP, SAFE_BOTTOM,
 } from '../companion-story.mjs'
 import { verifyPng } from '../../story-assets/preflight.mjs'
@@ -150,35 +151,54 @@ test('the overlay box stays inside the safe area with no date line at all', asyn
   assert.ok(box.y + box.height <= SAFE_BOTTOM)
 })
 
-// --- the photo itself must also stay inside the safe area (code review 2026-09-26, second
-// pass): containing the WHOLE photo into the full 1080x1920 canvas stopped the slicing but not
-// the underlying visibility problem — for DWdCET's own 1600x2399 the contained image centers at
-// y=150-1769, clear of the canvas edge but still 100px inside the 250px header zone. `.photo`
-// is now itself constrained to [SAFE_TOP, SAFE_BOTTOM] before object-fit:contain runs. ---------
+// --- the ACTUAL DRAWN photo content must stay inside the safe area, not just the CSS box the
+// <img> element occupies (code review 2026-09-26, third pass): `.photo`'s element box is fixed
+// by CSS at [SAFE_TOP, SAFE_BOTTOM] regardless of the source image or its object-fit value, so
+// a test that only measured the ELEMENT box (measureOverlayBox with selector '.photo') would
+// pass unconditionally — it would even pass if `object-fit: contain` were changed to `cover` or
+// `fill`, both of which can crop or stretch real photo content while the element box stays put.
+// measureDrawnPhotoBox() computes the REAL rendered extent from naturalWidth/naturalHeight, the
+// element box, and the computed object-fit — the thing that actually answers "is the photo
+// content visible inside the safe area." ------------------------------------------------------
 
 function svgDataUri(w, h) {
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="#334455"/></svg>`)
 }
 
-test('the photo box stays fully inside the safe area for a 2:3 portrait source (DWdCET\'s own served dimensions)', async () => {
+function assertDrawnBoxInSafeArea(drawn) {
+  assert.equal(drawn.objectFit, 'contain', 'must be contain-fit — cover/fill can crop or stretch real content while the element box stays put')
+  assert.ok(drawn.y >= SAFE_TOP - 0.5, `drawn photo top ${drawn.y} must not sit above SAFE_TOP ${SAFE_TOP}`)
+  assert.ok(drawn.y + drawn.height <= SAFE_BOTTOM + 0.5, `drawn photo bottom ${drawn.y + drawn.height} must not extend below SAFE_BOTTOM ${SAFE_BOTTOM}`)
+}
+
+test('the DRAWN photo content stays fully inside the safe area for a 2:3 portrait source (DWdCET\'s own served dimensions)', async () => {
   const html = companionStoryHtml({ imageUrl: svgDataUri(1600, 2399), matchup: 'x' })
-  const box = await measureOverlayBox(html, { selector: '.photo' })
-  assert.ok(box.y >= SAFE_TOP, `photo top ${box.y} must not sit above SAFE_TOP ${SAFE_TOP}`)
-  assert.ok(box.y + box.height <= SAFE_BOTTOM, `photo bottom ${box.y + box.height} must not extend below SAFE_BOTTOM ${SAFE_BOTTOM}`)
+  assertDrawnBoxInSafeArea(await measureDrawnPhotoBox(html))
 })
 
-test('the photo box stays fully inside the safe area for a near-9:16 source (near-zero contain margin)', async () => {
+test('the DRAWN photo content stays fully inside the safe area for a near-9:16 source (near-zero contain margin)', async () => {
   const html = companionStoryHtml({ imageUrl: svgDataUri(1080, 1920), matchup: 'x' })
-  const box = await measureOverlayBox(html, { selector: '.photo' })
-  assert.ok(box.y >= SAFE_TOP)
-  assert.ok(box.y + box.height <= SAFE_BOTTOM)
+  assertDrawnBoxInSafeArea(await measureDrawnPhotoBox(html))
 })
 
-test('the photo box stays fully inside the safe area for a landscape source (Re7kho\'s acc-v-jca-02, aspect_ratio 1.5)', async () => {
+test('the DRAWN photo content stays fully inside the safe area for a landscape source (Re7kho\'s acc-v-jca-02, aspect_ratio 1.5)', async () => {
   const html = companionStoryHtml({ imageUrl: svgDataUri(1600, 1067), matchup: 'x' })
-  const box = await measureOverlayBox(html, { selector: '.photo' })
-  assert.ok(box.y >= SAFE_TOP)
-  assert.ok(box.y + box.height <= SAFE_BOTTOM)
+  assertDrawnBoxInSafeArea(await measureDrawnPhotoBox(html))
+})
+
+// Proves the test above can actually fail (audit-discipline: "make every gate fail once on
+// purpose before trusting it") — flip .photo to object-fit:cover, the same regression a naive
+// element-box-only test could not catch, and confirm this one goes red on the 2:3 portrait case,
+// whose ORIGINAL crop the whole fix exists to prevent.
+test('control: the same 2:3 case DOES fail this check under object-fit:cover — proving the test can actually catch a regression', async () => {
+  const baseHtml = companionStoryHtml({ imageUrl: svgDataUri(1600, 2399), matchup: 'x' })
+  assert.match(baseHtml, /\.photo\{[^}]*object-fit:contain/, 'sanity: the substitution below targets the real rule')
+  const coverHtml = baseHtml.replace('object-fit:contain', 'object-fit:cover')
+  const drawn = await measureDrawnPhotoBox(coverHtml)
+  assert.equal(drawn.objectFit, 'cover')
+  // cover fills the element's WIDTH (the binding dimension here) and overflows its height —
+  // the mathematically drawn rect extends above SAFE_TOP exactly the way pass 1's bug did.
+  assert.ok(drawn.y < SAFE_TOP, `expected cover's drawn top ${drawn.y} to violate SAFE_TOP ${SAFE_TOP} — if it doesn't, this test no longer proves anything`)
 })
 
 // --- image dimensions (real render) ------------------------------------------

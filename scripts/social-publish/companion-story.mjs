@@ -198,23 +198,15 @@ export async function renderCompanionStoryImage({ html, outPath, width = STORY_W
 }
 
 /**
- * Renders `html` headlessly (no PNG written) and returns one element's real rendered bounding
- * box, so a test can prove it stays inside the safe area (SAFE_TOP/SAFE_BOTTOM above) without
- * eyeballing a screenshot every time this changes. `selector` defaults to `.stack` (the text
- * overlay); pass `.photo` to check the foreground photo's own box instead — both must stay
- * inside the same bounds, for different reasons (text must be readable; photo content must not
- * sit where it can be sliced OR hidden by Instagram's own header/reply-bar chrome — see this
- * file's header, "code review 2026-09-26"). Never fetches a real image over the network on its
- * own: pass a `data:` URI imageUrl (as the tests do) to keep this offline and fast.
- *
- * Navigates via a temp file + `page.goto(file://...)`, exactly like renderCompanionStoryImage —
- * NOT `page.setContent()`, which loads the page at an `about:blank`-ish origin where Chromium's
- * local-font `@font-face url(file://...)` references (localFonts()'s own mechanism) silently
- * fail to load, in turn making assertPageReady() throw "font not loaded" on every call. Same
- * file:// origin the real render uses is what makes the fonts (and therefore the measured
- * layout) match what actually gets published.
+ * Renders `html` headlessly — navigating via a temp file + `page.goto(file://...)`, exactly
+ * like renderCompanionStoryImage — NOT `page.setContent()`, which loads the page at an
+ * `about:blank`-ish origin where Chromium's local-font `@font-face url(file://...)` references
+ * (localFonts()'s own mechanism) silently fail to load, in turn making assertPageReady() throw
+ * "font not loaded" on every call. Same file:// origin the real render uses is what makes the
+ * fonts (and therefore the measured layout) match what actually gets published. Runs `fn(page)`
+ * once the page is ready and returns its result; always tears down the browser and temp file.
  */
-export async function measureOverlayBox(html, { width = STORY_WIDTH, height = STORY_HEIGHT, selector = '.stack' } = {}) {
+async function withRenderedPage(html, { width = STORY_WIDTH, height = STORY_HEIGHT } = {}, fn) {
   const tmpHtml = join(tmpdir(), `companion-story-measure-${randomUUID()}.html`)
   writeFileSync(tmpHtml, html)
   const browser = await chromium.launch()
@@ -222,11 +214,57 @@ export async function measureOverlayBox(html, { width = STORY_WIDTH, height = ST
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 })
     await page.goto(pathToFileURL(tmpHtml).href, { waitUntil: 'networkidle' })
     await assertPageReady(page, FAMILIES)
-    return await page.locator(selector).boundingBox()
+    return await fn(page)
   } finally {
     await browser.close()
     rmSync(tmpHtml, { force: true })
   }
+}
+
+/**
+ * Returns one element's real rendered bounding box, so a test can prove it stays inside the
+ * safe area (SAFE_TOP/SAFE_BOTTOM above) without eyeballing a screenshot every time this
+ * changes. `selector` defaults to `.stack` (the text overlay).
+ *
+ * NOT the right check for `.photo`: this is the CSS ELEMENT box, which `.photo`'s own CSS fixes
+ * at `top: SAFE_TOP, height: SAFE_BOTTOM - SAFE_TOP` regardless of the source image's aspect
+ * ratio or even its object-fit value — a test asserting only this box is inside the safe area
+ * would pass unconditionally, proving nothing about where the PHOTO CONTENT actually ends up
+ * (code review 2026-09-26 caught exactly this). Use measureDrawnPhotoBox() for `.photo`.
+ */
+export async function measureOverlayBox(html, opts = {}) {
+  const { selector = '.stack' } = opts
+  return withRenderedPage(html, opts, (page) => page.locator(selector).boundingBox())
+}
+
+/**
+ * The ACTUAL drawn extent of an `<img>`'s content — accounting for its real `naturalWidth`/
+ * `naturalHeight`, its element box, and its computed `object-fit` (contain or cover; centered
+ * object-position, which is all this file ever sets) — not just the CSS box the element itself
+ * occupies. For `object-fit: contain` the drawn rect is always <= the element box; for `cover`
+ * it can extend beyond it in one axis (the part that gets cropped away). Also returns the
+ * computed `objectFit` so a test can assert the CSS rule itself, not just its consequence.
+ * `selector` defaults to `.photo`.
+ */
+export async function measureDrawnPhotoBox(html, opts = {}) {
+  const { selector = '.photo' } = opts
+  return withRenderedPage(html, opts, (page) => page.evaluate((sel) => {
+    const img = document.querySelector(sel)
+    const box = img.getBoundingClientRect()
+    const objectFit = getComputedStyle(img).objectFit
+    const { naturalWidth: nw, naturalHeight: nh } = img
+    const scale = objectFit === 'cover' ? Math.max(box.width / nw, box.height / nh) : Math.min(box.width / nw, box.height / nh)
+    const drawnWidth = nw * scale
+    const drawnHeight = nh * scale
+    return {
+      x: box.x + (box.width - drawnWidth) / 2,
+      y: box.y + (box.height - drawnHeight) / 2,
+      width: drawnWidth,
+      height: drawnHeight,
+      objectFit,
+      elementBox: { x: box.x, y: box.y, width: box.width, height: box.height },
+    }
+  }, selector))
 }
 
 /**
