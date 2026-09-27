@@ -577,11 +577,14 @@ test('coversMediaType: every type but STORIES is covered by an entry with no med
   assert.equal(coversMediaType(null, 'STORIES'), false, 'no entry covers nothing')
 })
 
-test('the REAL tracked gallery-announce route does not cover STORIES today — Nino has not approved Stories for it', () => {
+test('the REAL tracked gallery-announce route covers STORIES only because Nino approved it (2026-09-27), and the approval is recorded', () => {
   const tracked = JSON.parse(readFileSync(join(SOCIAL, 'graph-routes.json'), 'utf8'))
   assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto'], new Date(), ['CAROUSEL']), true, 'the carousel itself is unaffected')
-  assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto'], new Date(), ['STORIES']), false,
-    'a companion Story must NOT be able to publish through this route until "media_types" explicitly lists STORIES')
+  assert.equal(hasStandingRoute('gallery-announce', tracked, ['ninophoto'], new Date(), ['STORIES']), true,
+    'the companion Story publishes through this route once media_types lists STORIES')
+  // The opt-in is only legitimate with Nino's approval quoted beside it; an agent adding STORIES
+  // to media_types without that would be forging the approval this file exists to record.
+  assert.match(tracked.events['gallery-announce'].reason, /"approve stories"/)
 })
 
 test('checkRoute: refuses a lone STORIES item under a standing route that only covers other types, with its own "media_type" reason', () => {
