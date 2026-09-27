@@ -152,14 +152,35 @@ async function api(token, path, params, method = 'POST') {
   return json
 }
 
-function tagParams(it) {
+// user_tags and collaborators do NOT belong on the same container for a CAROUSEL. Meta's IG
+// User /media reference (fetched 2026-09-26): the Carousel Containers request syntax
+// (media_type=CAROUSEL, children=...) lists caption/share_to_feed/collaborators/location_id/
+// product_tags/children — no user_tags. The Image Containers request syntax (image_url,
+// is_carousel_item=<bool>) lists user_tags right alongside is_carousel_item — that's the
+// child's own container. So: collaborators goes on the CAROUSEL parent (and, unchanged, on a
+// standalone IMAGE/REELS container); user_tags goes on each carousel CHILD's own request, and
+// on a standalone IMAGE/REELS container's own request — never on the CAROUSEL parent.
+function collaboratorParams(it) {
   const p = {}
-  if (Array.isArray(it.user_tags) && it.user_tags.length)
-    p.user_tags = JSON.stringify(it.user_tags.map((u) => (typeof u === 'string' ? { username: u } : u)))
   if (Array.isArray(it.collaborators) && it.collaborators.length)
     p.collaborators = JSON.stringify(it.collaborators)
   return p
 }
+
+// `entity` is whatever container this request is actually building — a top-level IMAGE/REELS
+// item, or one CAROUSEL child — never the CAROUSEL parent `it`. Each user_tags entry needs
+// x/y for an image (required per the same reference); the caller (build-gallery-announce.mjs)
+// is what actually sets those, this just forwards whatever shape it already put on the child.
+function userTagsParams(entity) {
+  const p = {}
+  if (Array.isArray(entity?.user_tags) && entity.user_tags.length)
+    p.user_tags = JSON.stringify(entity.user_tags.map((u) => (typeof u === 'string' ? { username: u } : u)))
+  return p
+}
+
+// Standalone IMAGE/REELS containers accept both in the same request (their own request
+// syntax lists both directly) — this is what those two branches of buildContainer still use.
+function tagParams(it) { return { ...userTagsParams(it), ...collaboratorParams(it) } }
 
 // Idempotent: re-publishing the SAME creation_id never duplicates. Meta often
 // returns "unexpected error" on media_publish even when it succeeded — a retry
@@ -207,9 +228,11 @@ async function buildContainer(token, ig, it, budget, persist) {
       const child = it.children[i]
       // alt_text: Meta's IG media reference lists it as "supported on a single
       // image or image media in a carousel" — an IMAGE child only, never VIDEO.
+      // user_tags: same reference — supported on an image child's OWN request (never on the
+      // VIDEO branch: x/y user_tags is an images-only field), never inherited from `it`.
       const base = child.media_type === 'VIDEO'
         ? { media_type: 'VIDEO', video_url: child.video_url }
-        : { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}) }
+        : { image_url: child.image_url, ...(child.alt_text ? { alt_text: child.alt_text } : {}), ...userTagsParams(child) }
       const { id } = await api(token, `${ig}/media`, { ...base, is_carousel_item: 'true' })
       if (child.media_type === 'VIDEO') await pollStatus(token, id, 75000, budget)
       childIds.push(id)
@@ -217,7 +240,7 @@ async function buildContainer(token, ig, it, budget, persist) {
     }
     if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG carousel parent container')
     const { id } = await api(token, `${ig}/media`, {
-      media_type: 'CAROUSEL', children: childIds.join(','), caption: it.caption, ...tagParams(it),
+      media_type: 'CAROUSEL', children: childIds.join(','), caption: it.caption, ...collaboratorParams(it),
     })
     return id
   }
@@ -919,6 +942,15 @@ function renderItemCard(it, { reviewKey }) {
   // a time the Worker doesn't agree with. Shown only while the item can still be cancelled —
   // a posted/vetoed item's scheduledAt is history, not a promise.
   const nextSlot = canCancel ? it.scheduledAt : null
+  // School tags — "so Nino can act during the 2-hour hold" (see school-tags.mjs). Deliberately
+  // NOT in the HELD ntfy alert body: Nino's 2026-09-26 correction on that alert ("hard to
+  // distinguish info from action") is exactly why this detail lives here instead, behind the
+  // alert's existing Review button, not stacked into the terse phone notification.
+  const tagged = it.school_tags?.tagged || []
+  const pending = it.school_tags?.pending || []
+  const schoolTagsHtml =
+    (tagged.length ? `<div>School tags: ${tagged.map((t) => `@${esc(t.handle)} (${esc(t.albumTeamName)})`).join(', ')}</div>` : '') +
+    (pending.length ? `<div>Add by hand: ${pending.map((t) => `${esc(t.albumTeamName)}${t.handle ? ` (@${esc(t.handle)} unconfirmed)` : ' (no handle found)'}`).join('; ')}</div>` : '')
   return `<section class="item" id="${esc(it.id)}">
   <header>
     <h2>${esc(it.album_name || it.album_key || it.id)}</h2>
@@ -928,6 +960,7 @@ function renderItemCard(it, { reviewKey }) {
     <div>Account: <strong>${esc(itemAccountLabel(it))}</strong>${Array.isArray(it.collaborators) && it.collaborators.length ? ` &middot; Collab: ${esc(it.collaborators.join(', '))}` : ''}</div>
     ${it.holdUntil ? `<div>Hold until: ${esc(chicagoLabel(it.holdUntil))}</div>` : ''}
     ${nextSlot ? `<div>Next posting slot: ${esc(chicagoLabel(nextSlot))}</div>` : ''}
+    ${schoolTagsHtml}
   </div>
   <div class="slides">${slides}</div>
   <div class="caption"><h3>Instagram caption</h3><pre>${esc(it.caption || '')}</pre></div>

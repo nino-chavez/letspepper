@@ -13,6 +13,7 @@ select-gallery-photos.mjs   swappable photo-selection strategy for build-gallery
 alt-text.mjs                derives Instagram/Facebook alt text from the site's own caption
 gallery-announce-caption.mjs   facts-only caption template for build-gallery-announce.mjs (a college album also states the result)
 rotation-result.mjs         looks up a college album's match result on therotation.tv (college only; a miss means no result line)
+school-tags.mjs             resolves + live-confirms both schools' Instagram handles for a college album, from therotation.tv's own socials map (college only; unconfirmed goes to "add by hand")
 held-item-shape.mjs         recaption() and reassign(): the edits seed-kv.mjs --recaption / --reassign make to one live item still held on both channels
 notify.mjs               phone notifications (ntfy.sh) for HELD/POSTED/FAILED/VETOED — Worker-safe, no node: imports
 hold-shape.mjs           the held/vetoed check both publishers share (never opened by --force)
@@ -278,6 +279,34 @@ and the data can be sourced from therotation.tv which itself sourced from offici
 sources". `rotation-result.mjs` finds the match on The Rotation by the album's date and
 both team names and adds one line, e.g. "North Central won 3-0." No set scores (The
 Rotation has none). High-school, middle-school and club albums never state a result.
+
+**College albums also @-tag both schools (added 2026-09-26).** `school-tags.mjs` reuses
+`rotation-result.mjs`'s own match-finding (`findMatchupRow`) to resolve the album's two teams
+to their Rotation slug keys, then reads each team's Instagram handle from the SAME
+therotation.tv `socials` map (never scraped fresh here) — preferring `scope: 'program'` over
+`scope: 'athletics'`, and `verified: 'graph'` only. Every candidate handle is re-confirmed
+LIVE at build time via Instagram's own business_discovery lookup
+(`GET /{flickday_ig_user_id}?fields=business_discovery.username(<handle>){username,name}`,
+using the Instagram publisher token) — a handle The Rotation harvested but that changed since
+is caught, not tagged stale. A handle that fails either gate (not graph-verified, or not
+live-reconfirmable) is never tagged: it goes into the item's `school_tags.pending` — "for
+Nino to add by hand" — surfaced on the `/review` page (see below), never invented.
+
+Placement, per Meta's IG User /media reference (fetched 2026-09-26): a CAROUSEL's `children=`
+parent container request lists `collaborators` but not `user_tags`; each carousel child's OWN
+image-container request (`is_carousel_item=true`) is where `user_tags` belongs, and Meta
+requires `x`/`y` (0.0-1.0) for an image tag. So confirmed school tags land on the FIRST
+slide's own child container only (`applySchoolTagsToChildren` in build-gallery-announce.mjs),
+at two fixed unobtrusive positions near the bottom edge (`x: 0.08`/`0.92`, `y: 0.92`) —
+never on later slides, never on the parent. `worker/src/index.js`'s `tagParams` was split
+into `collaboratorParams` (parent + IMAGE/REELS) and `userTagsParams` (each carousel child's
+own request, and IMAGE/REELS) to match.
+
+The Instagram caption also gets one mention line ("@nccwomensvb · @mubigblue"), college +
+Instagram-only — the Facebook caption never carries one, since a bare @handle doesn't resolve
+on Facebook. High-school, middle-school and club albums get no school tags of any kind — the
+women's college hub's `socials` map has no high-school entries to begin with, and
+`schoolTagsForAlbum` refuses before any network call for a non-college album regardless.
 
 **`--series` is required, not defaulted — re-checked 2026-09-26, still true.** The
 routing field is `album_settings.gallery_scope` (confirmed the table/column: letspepper's

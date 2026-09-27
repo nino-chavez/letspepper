@@ -50,22 +50,33 @@ export function parseMatchup(albumName = '') {
 }
 
 /**
- * Pure lookup against a parsed Rotation data.json. Returns
- * { result: { winner, loser, score, line }, reason: null } or { result: null, reason }.
- * `winner`/`loser` use the ALBUM's own team names, so the caption says "North Central",
- * matching the headline, not The Rotation's "North Central (IL)".
+ * Locate this album's match row in a parsed Rotation data.json — shared by
+ * findRotationResult (below, which additionally needs `state`/`score` to compute a final
+ * result) and school-tags.mjs's findMatchupTeamKeys (which only needs the two teams, and
+ * looks them up independent of whether the match has finished: a school's Instagram handle
+ * doesn't depend on the game being over). One matching implementation, so the two callers
+ * can never disagree about which row is "the" album's match — in particular, a namesake
+ * (The Rotation carries both "North Central (IL)" and "North Central (MN)") is disambiguated
+ * by the match row's own home/away team-index pointers, never by a name search across every
+ * team, so a namesake elsewhere in `teams` never matches.
+ *
+ * Returns, on success, the match row plus everything a caller needs to read out of it
+ * (`teams`, the parsed `matchup`, `wanted` normalized names, a `teamName(idx)` accessor, and
+ * the resolved `iHome`/`iAway` column indexes) — or `{ row: null, reason }` on any failure.
  */
-export function findRotationResult(data, albumName) {
+export function findMatchupRow(data, albumName, requiredCols = ['date', 'home', 'away']) {
   const matchup = parseMatchup(albumName)
-  if (!matchup) return { result: null, reason: `album name "${albumName}" has no "<team> at|vs <team>" segment and MM-DD-YYYY date` }
+  if (!matchup) return { row: null, reason: `album name "${albumName}" has no "<team> at|vs <team>" segment and MM-DD-YYYY date` }
   const cols = data?.cols
   const teams = data?.teams
   if (!Array.isArray(cols) || !Array.isArray(teams) || !Array.isArray(data?.matches)) {
-    return { result: null, reason: 'Rotation data.json is missing cols/teams/matches' }
+    return { row: null, reason: 'Rotation data.json is missing cols/teams/matches' }
   }
   const col = (name) => cols.indexOf(name)
-  const [iDate, iHome, iAway, iState, iScore] = ['date', 'home', 'away', 'state', 'score'].map(col)
-  if ([iDate, iHome, iAway, iState, iScore].some((i) => i < 0)) return { result: null, reason: 'Rotation data.json cols changed shape' }
+  if (requiredCols.map(col).some((i) => i < 0)) return { row: null, reason: 'Rotation data.json cols changed shape' }
+  const iDate = col('date')
+  const iHome = col('home')
+  const iAway = col('away')
 
   const wanted = matchup.teams.map(normalizeTeamName)
   const teamName = (idx) => (Array.isArray(teams[idx]) ? teams[idx][0] : teams[idx]?.name) ?? ''
@@ -74,10 +85,27 @@ export function findRotationResult(data, albumName) {
     const pair = [normalizeTeamName(teamName(m[iHome])), normalizeTeamName(teamName(m[iAway]))]
     return wanted.every((w) => pair.includes(w)) && pair.every((p) => wanted.includes(p))
   })
-  if (hits.length === 0) return { result: null, reason: `no Rotation match for ${matchup.teams.join(' / ')} on ${matchup.isoDate}` }
-  if (hits.length > 1) return { result: null, reason: `${hits.length} Rotation matches for ${matchup.teams.join(' / ')} on ${matchup.isoDate} — ambiguous` }
+  if (hits.length === 0) return { row: null, reason: `no Rotation match for ${matchup.teams.join(' / ')} on ${matchup.isoDate}` }
+  if (hits.length > 1) return { row: null, reason: `${hits.length} Rotation matches for ${matchup.teams.join(' / ')} on ${matchup.isoDate} — ambiguous` }
 
-  const m = hits[0]
+  return { row: hits[0], cols, teams, matchup, wanted, teamName, iHome, iAway, reason: null }
+}
+
+/**
+ * Pure lookup against a parsed Rotation data.json. Returns
+ * { result: { winner, loser, score, line }, reason: null } or { result: null, reason }.
+ * `winner`/`loser` use the ALBUM's own team names, so the caption says "North Central",
+ * matching the headline, not The Rotation's "North Central (IL)".
+ */
+export function findRotationResult(data, albumName) {
+  const found = findMatchupRow(data, albumName, ['date', 'home', 'away', 'state', 'score'])
+  if (!found.row) return { result: null, reason: found.reason }
+  const { row: m, cols, matchup, wanted, teamName } = found
+  const iHome = cols.indexOf('home')
+  const iAway = cols.indexOf('away')
+  const iState = cols.indexOf('state')
+  const iScore = cols.indexOf('score')
+
   if (m[iState] !== 'F') return { result: null, reason: `the Rotation match is not final (state "${m[iState]}")` }
   const score = /^(\d+)-(\d+)$/.exec(m[iScore] || '')
   if (!score) return { result: null, reason: `the Rotation match has no usable score ("${m[iScore]}")` }

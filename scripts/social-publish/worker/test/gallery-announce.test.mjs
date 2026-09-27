@@ -137,6 +137,34 @@ test('Instagram carousel children carry alt_text on their own containers', async
   assert.equal(queue.items[0].status, 'posted')
 })
 
+test('school tags: user_tags rides the FIRST child\'s own container request, never the CAROUSEL parent; collaborators rides the parent, never a child', async () => {
+  const queue = carouselQueue()
+  delete queue.items[0].channels
+  queue.items[0].channels = ['instagram'] // Facebook crosspost is irrelevant to this placement question
+  queue.items[0].collaborators = ['nino.chavez.photo']
+  queue.items[0].children[0].user_tags = [
+    { username: 'nccwomensvb', x: 0.08, y: 0.92 },
+    { username: 'mubigblue', x: 0.92, y: 0.92 },
+  ]
+  const captured = []
+  const result = await runQueue(queue, carouselFetch({ captured }))
+  assert.equal(result.items[0].status, 'posted')
+
+  const childCalls = captured.filter((c) => c.path.endsWith('/17841474039989310/media') && c.body.is_carousel_item === 'true')
+  assert.equal(childCalls.length, 2)
+  assert.deepEqual(JSON.parse(childCalls[0].body.user_tags), [
+    { username: 'nccwomensvb', x: 0.08, y: 0.92 },
+    { username: 'mubigblue', x: 0.92, y: 0.92 },
+  ])
+  assert.equal(childCalls[1].body.user_tags, undefined, 'the second slide carries no tags')
+  assert.equal(childCalls[0].body.collaborators, undefined, 'collaborators never rides a child request')
+
+  const parentCall = captured.find((c) => c.path.endsWith('/17841474039989310/media') && c.body.media_type === 'CAROUSEL')
+  assert.ok(parentCall, 'the parent CAROUSEL container request was made')
+  assert.equal(parentCall.body.user_tags, undefined, 'Meta\'s Carousel Containers request syntax has no user_tags field')
+  assert.deepEqual(JSON.parse(parentCall.body.collaborators), ['nino.chavez.photo'])
+})
+
 test('a resumed carousel upload continues from the photo it already has, not from zero', async () => {
   const queue = carouselQueue()
   queue.items[0].facebook_status = 'building'
