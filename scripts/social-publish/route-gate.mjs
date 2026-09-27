@@ -110,9 +110,15 @@ export function digestOf(item, account, event = '') {
   // or every live one-off receipt reads as "changed" the moment this ships and
   // post-reels.mjs rebuilds every saved container on its next run for nothing.
   const type = item?.media_type || 'REELS'
-  const imageTuple = (url, alt) => (alt ? ['IMAGE', url ?? null, alt] : ['IMAGE', url ?? null])
+  // A carousel image child's own user_tags are sent on that child's container
+  // (carousel-container-params.mjs), so they are part of what was approved. Same
+  // legacy rule as alt_text: only a child that carries its own tags adds the slot.
+  // Item-level user_tags, which fill untagged image children, are hashed in `words`.
+  const imageTuple = (url, alt, tags) => (Array.isArray(tags) && tags.length
+    ? ['IMAGE', url ?? null, alt || null, tags]
+    : alt ? ['IMAGE', url ?? null, alt] : ['IMAGE', url ?? null])
   const media = type === 'CAROUSEL'
-    ? (item.children || []).map((c) => (c.media_type === 'VIDEO' ? ['VIDEO', c.video_url || null] : imageTuple(c.image_url, c.alt_text)))
+    ? (item.children || []).map((c) => (c.media_type === 'VIDEO' ? ['VIDEO', c.video_url || null] : imageTuple(c.image_url, c.alt_text, c.user_tags)))
     : type === 'IMAGE' ? [imageTuple(item?.image_url, item?.alt_text)]
     : type === 'STORIES' ? [item?.video_url ? ['VIDEO', item.video_url] : ['IMAGE', item?.image_url || null]]
     : [['VIDEO', item?.video_url || null]]

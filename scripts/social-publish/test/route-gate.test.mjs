@@ -468,6 +468,17 @@ test('digestOf: a legacy item with no alt_text and no Facebook destination hashe
   }
 })
 
+test('digestOf: a carousel image child\'s own user_tags change the digest (they are sent on that child\'s container)', () => {
+  const carousel = (children) => ({ id: 'car-1', account: 'flickday', media_type: 'CAROUSEL', caption: 'c', collaborators: [], user_tags: [], children })
+  const untagged = carousel([{ image_url: 'https://x/1.jpg' }, { image_url: 'https://x/2.jpg' }])
+  const tagged = carousel([{ image_url: 'https://x/1.jpg', user_tags: [{ username: 'school', x: 0.5, y: 0.5 }] }, { image_url: 'https://x/2.jpg' }])
+  const retagged = carousel([{ image_url: 'https://x/1.jpg', user_tags: [{ username: 'other', x: 0.5, y: 0.5 }] }, { image_url: 'https://x/2.jpg' }])
+  assert.notEqual(digestOf(untagged, undefined, EVENT), digestOf(tagged, undefined, EVENT))
+  assert.notEqual(digestOf(tagged, undefined, EVENT), digestOf(retagged, undefined, EVENT))
+  // An empty child tag list sends nothing, so it hashes like no tags at all.
+  assert.equal(digestOf(untagged, undefined, EVENT), digestOf(carousel([{ image_url: 'https://x/1.jpg', user_tags: [] }, { image_url: 'https://x/2.jpg' }]), undefined, EVENT))
+})
+
 test('digestOf: alt_text and a Facebook destination DO change the digest (they are new content that was not approved before)', () => {
   const base = { id: 'img-1', account: 'flickday', media_type: 'IMAGE', image_url: 'https://x/1.jpg', caption: 'c', collaborators: [], user_tags: [] }
   assert.notEqual(digestOf(base, undefined, EVENT), digestOf({ ...base, alt_text: 'a photo' }, undefined, EVENT))
