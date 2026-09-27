@@ -39,7 +39,7 @@ function sandbox({ routes = { events: {} }, item, items = [item] } = {}) {
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
   mkdirSync(join(root, 'tools', 'lib'), { recursive: true })
-  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'post-reels.mjs', 'accounts.json', 'vary-captions.mjs'])
+  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'tag-params.mjs', 'carousel-container-params.mjs', 'post-reels.mjs', 'accounts.json', 'vary-captions.mjs'])
     cpSync(join(SOCIAL, f), join(social, f))
   cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
   cpSync(join(REPO, 'reader-contract.json'), join(root, 'reader-contract.json'))

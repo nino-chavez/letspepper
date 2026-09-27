@@ -71,6 +71,7 @@
 
 import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route-shape.mjs'
 import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
+import { collaboratorParams, userTagsParams, tagParams } from '../../tag-params.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
   chicagoLabel, reviewUrlFor,
@@ -159,28 +160,8 @@ async function api(token, path, params, method = 'POST') {
 // is_carousel_item=<bool>) lists user_tags right alongside is_carousel_item — that's the
 // child's own container. So: collaborators goes on the CAROUSEL parent (and, unchanged, on a
 // standalone IMAGE/REELS container); user_tags goes on each carousel CHILD's own request, and
-// on a standalone IMAGE/REELS container's own request — never on the CAROUSEL parent.
-function collaboratorParams(it) {
-  const p = {}
-  if (Array.isArray(it.collaborators) && it.collaborators.length)
-    p.collaborators = JSON.stringify(it.collaborators)
-  return p
-}
-
-// `entity` is whatever container this request is actually building — a top-level IMAGE/REELS
-// item, or one CAROUSEL child — never the CAROUSEL parent `it`. Each user_tags entry needs
-// x/y for an image (required per the same reference); the caller (build-gallery-announce.mjs)
-// is what actually sets those, this just forwards whatever shape it already put on the child.
-function userTagsParams(entity) {
-  const p = {}
-  if (Array.isArray(entity?.user_tags) && entity.user_tags.length)
-    p.user_tags = JSON.stringify(entity.user_tags.map((u) => (typeof u === 'string' ? { username: u } : u)))
-  return p
-}
-
-// Standalone IMAGE/REELS containers accept both in the same request (their own request
-// syntax lists both directly) — this is what those two branches of buildContainer still use.
-function tagParams(it) { return { ...userTagsParams(it), ...collaboratorParams(it) } }
+// on a standalone IMAGE/REELS container's own request — never on the CAROUSEL parent. The
+// shared helpers preserve the Worker's existing rule that its builder supplies image x/y.
 
 // Idempotent: re-publishing the SAME creation_id never duplicates. Meta often
 // returns "unexpected error" on media_publish even when it succeeded — a retry
