@@ -17,16 +17,21 @@ function heldItem(next, id) {
   return { item }
 }
 
-/** New caption on both channels (seed-kv.mjs --recaption). */
-export function recaption(queue, id, caption) {
-  if (typeof caption !== 'string' || !caption.trim()) return { refused: 'the new caption is empty.' }
+/**
+ * New captions (seed-kv.mjs --recaption): `caption` for Instagram and `facebook_caption`
+ * for Facebook, which differ because Facebook makes URLs clickable and Instagram does not.
+ */
+export function recaption(queue, id, { caption, facebook_caption: facebookCaption }) {
+  for (const [name, value] of [['caption', caption], ['facebook_caption', facebookCaption]]) {
+    if (typeof value !== 'string' || !value.trim()) return { refused: `the new ${name} is empty.` }
+  }
   const next = structuredClone(queue)
   const { item, refused } = heldItem(next, id)
   if (refused) return { refused }
-  const before = item.caption
+  const before = { caption: item.caption, facebook_caption: item.facebook_caption }
   item.caption = caption
-  item.facebook_caption = caption
-  return { queue: next, before, after: caption }
+  item.facebook_caption = facebookCaption
+  return { queue: next, before, after: { caption, facebook_caption: facebookCaption } }
 }
 
 /**

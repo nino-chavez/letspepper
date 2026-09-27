@@ -7,7 +7,7 @@
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --append --put   # merge NEW local items into the live queue, none touched
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --revive a,b --put  # re-open items the Worker refused for want of a route
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --veto a,b [--reason "..."] --put  # kill live items (status -> "vetoed", both destinations)
- *   node scripts/social-publish/seed-kv.mjs --event <slug> --recaption <id> --caption-file <path> --put  # new caption on one live item still held on both channels
+ *   node scripts/social-publish/seed-kv.mjs --event <slug> --recaption <id> --caption-file <captions.json> --put  # new Instagram + Facebook captions on one live item still held on both channels
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --reassign <id> --account <slug> --collaborators a,b --put  # new publishing account + Instagram collaborators, same held rule
  *
  * The Worker publishes an item only when its queue carries `meta.route`. This
@@ -197,9 +197,11 @@ function main() {
     queue = r.queue
   } else if (recaptionId) {
     if (!live) refuse(`KV has no key "${event}" — nothing has been seeded yet.`)
-    const r = recaption(live, recaptionId, readFileSync(captionFile, 'utf8').trim())
+    const r = recaption(live, recaptionId, JSON.parse(readFileSync(captionFile, 'utf8')))
     if (r.refused) refuse(r.refused)
-    console.log(`Caption of ${recaptionId} changes from:\n${r.before}\n\nto:\n${r.after}\n`)
+    for (const key of ['caption', 'facebook_caption']) {
+      console.log(`${key} of ${recaptionId} changes from:\n${r.before[key] ?? '(none)'}\n\nto:\n${r.after[key]}\n`)
+    }
     queue = r.queue
   } else if (vetoIds) {
     if (!live) refuse(`KV has no key "${event}" to veto items in — nothing has been seeded yet.`)

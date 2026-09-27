@@ -8,13 +8,13 @@ import { recaption, reassign } from '../held-item-shape.mjs'
 const ACCOUNTS = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'accounts.json'), 'utf8')).accounts
 const held = () => ({ id: 'DWdCET-gallery-announce', status: 'held', facebook_status: 'held', account: 'ninophoto', collaborators: ['flickday.media'], caption: 'old', facebook_caption: 'old' })
 
-test('recaption: replaces both captions on a held live item and leaves everything else alone', () => {
+test('recaption: sets the Instagram and Facebook captions on a held live item and leaves everything else alone', () => {
   const item = { id: 'DWdCET-gallery-announce', status: 'held', facebook_status: 'held', caption: 'old', facebook_caption: 'old', children: [1, 2] }
   const other = { id: 'Re7kho-gallery-announce', status: 'posted', facebook_status: 'posted', caption: 'keep' }
   const live = { event: 'gallery-announce', meta: { route: { approved: '2026-09-25' } }, items: [other, item] }
-  const r = recaption(live, item.id, 'new')
-  assert.equal(r.before, 'old')
-  assert.deepEqual(r.queue.items[1], { ...item, caption: 'new', facebook_caption: 'new' })
+  const r = recaption(live, item.id, { caption: 'new', facebook_caption: 'new fb' })
+  assert.deepEqual(r.before, { caption: 'old', facebook_caption: 'old' })
+  assert.deepEqual(r.queue.items[1], { ...item, caption: 'new', facebook_caption: 'new fb' })
   assert.deepEqual(r.queue.items[0], other)
   assert.deepEqual(r.queue.meta, live.meta)
   assert.equal(live.items[1].caption, 'old', 'the input queue is not mutated')
@@ -22,10 +22,12 @@ test('recaption: replaces both captions on a held live item and leaves everythin
 
 test('recaption: refuses a missing item, an empty caption, and any item past held on either channel', () => {
   const q = (status, facebook_status) => ({ items: [{ id: 'x', status, facebook_status, caption: 'c' }] })
-  assert.match(recaption(q('held', 'held'), 'y', 'n').refused, /no item/)
-  assert.match(recaption(q('held', 'held'), 'x', '  ').refused, /empty/)
+  const both = { caption: 'n', facebook_caption: 'n fb' }
+  assert.match(recaption(q('held', 'held'), 'y', both).refused, /no item/)
+  assert.match(recaption(q('held', 'held'), 'x', { caption: '  ', facebook_caption: 'n' }).refused, /new caption is empty/)
+  assert.match(recaption(q('held', 'held'), 'x', { caption: 'n' }).refused, /new facebook_caption is empty/)
   for (const [a, b] of [['posted', 'held'], ['held', 'posted'], ['building', 'held'], ['vetoed', 'vetoed'], ['error', 'held']]) {
-    assert.match(recaption(q(a, b), 'x', 'n').refused, /not held\/held/)
+    assert.match(recaption(q(a, b), 'x', both).refused, /not held\/held/)
   }
 })
 

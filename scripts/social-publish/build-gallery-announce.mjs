@@ -49,7 +49,8 @@
  *                          keeping its photos, alt text and schedule. --series is taken from the
  *                          item's recorded series (or, for older items, its account), and refused
  *                          if a passed --series disagrees. Writes the
- *                          caption to queue/<id>.caption.txt; seed-kv.mjs --recaption pushes it,
+ *                          captions (Instagram and Facebook) to queue/<id>.captions.json; seed-kv.mjs
+ *                          --recaption pushes them,
  *                          refusing unless the live item is still held on both channels.
  *
  * A college album's caption also states the match result, looked up on The Rotation
@@ -279,17 +280,22 @@ async function refreshCaption(args, albumKey, seriesArg) {
   const albumName = await resolveAlbumName(site, albumKey, args.name)
   const { result, reason } = await lookupCollegeResult(albumName)
   console.log(result ? `Result (The Rotation): ${result.line}` : `No result line: ${reason}`)
-  const caption = buildGalleryAnnounceCaption({
+  const captionArgs = {
     albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
     galleryUrl: `${site}/albums/${createAlbumSlug(albumName, albumKey)}`,
     selectedOf: `${item.children.length} of ${photos.length}`, series, result,
-  })
-  const captionPath = join(HERE, 'queue', `${id}.caption.txt`)
+  }
+  const captions = {
+    caption: buildGalleryAnnounceCaption({ ...captionArgs, channel: 'instagram' }),
+    facebook_caption: buildGalleryAnnounceCaption({ ...captionArgs, channel: 'facebook' }),
+  }
+  const captionPath = join(HERE, 'queue', `${id}.captions.json`)
   mkdirSync(dirname(captionPath), { recursive: true })
-  writeFileSync(captionPath, `${caption}\n`)
-  console.log(`Caption of ${id} changes from:\n${item.caption}\n\nto:\n${caption}\n`)
+  writeFileSync(captionPath, `${JSON.stringify(captions, null, 2)}\n`)
+  console.log(`Instagram caption of ${id} changes from:\n${item.caption}\n\nto:\n${captions.caption}\n`)
+  console.log(`Facebook caption of ${id} changes from:\n${item.facebook_caption ?? item.caption}\n\nto:\n${captions.facebook_caption}\n`)
   console.log(`Wrote ${captionPath}. Next: seed-kv.mjs --event ${EVENT} --recaption ${id} --caption-file ${captionPath} --put`)
-  return { before: item.caption, after: caption, captionPath }
+  return { before: item.caption, after: captions, captionPath }
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -355,10 +361,12 @@ export async function main(argv = process.argv.slice(2)) {
     children.push({ media_type: 'IMAGE', image_url: imageUrl, alt_text: altText, _source: dryRun ? 'imagedelivery.net (NOT yet re-hosted on R2 — dry-run only)' : 'r2', _image_key: p.image_key })
   }
 
-  const caption = buildGalleryAnnounceCaption({
+  const captionArgs = {
     albumName, venue: args.venue, teams: args.teams, eventDateLabel: args['event-date'],
     galleryUrl, selectedOf: selection.selectedOf, series, result: matchResult,
-  })
+  }
+  const caption = buildGalleryAnnounceCaption({ ...captionArgs, channel: 'instagram' })
+  const facebookCaption = buildGalleryAnnounceCaption({ ...captionArgs, channel: 'facebook' })
   const facebookAltText = children[0]?.alt_text || null
 
   const item = {
@@ -370,7 +378,7 @@ export async function main(argv = process.argv.slice(2)) {
     media_type: 'CAROUSEL',
     channels: ['instagram', 'facebook'],
     caption,
-    facebook_caption: caption,
+    facebook_caption: facebookCaption,
     facebook_alt_text: facebookAltText,
     children: children.map(({ _source, _image_key, ...c }) => c), // internal fields stay off the published payload
     user_tags: [],

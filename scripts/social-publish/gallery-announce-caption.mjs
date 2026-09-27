@@ -33,10 +33,12 @@
  *     one exists.
  *   - No "tag yourselves" or any other invitation to identify someone in the
  *     photos.
- *   - letspepper.com/gallery is only linked when the album is actually in that
- *     series' scope — otherwise the direct album URL is the only link, so a
- *     personal-brand or Flickday album never points a follower at a page
- *     where this album isn't listed.
+ *   - letspepper.com/gallery is only named when the album is actually in that
+ *     series' scope. Every other album says "link in bio" instead of the direct
+ *     album URL — Instagram doesn't linkify a caption URL, so printing it is
+ *     dead text; the bio (ninochavez.co/photography/links) redirects to the latest gallery,
+ *     so a personal-brand or Flickday album still routes a follower to a live
+ *     link, not to a page where this album isn't listed.
  *   - "#grassvolleyball" is only added for the letspepper (grass triples)
  *     series — Re7kho is an indoor high-school match (its own captions say
  *     "polished court"), and tagging it grass volleyball would be false, not
@@ -89,7 +91,7 @@ export function shortAlbumName(albumName = '', fallback) {
  * has no account-routing logic of its own to get out of sync with the builder's.
  */
 export function buildGalleryAnnounceCaption({
-  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series, result,
+  albumName, venue, teams, eventDateLabel, galleryUrl, selectedOf, series, result, channel = 'instagram',
 }) {
   const parsed = parseAlbumName(albumName)
   const teamsLine = teams || parsed.teams
@@ -108,8 +110,16 @@ export function buildGalleryAnnounceCaption({
   lines.push('')
   if (series === 'lpo') {
     lines.push(`Full gallery: letspepper.com/gallery`)
-  } else if (galleryUrl) {
+  } else if (galleryUrl && channel === 'facebook') {
+    // Facebook makes caption URLs clickable, so the Facebook copy keeps the direct
+    // link to this album.
     lines.push(`Full gallery: ${galleryUrl}`)
+  } else if (galleryUrl) {
+    // Instagram doesn't linkify a URL in a caption, so a bare link here is dead
+    // text. The bio points at ninochavez.co/photography/links, which lists recent galleries;
+    // naming the album keeps this post's call to action pointing at THIS gallery
+    // after newer ones are published.
+    lines.push(`Full gallery: link in bio (${shortAlbumName(albumName, albumName)})`)
   }
   lines.push('')
   lines.push('Motion. Emotion. Frame by Frame.')
