@@ -33,9 +33,9 @@ import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
+import { hasInstagramCompatibleAspectRatio, r2PutPhoto } from './gallery-photo-source.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const CF_HASH = 'wg34HB28-JkySWVm5fW4kA' // Cloudflare Images account hash (public)
 const IG_CAROUSEL_MAX = 10
 
 const args = Object.fromEntries(
@@ -62,29 +62,43 @@ const publicBase = (typeof args['public-base'] === 'string' ? args['public-base'
 const collaborators = (typeof args.collab === 'string' ? args.collab : '')
   .split(',').map((s) => s.trim()).filter(Boolean)
 
-function cfLarge(id) { return `https://imagedelivery.net/${CF_HASH}/${id}/large` }
+// 1. Pull the top photos from the gallery's public popularity feed. That feed
+// intentionally keeps its compact public shape, so hydrate source-specific
+// fields from the album rows before selecting a JPEG source.
+async function fetchAlbumPhotos(albumKey) {
+  const all = []
+  for (let page = 1; page <= 100; page++) {
+    const res = await fetch(`${site}/api/album-photos?albumKey=${encodeURIComponent(albumKey)}&page=${page}`)
+    if (!res.ok) throw new Error(`${res.status} album ${albumKey}`)
+    const { photos } = await res.json()
+    if (!photos?.length) break
+    all.push(...photos)
+  }
+  return all
+}
 
-// 1. Pull the top photos from the gallery's public popularity feed.
 async function fetchTopPhotos() {
   const url = `${site}/api/top-photos?metric=${metric}&limit=${count}`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`${res.status} ${url}`)
   const { photos } = await res.json()
-  return (photos ?? []).filter((p) => p.cf_image_id).slice(0, count)
+  const top = (photos ?? []).filter((p) => p.cf_image_id).slice(0, count)
+  const albums = new Map()
+  await Promise.all([...new Set(top.map((p) => p.album_key).filter(Boolean))].map(async (albumKey) => {
+    const rows = await fetchAlbumPhotos(albumKey)
+    albums.set(albumKey, new Map(rows.map((row) => [row.image_key, row])))
+  }))
+  return top
+    .map((photo) => ({ ...photo, ...(albums.get(photo.album_key)?.get(photo.image_key) || {}) }))
+    // Both source paths preserve the original ratio. Never queue an image that
+    // Meta will reject rather than re-encoding HDR into a cropped SDR JPEG.
+    .filter(hasInstagramCompatibleAspectRatio)
 }
 
 // 2. Re-host one photo on R2 as jpeg; return the public URL + temp path.
-async function r2Put(cfId, key) {
+async function r2Put(photo, key) {
   const tmp = join(tmpdir(), `topshot-${key.replace(/\W/g, '_')}.jpg`)
-  const res = await fetch(cfLarge(cfId), { headers: { accept: 'image/jpeg' } })
-  const ct = res.headers.get('content-type') || ''
-  if (!res.ok || !/image\/jpeg/.test(ct)) throw new Error(`bad image for ${cfId} (${res.status} ${ct})`)
-  writeFileSync(tmp, Buffer.from(await res.arrayBuffer()))
-  const objectKey = `${event}/${key}.jpg`
-  execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${bucket}/${objectKey}`,
-    `--file=${tmp}`, '--content-type=image/jpeg', '--remote'],
-    { stdio: ['ignore', 'ignore', 'inherit'] })
-  return { url: `${publicBase}/${objectKey}`, tmp }
+  return r2PutPhoto({ photo, site, bucket, publicBase, event, key, tmp })
 }
 
 function defaultCaption(n) {
@@ -114,7 +128,7 @@ for (let i = 0; i < picks.length; i++) {
   const p = picks[i]
   const n = String(i + 1).padStart(2, '0')
   process.stdout.write(`  slide ${n} (${p.image_key}) → R2 ... `)
-  const { url, tmp } = await r2Put(p.cf_image_id, `slide-${n}`)
+  const { url, tmp } = await r2Put(p, `slide-${n}`)
   children.push({ media_type: 'IMAGE', image_url: url })
   tmpFiles.push(tmp)
   console.log('ok')

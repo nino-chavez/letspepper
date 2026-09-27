@@ -39,9 +39,9 @@ import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
+import { hasInstagramCompatibleAspectRatio, r2PutPhoto } from './gallery-photo-source.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const CF_HASH = 'wg34HB28-JkySWVm5fW4kA' // Cloudflare Images account hash (public)
 const IG_CAROUSEL_MAX = 10
 
 const args = Object.fromEntries(
@@ -73,8 +73,6 @@ const event = typeof args.event === 'string' ? args.event : albumKey
 // here, before the gallery is read or anything reaches R2. Building and staging
 // without --post is ungated; post-reels.mjs gates the publish either way.
 if (args.post) assertRouteBeforeBuild({ event, account, reasonFlag: args['graph-route'], script: 'build-album-carousel.mjs --post' })
-
-function cfLarge(id) { return `https://imagedelivery.net/${CF_HASH}/${id}/large` }
 
 async function getJson(url) {
   const res = await fetch(url)
@@ -147,19 +145,9 @@ function select(photos) {
 }
 
 // 4. Re-host one photo on R2 as jpeg; return the public URL.
-function r2Put(cfId, key) {
+function r2Put(photo, key) {
   const tmp = join(tmpdir(), `albcar-${key.replace(/\W/g, '_')}.jpg`)
-  return fetch(cfLarge(cfId), { headers: { accept: 'image/jpeg' } })
-    .then(async (res) => {
-      const ct = res.headers.get('content-type') || ''
-      if (!res.ok || !/image\/jpeg/.test(ct)) throw new Error(`bad image for ${cfId} (${res.status} ${ct})`)
-      writeFileSync(tmp, Buffer.from(await res.arrayBuffer()))
-      const objectKey = `${event}/${key}.jpg`
-      execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${bucket}/${objectKey}`,
-        `--file=${tmp}`, '--content-type=image/jpeg', '--remote'],
-        { stdio: ['ignore', 'ignore', 'inherit'] })
-      return { url: `${publicBase}/${objectKey}`, tmp }
-    })
+  return r2PutPhoto({ photo, site, bucket, publicBase, event, key, tmp })
 }
 
 function defaultCaption(name, total, n) {
@@ -178,7 +166,10 @@ function defaultCaption(name, total, n) {
 const photos = await fetchAllPhotos()
 if (!photos.length) { console.error(`No photos for album "${albumKey}" at ${site}`); process.exit(1) }
 const total = photos.length
-const picks = select(photos)
+// CF `large` does not crop to Meta's accepted range. Keep HDR bytes intact and
+// omit known-invalid rows rather than re-encoding a 2:3 portrait into SDR.
+const instagramSafePhotos = photos.filter(hasInstagramCompatibleAspectRatio)
+const picks = select(instagramSafePhotos)
 if (!picks.length) { console.error('No images selected (after filters). Try --keys or a higher --count.'); process.exit(1) }
 console.log(`Album ${albumKey}: ${total} photos → selecting ${picks.length}` +
   (explicitKeys ? ' (explicit --keys)' : photos.some((p) => qualityScore(p) != null) ? ' (by quality score)' : ' (by caption heuristic — album unscored)'))
@@ -194,7 +185,7 @@ for (let i = 0; i < picks.length; i++) {
   const p = picks[i]
   const n = String(i + 1).padStart(2, '0')
   process.stdout.write(`  slide ${n} (${p.image_key}) → R2 ... `)
-  const { url, tmp } = await r2Put(p.cf_image_id, `slide-${n}`)
+  const { url, tmp } = await r2Put(p, `slide-${n}`)
   children.push({ media_type: 'IMAGE', image_url: url })
   tmpFiles.push(tmp)
   console.log('ok')

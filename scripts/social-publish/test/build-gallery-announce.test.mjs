@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createAlbumSlug, slugify, accountForSeries, appendGalleryAnnounceItem, nextStepMessage, main } from '../build-gallery-announce.mjs'
+import { galleryPhotoSource, hasInstagramCompatibleAspectRatio, r2PutPhoto } from '../gallery-photo-source.mjs'
 import { verifyPng } from '../../story-assets/preflight.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -68,6 +69,43 @@ test('appendGalleryAnnounceItem: an empty/missing queue just gets the one item',
   const { queue } = appendGalleryAnnounceItem(undefined, { id: 'album-1-gallery-announce' })
   assert.equal(queue.items.length, 1)
   assert.equal(queue.event, 'gallery-announce')
+})
+
+test('HDR rows source the photography HDR route, copy its JPEG bytes unchanged to R2, and keep a stable R2 URL', async () => {
+  const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0x47, 0x4d, 0x41, 0x50, 0x01, 0x02]) // representative JPEG/gain-map payload
+  const photo = { photo_id: 'Re7kho-acc-v-jca-01', image_key: 'acc-v-jca-01', cf_image_id: 'replacement-sdr-id', hdr_web_available: true, aspect_ratio: 0.8 }
+  assert.deepEqual(galleryPhotoSource(photo, SITE), {
+    kind: 'hdr', url: `${SITE}/api/hdr/Re7kho-acc-v-jca-01`,
+  })
+  let fetchedUrl
+  let written
+  let command
+  const result = await r2PutPhoto({
+    photo, site: SITE, bucket: 'flickday-social', publicBase: 'https://pub.example.test', event: 'gallery-announce-Re7kho', key: 'slide-01', tmp: '/tmp/hdr-slide.jpg',
+    fetchImpl: async (url) => { fetchedUrl = url; return new Response(bytes, { status: 200, headers: { 'content-type': 'image/jpeg' } }) },
+    writeFileSyncImpl: (_path, value) => { written = Buffer.from(value) },
+    execFileSyncImpl: (...args) => { command = args },
+  })
+  assert.equal(fetchedUrl, `${SITE}/api/hdr/Re7kho-acc-v-jca-01`)
+  assert.deepEqual(written, bytes, 'the upload staging bytes must exactly equal the HDR response')
+  assert.equal(result.url, 'https://pub.example.test/gallery-announce-Re7kho/slide-01.jpg')
+  assert.equal(result.source.kind, 'hdr')
+  assert.equal(command[0], 'npx')
+  assert.ok(command[1].includes('--file=/tmp/hdr-slide.jpg'))
+})
+
+test('non-HDR rows keep the existing Cloudflare large fallback', () => {
+  const photo = { photo_id: 'Re7kho-acc-v-jca-02', image_key: 'acc-v-jca-02', cf_image_id: 'Re7kho-acc-v-jca-02', hdr_web_available: false, aspect_ratio: 1.5 }
+  assert.deepEqual(galleryPhotoSource(photo, SITE), {
+    kind: 'cf-large', url: 'https://imagedelivery.net/wg34HB28-JkySWVm5fW4kA/Re7kho-acc-v-jca-02/large',
+  })
+})
+
+test('known 2:3 portraits are excluded before a Meta-invalid carousel can be staged', () => {
+  assert.equal(hasInstagramCompatibleAspectRatio({ aspect_ratio: 2 / 3 }), false)
+  assert.equal(hasInstagramCompatibleAspectRatio({ aspect_ratio: 4 / 5 }), true)
+  assert.equal(hasInstagramCompatibleAspectRatio({ aspect_ratio: 1.91 }), true)
+  assert.equal(hasInstagramCompatibleAspectRatio({ aspect_ratio: null }), true, 'legacy rows without a measured ratio retain today\'s behavior')
 })
 
 // --- main(), against a stubbed fetch (the real Re7kho fixture, no live network) ---
