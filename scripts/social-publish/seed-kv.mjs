@@ -122,17 +122,31 @@ export function appendPayload(live, local) {
  * Re-open items the Worker refused for want of a route: each destination the
  * refusal closed goes back to pending. Only route refusals — a Graph error stays
  * terminal. Returns { queue } or { refused: <why> }.
+ *
+ * CASCADE (2026-09-26, code review): reviving a gallery-announce carousel also revives its
+ * companion Story, but ONLY when the Story's own route_error came from the linked-item
+ * dependency gate (hold-shape.mjs's linkedItemBlock — "its linked post failed to publish" /
+ * "was vetoed"), never from the Story's OWN, separate route refusal (e.g. a missing
+ * media_types opt-in — see route-shape.mjs). Without this, reviving the carousel would post it
+ * again while its Story stayed stranded in `error` forever, needing a second, easy-to-forget
+ * `--revive` call by id. Forward-only, like veto()'s own cascade: reviving a Story on its own
+ * never revives its carousel.
  */
 export function revive(queue, ids) {
   const next = structuredClone(queue)
   const unknown = ids.filter((id) => !next.items.some((it) => it.id === id && it.route_error))
   if (unknown.length) return { refused: `not route-refused in the live queue: ${unknown.join(', ')}.` }
-  for (const it of next.items.filter((i) => ids.includes(i.id))) {
+  const cascaded = next.items.filter((it) =>
+    it.linked_item_id && ids.includes(it.linked_item_id) && !ids.includes(it.id) &&
+    it.route_error && /its linked post (failed to publish|was vetoed)/.test(it.route_error),
+  ).map((it) => it.id)
+  const allIds = [...ids, ...cascaded]
+  for (const it of next.items.filter((i) => allIds.includes(i.id))) {
     if (it.status === 'error' && it.error === it.route_error) { it.status = 'pending'; it.error = null }
     if (it.facebook_status === 'error' && it.facebook_error === it.route_error) { it.facebook_status = 'pending'; it.facebook_error = null }
     delete it.route_error
   }
-  return { queue: next }
+  return { queue: next, cascaded }
 }
 
 /**
@@ -221,6 +235,7 @@ function main() {
     if (!live) refuse(`KV has no key "${event}" to revive items in.`)
     const r = revive(live, reviveIds)
     if (r.refused) refuse(r.refused)
+    if (r.cascaded?.length) console.log(`Also revived (linked to a named id, blocked only by that link): ${r.cascaded.join(', ')}`)
     queue = r.queue
   } else if (append) {
     // For a standing campaign that grows one item at a time (build-gallery-announce.mjs

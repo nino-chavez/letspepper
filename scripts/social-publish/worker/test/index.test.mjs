@@ -423,6 +423,50 @@ test('seed-kv --revive leaves a Graph error terminal', () => {
   assert.equal(item.facebook_status, 'pending')
 })
 
+// --- revive() cascades to a linked companion Story (code review 2026-09-26) -----------------
+// Without this, reviving a gallery-announce carousel that had been route-refused left its
+// Story stranded in `error` — blocked ONLY by linkedItemBlock() because the carousel hadn't
+// posted, never revived unless named separately (easy to forget).
+
+test('seed-kv --revive: reviving a carousel also revives its Story, when the Story was blocked ONLY by the linked-item gate', () => {
+  const q = {
+    items: [
+      { id: 'carousel', account: 'letspepper', status: 'error', error: 'no route: x', route_error: 'no route: x' },
+      { id: 'story', account: 'letspepper', linked_item_id: 'carousel', status: 'error', error: 'its linked post failed to publish', route_error: 'its linked post failed to publish' },
+    ],
+  }
+  const { queue, cascaded } = revive(q, ['carousel'])
+  assert.deepEqual(cascaded, ['story'])
+  assert.equal(queue.items.find((i) => i.id === 'carousel').status, 'pending')
+  const story = queue.items.find((i) => i.id === 'story')
+  assert.equal(story.status, 'pending')
+  assert.equal(story.route_error, undefined)
+})
+
+test('seed-kv --revive: does NOT cascade to a Story refused for its OWN reason (e.g. missing media_types) — that needs its own revive', () => {
+  const q = {
+    items: [
+      { id: 'carousel', account: 'letspepper', status: 'error', error: 'no route: x', route_error: 'no route: x' },
+      { id: 'story', account: 'letspepper', linked_item_id: 'carousel', status: 'error', error: 'no route: ... does not cover STORIES items ...', route_error: 'no route: ... does not cover STORIES items ...' },
+    ],
+  }
+  const { queue, cascaded } = revive(q, ['carousel'])
+  assert.deepEqual(cascaded, [])
+  assert.equal(queue.items.find((i) => i.id === 'story').status, 'error', 'the Story\'s own refusal reason is untouched by reviving the carousel')
+})
+
+test('seed-kv --revive: reviving just the Story does not cascade back to (or require) the carousel', () => {
+  const q = {
+    items: [
+      { id: 'carousel', account: 'letspepper', status: 'posted' },
+      { id: 'story', account: 'letspepper', linked_item_id: 'carousel', status: 'error', error: 'no route: x', route_error: 'no route: x' },
+    ],
+  }
+  const { queue, cascaded } = revive(q, ['story'])
+  assert.deepEqual(cascaded, [])
+  assert.equal(queue.items.find((i) => i.id === 'story').status, 'pending')
+})
+
 test('an Instagram-less item left building is not resumed through Instagram', async () => {
   const q = queueWithItem()
   Object.assign(q.items[0], { channels: ['facebook'], status: 'building', ig_container_id: 'stray', facebook_status: 'posted' })

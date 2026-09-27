@@ -633,7 +633,16 @@ or a terminal Graph `error`), the Story is marked terminal too, the same shape a
 uses (`route_error`, e.g. "its linked post was vetoed"). Added after code review caught that the
 only original link between the two was a fixed 15-minute schedule offset, which does not survive
 a carousel that fails, gets vetoed, or is simply still transcoding when the Story's own
-scheduledAt arrives.
+scheduledAt arrives. `post-reels.mjs` (a separate, local publisher over the same queue shape)
+respects this gate too — `--event gallery-announce --id <story-id>` was a real path around it
+otherwise, since only the Worker's own tick checked `linkedItemBlock` before this.
+
+**Reviving a route-refused carousel also revives its Story** (`seed-kv.mjs`'s `revive()`), but
+ONLY when the Story's own `route_error` came from THIS dependency gate ("its linked post failed
+to publish" / "was vetoed") — a Story refused for its own, separate reason (say, its own
+`media_types` approval is still missing) needs its own `--revive <story-id>` regardless of what
+happens to its carousel. Without this cascade, reviving the carousel alone would post it again
+while its Story stayed stranded in `error`, needing a second, easy-to-forget `--revive` call.
 
 ## `/review` — see and cancel what's on hold, from a phone (2026-09-26)
 

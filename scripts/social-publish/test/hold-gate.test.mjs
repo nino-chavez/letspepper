@@ -34,7 +34,7 @@ const baseItem = (extra = {}) => ({
   ...extra,
 })
 
-function sandbox({ routes = { events: {} }, item } = {}) {
+function sandbox({ routes = { events: {} }, item, items = [item] } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'hold-gate-'))
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
@@ -44,7 +44,7 @@ function sandbox({ routes = { events: {} }, item } = {}) {
   cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
   cpSync(join(REPO, 'reader-contract.json'), join(root, 'reader-contract.json'))
   writeFileSync(join(social, 'graph-routes.json'), JSON.stringify(routes, null, 2))
-  const queue = { event: EVENT, items: [item] }
+  const queue = { event: EVENT, items }
   writeFileSync(join(social, 'queue', `${EVENT}.json`), JSON.stringify(queue, null, 2))
   return {
     root, social,
@@ -120,6 +120,34 @@ test('control: an ordinary pending item (no hold, no veto) with the same fixture
     const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1'], { cwd: sb.root, base: graph.base })
     assert.equal(r.code, 0, `${r.out}\n${r.err}`)
     assert.ok(graph.seen.some((s) => s.endsWith('/media_publish')), 'the harness cannot vouch for the zeros above if this control is blind too')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+// --- the linked-carousel gate applies to THIS publisher too (code review 2026-09-26) --------
+// post-reels.mjs is a separate publisher over the same queue shape the Worker uses for
+// gallery-announce — a real, unblocked path was `post-reels.mjs --event gallery-announce --id
+// <story-id>` before this, since only the Worker's own postDuePending checked linkedItemBlock.
+
+test('post-reels.mjs never publishes a Story whose carousel has not posted yet, even named directly with --id', async () => {
+  const carousel = baseItem({ id: 'holdtest-carousel', status: 'pending' })
+  const story = baseItem({ id: 'holdtest-story', linked_item_id: 'holdtest-carousel', status: 'pending' })
+  const sb = sandbox({ routes: STANDING, items: [carousel, story] }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', 'holdtest-story'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 1, `${r.out}\n${r.err}`) // "no due item" — same exit as a missing/already-posted id
+    assert.deepEqual(graph.seen, [], 'the Story reached the Graph API before its carousel posted')
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('post-reels.mjs publishes the Story once its carousel is already posted', async () => {
+  const carousel = baseItem({ id: 'holdtest-carousel', status: 'posted' })
+  const story = baseItem({ id: 'holdtest-story', linked_item_id: 'holdtest-carousel', status: 'pending' })
+  const sb = sandbox({ routes: STANDING, items: [carousel, story] }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', 'holdtest-story'], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 0, `${r.out}\n${r.err}`)
+    const items = JSON.parse(readFileSync(sb.queuePath, 'utf8')).items
+    assert.equal(items.find((i) => i.id === 'holdtest-story').status, 'posted')
   } finally { await graph.close(); sb.cleanup() }
 })
 

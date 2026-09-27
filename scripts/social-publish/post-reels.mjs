@@ -58,7 +58,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { assertGraphRoute, digestOf } from './route-gate.mjs'
-import { holdBlock } from './hold-shape.mjs'
+import { holdBlock, linkedItemBlock } from './hold-shape.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -108,8 +108,20 @@ const ready = (it) => it.status !== 'posted' &&
 // A hold or a veto blocks BOTH destinations and is never opened by --force: --force
 // exists to skip a future scheduledAt, not to skip a hold window nobody has cleared
 // or a post Nino killed.
+//
+// linkedItemBlock (2026-09-26, code review): the gallery-announce companion Story's
+// dependency on its carousel (linked_item_id) applies here too, not only in the scheduled
+// Worker — this file is a separate publisher over the SAME queue shape (post-reels.mjs
+// --event gallery-announce --id <story-id> is a real, unblocked path otherwise), and
+// companion-story.mjs's own promise ("a Story is never due before its carousel has actually
+// posted") has to hold no matter which publisher runs it. This is exclusion from `due` only,
+// not a terminal mark — post-reels.mjs has no per-item route-refusal state machine the way the
+// Worker does (its route gate is a batch precheck, not per-item), so a blocked Story here just
+// isn't due, same as a hold; it does not need reviving. --force does not override it, same as
+// holdBlock above.
 const due = q.items.filter((it) => ready(it) && (!idFilter || it.id === idFilter) &&
-  (force || new Date(it.scheduledAt).getTime() <= now) && !holdBlock(it, new Date(now)))
+  (force || new Date(it.scheduledAt).getTime() <= now) && !holdBlock(it, new Date(now)) &&
+  !linkedItemBlock(it, q.items))
 
 if (!due.length) {
   if (idFilter) { console.error(`No due item with id "${idFilter}" (missing, already posted, or not hosted).`); process.exit(1) }
