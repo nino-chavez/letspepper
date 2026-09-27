@@ -4,19 +4,46 @@
  * (`linked_item_id`), same account, same hold window, scheduled a few minutes after the
  * carousel's own scheduledAt so it can point people at the feed post that (by then) exists.
  *
- * Image: a single 1080x1920 render — the carousel's own lead (first) slide, full-bleed
- * (object-fit: cover, object-position 50% 40% — the same crop convention this repo's other
- * photo-led social renders already use for volleyball action, see
- * scripts/story-assets/render-jalapeno-announce.mjs's `nextUp()` and
- * scripts/story-assets/render-team-social.mjs's `werein()`), with a small legible
- * matchup + date label over a bottom scrim. Chosen over a letterboxed full frame because this
- * campaign's whole visual argument (DESIGN.md: "the chrome must never compete with the
- * photograph") is the same one the Let's Pepper renders already act on — a full-bleed crop
- * keeps the photo as the whole frame; letterbox bars are chrome competing with it, and are not
- * how any other social asset in either this repo or the photography site is built. The overlay
- * uses the PHOTOGRAPHY site's own type system (Montserrat display / Inter body, charcoal + gold
- * — DESIGN.md), not Let's Pepper's Bebas Neue/Anton stack, because this Story announces a
- * photography gallery and posts from either owned account depending on series.
+ * Image: a single 1080x1920 render of the carousel's lead (first) slide, with a small legible
+ * matchup + date label over a bottom scrim.
+ *
+ * CROP (revised 2026-09-26, coordinator device review of the DWdCET render): the first version
+ * was a bare full-bleed `object-fit: cover` — no letterbox, on the theory that a crop keeps the
+ * photo as the whole frame (DESIGN.md: "the chrome must never compete with the photograph").
+ * That theory holds for the CROP MATH (a 2:3 portrait source into a 9:16 target crops the
+ * SIDES only, never the top — verified: for DWdCET's actual served image, 1600x2399, cover
+ * scales to 1280x1920, zero vertical overflow) but not for the RESULT: the reviewer opened the
+ * rendered PNG and found the volleyball sliced by the frame's own top edge. Root cause,
+ * confirmed by diffing the rendered top strip against the SAME crop of the untouched source
+ * JPEG (identical): the ball sits hard against the top edge of the ORIGINAL photograph's own
+ * composition. Zero object-fit crop still means zero MARGIN — action framed close to an edge
+ * in-camera stays exactly that close in a bare cover render, portrait or not, and a real device
+ * still doesn't render this reliably given HDR-camera compression, safe-area insets, and OS
+ * differences (the coordinator's own words). No per-photo aspect-ratio branch closes that gap,
+ * because it isn't a crop-math problem — a differently-framed photo could put the SAME edge
+ * risk on either axis or on any side.
+ *
+ * FIX: full-bleed background of the SAME lead photo (`object-fit: cover`, heavily blurred +
+ * darkened — no legible detail, just atmosphere and color, so the frame is never a flat bar) +
+ * a SHARP foreground copy fit with `object-fit: contain` — the entire original photograph,
+ * always, regardless of its aspect ratio. Nothing is ever cropped, so nothing framed near an
+ * edge in-camera can ever be sliced by this render. The one thing this trades away is true
+ * edge-to-edge sharp coverage on an aspect ratio far from 9:16 (a wide landscape source shows
+ * more blurred margin top/bottom) — accepted deliberately: a soft blurred margin round a fully
+ * intact photo beats a sharp frame that might cut the subject. Same technique Instagram's own
+ * composer already applies automatically to a non-9:16 upload, so it reads as normal rather
+ * than as a compromise. The overlay uses the PHOTOGRAPHY site's own type system (Montserrat
+ * display / Inter body, charcoal + gold — DESIGN.md), not Let's Pepper's Bebas Neue/Anton stack,
+ * because this Story announces a photography gallery and posts from either owned account
+ * depending on series.
+ *
+ * SAFE AREA (added 2026-09-26, same review): Instagram's own chrome covers roughly the top
+ * ~250px of a Story (profile header) and the bottom ~300px (reply/message bar) — device- and
+ * app-version-dependent, so treat these as conservative, not exact. SAFE_TOP/SAFE_BOTTOM below
+ * are the named bounds the text overlay's box must stay inside; `renderCompanionStoryImage`'s
+ * sibling `measureOverlayBox()` renders the same HTML and returns the overlay's real bounding
+ * box so a test can assert it never regresses into either zone. The reviewer measured the
+ * shipped overlay at ~1665-1810px — inside the bottom zone — before this fix.
  *
  * Rendered with Playwright + this repo's own story-assets/preflight.mjs machinery (localFonts,
  * assertPageReady, verifyPng) — the established renderer for every other social image here
@@ -48,6 +75,8 @@
 import { chromium } from 'playwright'
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { localFonts, assertPageReady, verifyPng } from '../story-assets/preflight.mjs'
 import { parseAlbumName } from './gallery-announce-caption.mjs'
@@ -59,6 +88,15 @@ export const STORY_HEIGHT = 1920
 // the Worker's per-tick subrequest budget, not by this number), short enough that the Story
 // still reads as "just now" rather than a stale afterthought.
 export const STORY_DELAY_MINUTES = 15
+
+// Instagram Story safe area, in this canvas's own device pixels — see this file's header for
+// the coordinator device review this came from. Conservative on purpose: the text overlay's
+// rendered box must never extend above SAFE_TOP or below SAFE_BOTTOM.
+export const SAFE_TOP = 250
+export const SAFE_BOTTOM = STORY_HEIGHT - 300 // 1620
+// The frame's own bottom padding needed to land the overlay's bottom edge exactly at
+// SAFE_BOTTOM — derived, not a second number to keep in sync by hand.
+const FRAME_BOTTOM_PADDING = STORY_HEIGHT - SAFE_BOTTOM
 
 const FAMILIES = ['Montserrat', 'Inter']
 const CHARCOAL_950 = '#18181b'
@@ -83,10 +121,20 @@ ${fonts}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:${width}px;height:${height}px;background:${CHARCOAL_950};overflow:hidden}
 body{position:relative;font-family:'Inter',sans-serif;color:${CHARCOAL_50}}
-.photo{position:absolute;inset:0;width:${width}px;height:${height}px;object-fit:cover;object-position:50% 40%}
+/* Backdrop: same photo, full-bleed, blurred to pure atmosphere — never legible detail, so it
+   never reads as a second competing image. transform:scale hides the blur's own soft edge. */
+.backdrop{position:absolute;inset:0;width:${width}px;height:${height}px;object-fit:cover;
+  filter:blur(60px) brightness(0.55) saturate(1.15);transform:scale(1.15)}
+/* Foreground: the SAME photo, contain-fit — the entire original frame, always, so nothing
+   framed close to an edge in-camera (see this file's header) can ever be sliced by this
+   render, regardless of its aspect ratio. */
+.photo{position:absolute;inset:0;width:${width}px;height:${height}px;object-fit:contain}
 .scrim{position:absolute;left:0;right:0;bottom:0;height:38%;
   background:linear-gradient(180deg, rgba(24,24,27,0) 0%, rgba(24,24,27,0.55) 40%, rgba(24,24,27,0.92) 100%)}
-.frame{position:absolute;left:0;right:0;bottom:0;padding:0 72px 108px}
+.frame{position:absolute;left:0;right:0;bottom:0;padding:0 72px ${FRAME_BOTTOM_PADDING}px}
+/* .stack has no padding of its own — its rendered bounding box IS the overlay's real footprint,
+   which measureOverlayBox() below reads directly to prove it stays inside the safe area. */
+.stack{}
 .eyebrow{font-family:'Inter',sans-serif;font-weight:600;font-size:22px;letter-spacing:0.18em;
   text-transform:uppercase;color:${GOLD_500}}
 .headline{margin-top:14px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:64px;
@@ -94,12 +142,15 @@ body{position:relative;font-family:'Inter',sans-serif;color:${CHARCOAL_50}}
 .date{margin-top:16px;font-family:'Inter',sans-serif;font-weight:400;font-size:28px;
   color:${CHARCOAL_300}}
 </style></head><body>
+  <img class="backdrop" src="${esc(imageUrl)}">
   <img class="photo" src="${esc(imageUrl)}">
   <div class="scrim"></div>
   <div class="frame">
-    <div class="eyebrow">New gallery</div>
-    <div class="headline">${esc(headline)}</div>
-    ${dateLabel ? `<div class="date">${esc(dateLabel)}</div>` : ''}
+    <div class="stack">
+      <div class="eyebrow">New gallery</div>
+      <div class="headline">${esc(headline)}</div>
+      ${dateLabel ? `<div class="date">${esc(dateLabel)}</div>` : ''}
+    </div>
   </div>
 </body></html>`
 }
@@ -126,6 +177,36 @@ export async function renderCompanionStoryImage({ html, outPath, width = STORY_W
   }
   verifyPng(outPath, { width, height })
   return outPath
+}
+
+/**
+ * Renders `html` headlessly (no PNG written) and returns the text overlay's real bounding box
+ * — `.stack`'s rendered `{x,y,width,height}` — so a test can prove it stays inside the safe
+ * area (SAFE_TOP/SAFE_BOTTOM above) without eyeballing a screenshot every time this changes.
+ * Never fetches a real image over the network on its own: pass a `data:` URI imageUrl (as the
+ * tests do) to keep this offline and fast — the box only depends on text layout, not on which
+ * photo is behind it.
+ *
+ * Navigates via a temp file + `page.goto(file://...)`, exactly like renderCompanionStoryImage —
+ * NOT `page.setContent()`, which loads the page at an `about:blank`-ish origin where Chromium's
+ * local-font `@font-face url(file://...)` references (localFonts()'s own mechanism) silently
+ * fail to load, in turn making assertPageReady() throw "font not loaded" on every call. Same
+ * file:// origin the real render uses is what makes the fonts (and therefore the measured text
+ * layout) match what actually gets published.
+ */
+export async function measureOverlayBox(html, { width = STORY_WIDTH, height = STORY_HEIGHT } = {}) {
+  const tmpHtml = join(tmpdir(), `companion-story-measure-${randomUUID()}.html`)
+  writeFileSync(tmpHtml, html)
+  const browser = await chromium.launch()
+  try {
+    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 })
+    await page.goto(pathToFileURL(tmpHtml).href, { waitUntil: 'networkidle' })
+    await assertPageReady(page, FAMILIES)
+    return await page.locator('.stack').boundingBox()
+  } finally {
+    await browser.close()
+    rmSync(tmpHtml, { force: true })
+  }
 }
 
 /**

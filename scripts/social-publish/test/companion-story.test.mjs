@@ -4,8 +4,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  companionStoryItem, companionStoryText, companionStoryHtml, renderCompanionStoryImage,
-  STORY_WIDTH, STORY_HEIGHT, STORY_DELAY_MINUTES,
+  companionStoryItem, companionStoryText, companionStoryHtml, renderCompanionStoryImage, measureOverlayBox,
+  STORY_WIDTH, STORY_HEIGHT, STORY_DELAY_MINUTES, SAFE_TOP, SAFE_BOTTOM,
 } from '../companion-story.mjs'
 import { verifyPng } from '../../story-assets/preflight.mjs'
 
@@ -105,6 +105,49 @@ test('companionStoryHtml: escapes html-significant characters in the matchup/dat
   const html = companionStoryHtml({ imageUrl: 'x', matchup: '<script>alert(1)</script>', dateLabel: 'a & b' })
   assert.doesNotMatch(html, /<script>alert/)
   assert.match(html, /&amp; b/)
+})
+
+// --- crop (coordinator device review 2026-09-26: a bare cover crop sliced the ball off the
+// top edge of the DWdCET render — see companion-story.mjs's own header for the full story) ---
+
+test('companionStoryHtml: the photo is never cropped (object-fit: contain) — a blurred cover backdrop provides the full-bleed feel instead', () => {
+  const html = companionStoryHtml({ imageUrl: 'x', matchup: 'x' })
+  assert.match(html, /\.photo\{[^}]*object-fit:contain/, 'the sharp foreground copy must never crop the source photo')
+  assert.match(html, /\.backdrop\{[^}]*object-fit:cover/, 'the backdrop is the one layer allowed to crop/fill')
+  assert.match(html, /\.backdrop\{[^}]*filter:blur/, 'the backdrop must be blurred so it never shows legible cropped detail')
+  assert.doesNotMatch(html, /\.photo\{[^}]*object-position/, 'contain-fit has no crop to bias, so no object-position on the foreground')
+})
+
+// --- safe area (same review: the text block sat at ~1665-1810px, inside the reply-bar zone) ---
+
+const SOLID_SVG_1080x1920 = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920"><rect width="1080" height="1920" fill="#334455"/></svg>',
+)
+
+test('the overlay box stays fully inside the safe area for a short matchup/date', async () => {
+  const html = companionStoryHtml({ imageUrl: SOLID_SVG_1080x1920, matchup: 'JCA at ACC', dateLabel: 'Sept. 22, 2026' })
+  const box = await measureOverlayBox(html)
+  assert.ok(box, 'the .stack element must render with a real bounding box')
+  assert.ok(box.y >= SAFE_TOP, `overlay top ${box.y} must be at or below (numerically >=) SAFE_TOP ${SAFE_TOP}`)
+  assert.ok(box.y + box.height <= SAFE_BOTTOM, `overlay bottom ${box.y + box.height} must be at or above SAFE_BOTTOM ${SAFE_BOTTOM}`)
+})
+
+test('the overlay box stays inside the safe area for a long matchup that wraps to two lines', async () => {
+  const html = companionStoryHtml({
+    imageUrl: SOLID_SVG_1080x1920,
+    matchup: 'College Womens VB - Millikin at North Central Fighting Illini',
+    dateLabel: 'September 23rd, 2026',
+  })
+  const box = await measureOverlayBox(html)
+  assert.ok(box.y >= SAFE_TOP, `overlay top ${box.y}`)
+  assert.ok(box.y + box.height <= SAFE_BOTTOM, `overlay bottom ${box.y + box.height} must stay <= SAFE_BOTTOM ${SAFE_BOTTOM} even wrapped`)
+})
+
+test('the overlay box stays inside the safe area with no date line at all', async () => {
+  const html = companionStoryHtml({ imageUrl: SOLID_SVG_1080x1920, matchup: 'Bell Pepper Open' })
+  const box = await measureOverlayBox(html)
+  assert.ok(box.y >= SAFE_TOP)
+  assert.ok(box.y + box.height <= SAFE_BOTTOM)
 })
 
 // --- image dimensions (real render) ------------------------------------------

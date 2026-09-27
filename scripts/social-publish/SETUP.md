@@ -557,29 +557,53 @@ right after its carousel to the SAME queue (`id: "<album-key>-gallery-announce-s
 `scheduledAt` set to the carousel's own `scheduledAt` plus `STORY_DELAY_MINUTES` (15). /review
 and the HELD phone alert (now titled "... (N photos + Story)") show it next to its carousel.
 
-**Image.** A fresh 1080x1920 render of the carousel's lead (first) slide — full-bleed
-(`object-fit: cover`, `object-position: 50% 40%`, the SAME crop convention this repo's other
-photo-led social renders already use for volleyball action), a bottom scrim, and a small
-matchup + date overlay parsed the SAME way the caption is (`gallery-announce-caption.mjs`'s
-`parseAlbumName`, so the two can never disagree). Chosen over a letterboxed full frame because
-it is the one choice consistent with both the photography site's own "the chrome must never
-compete with the photograph" rule (DESIGN.md) and every existing Let's Pepper social render in
-this repo — a letterbox bar is chrome competing with the photo, and nothing else here is built
-that way. Uses the PHOTOGRAPHY site's own type system (Montserrat display / Inter body,
-charcoal + gold — DESIGN.md), not Let's Pepper's Bebas Neue/Anton stack, because a
-gallery-announce album can post from either owned account. Rendered with Playwright + this
-repo's established `story-assets/preflight.mjs` machinery (localFonts/assertPageReady/
-verifyPng) — the same renderer every other social image here already uses — at
-deviceScaleFactor 1, so the written file is exactly 1080x1920, not the 2x-supersampled size the
-more heavily typographic Let's Pepper renders use. `montserrat-700.woff2` /`inter-{400,600}.woff2`
-were added to `story-assets/fonts/` for this (copied from the photography site's own
-self-hosted font and from the `@fontsource/inter` package already a dependency here — no new
-network fetch at render time). Dry run: rendered next to the manifest
+**Image.** A fresh 1080x1920 render of the carousel's lead (first) slide, a bottom scrim, and a
+small matchup + date overlay parsed the SAME way the caption is (`gallery-announce-caption.mjs`'s
+`parseAlbumName`, so the two can never disagree). Uses the PHOTOGRAPHY site's own type system
+(Montserrat display / Inter body, charcoal + gold — DESIGN.md), not Let's Pepper's Bebas
+Neue/Anton stack, because a gallery-announce album can post from either owned account. Rendered
+with Playwright + this repo's established `story-assets/preflight.mjs` machinery
+(localFonts/assertPageReady/verifyPng) — the same renderer every other social image here already
+uses — at deviceScaleFactor 1, so the written file is exactly 1080x1920, not the 2x-supersampled
+size the more heavily typographic Let's Pepper renders use. `montserrat-700.woff2` /
+`inter-{400,600}.woff2` were added to `story-assets/fonts/` for this (copied from the photography
+site's own self-hosted font and from the `@fontsource/inter` package already a dependency here —
+no new network fetch at render time). Dry run: rendered next to the manifest
 (`.temp/gallery-announce-<key>-story.dry-run.png`, `--story-out <path>` to override) so it can
 be opened and eyeballed before anything is queued — this DOES fetch the real lead photo over
 the network (there's no way to preview a real image without decoding it), unlike the rest of a
 dry run, which never touches R2 or fetches photo bytes. Real build: rendered to a scratch temp
 file, then uploaded to R2 exactly like a carousel slide (`r2PutLocalFile()`).
+
+**Crop — revised 2026-09-26 (coordinator device review of the first DWdCET render).** The first
+version was a bare full-bleed `object-fit: cover` on the theory that a crop keeps the photo as
+the whole frame (DESIGN.md: "the chrome must never compete with the photograph") and never
+introduces a letterbox bar. The crop MATH was fine — a 2:3 portrait source into 9:16 crops the
+sides only, never the top — but the rendered PNG still showed the volleyball sliced by the
+frame's own top edge, because the ball sat hard against the top edge of the ORIGINAL
+photograph's own composition: zero object-fit crop still means zero margin, and a real device
+doesn't render this reliably either (the coordinator's own words, citing HDR-camera compression,
+safe-area insets, and OS differences). **Now:** a full-bleed BLURRED backdrop of the same photo
+(`object-fit: cover`, `filter: blur(60px) brightness(0.55)`) behind a sharp foreground copy fit
+with `object-fit: contain` — the entire original photograph, always, regardless of aspect ratio,
+so nothing framed close to an edge in-camera can ever be sliced by this render. Verified across
+three real lead photos, all opened at phone size: DWdCET (portrait, the ball now clears the top
+edge with a visible blurred margin), Re7kho's own vision-picked lead (portrait, near-9:16, almost
+no visible margin), and a genuinely landscape Re7kho photo (`acc-v-jca-02`, aspect_ratio 1.5, a
+full team lineup) — the landscape case shows the most blurred margin (expected: the least
+9:16-like source) and still crops nothing. Same technique Instagram's own composer already
+applies automatically to a non-9:16 upload, so it reads as normal rather than a compromise.
+
+**Safe area — added 2026-09-26, same review.** Instagram's own chrome covers roughly the top
+~250px of a Story (profile header) and the bottom ~300px (reply/message bar) — device- and
+app-version-dependent, so these are conservative bounds, not exact ones.
+`companion-story.mjs`'s `SAFE_TOP` (250) / `SAFE_BOTTOM` (`STORY_HEIGHT - 300` = 1620) name
+them; the frame's own bottom padding is derived from `SAFE_BOTTOM`, not a second number kept in
+sync by hand. The first render's text sat at ~1665-1810px — inside the bottom zone — before this
+fix. `measureOverlayBox()` renders the same HTML headlessly and returns the overlay's real
+bounding box, so three tests (a short matchup, a long one that wraps to two lines, and no date
+line at all) assert it stays inside `[SAFE_TOP, SAFE_BOTTOM]` without eyeballing a screenshot
+every time this changes.
 
 **Tags.** `user_tags` (mentions) — both schools' CONFIRMED handles (school-tags.mjs's `tags`,
 never `pending` — the same two-gate rule the carousel's own tags follow) plus
