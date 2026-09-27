@@ -426,6 +426,21 @@ test('post-now refuses before it writes the ledger, uploads, or calls Meta', asy
   } finally { await graph.close(); sb.cleanup() }
 })
 
+test('post-now --alt-text rides on a feed image and is refused on a Story', async () => {
+  const sb = sandbox({ queue: null }); const graph = await graphStub()
+  try {
+    const media = join(sb.root, 'frame.jpg'); writeFileSync(media, 'not a real jpeg')
+    const base = ['--account', 'flickday', '--file', media, '--caption', 'x', '--graph-route', 'Nino asked for the API on this one', '--dry-run']
+    const ok = await run(join(sb.social, 'post-now.mjs'), [...base, '--alt-text', 'Players in black raise their arms at the net.'], { cwd: sb.root, base: graph.base })
+    assert.equal(ok.code, 0, `${ok.out}\n${ok.err}`)
+    assert.match(ok.out, /"alt_text": "Players in black raise their arms at the net\."/)
+    const story = await run(join(sb.social, 'post-now.mjs'), [...base, '--story', '--alt-text', 'x y z'], { cwd: sb.root, base: graph.base })
+    assert.equal(story.code, 1, `${story.out}\n${story.err}`)
+    assert.match(story.err, /--alt-text applies to a feed image only/)
+    assert.deepEqual(graph.seen, [])
+  } finally { await graph.close(); sb.cleanup() }
+})
+
 test('post-now --dry-run with a reason shows the receipt it would record', async () => {
   const sb = sandbox({ queue: null }); const graph = await graphStub()
   try {
