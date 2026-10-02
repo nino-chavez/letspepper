@@ -1,5 +1,5 @@
 {
-  "_comment": "Registry of owned IG accounts under the Almost Flickday Business Manager (id 4033438730307424). ig_user_id is the Page's instagram_business_account id (resolve via /me/accounts after the Page is connected to the IG account AND assigned to the System User). Active Instagram System User token in 1Password: Meta Lets Pepper Instagram Publisher.",
+  "_comment": "Instagram destinations. The three owned accounts use Almost Flickday System User credentials; 630 uses separate partner Facebook User OAuth (token_ref). Resolve ig_user_id from the linked Page; direct Page reads may work when /me/accounts is empty. A registry entry alone is neither API access nor publish authorization.",
   "accounts": {
     "letspepper": {
       "handle": "letspepper.open",
@@ -15,6 +15,14 @@
       "handle": "nino.chavez.photo",
       "ig_user_id": "17841401886738878",
       "page_id": "739564079232058"
+    },
+    "630": {
+      "handle": "630volleyball",
+      "ig_user_id": "17841411569230130",
+      "page_id": "569987303404898",
+      "business_id": "315859855990883",
+      "token_ref": "op://Developer Secrets/Meta 630 Publisher/credential",
+      "access_model": "partner Facebook User OAuth; separate from Almost Flickday System Users"
     }
   }
 }

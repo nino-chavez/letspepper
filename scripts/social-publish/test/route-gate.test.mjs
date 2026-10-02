@@ -83,8 +83,12 @@ function sandbox({ routes = { events: {} }, queue = incidentQueue() } = {}) {
 // Minimal Graph stand-in: enough of the container → status → publish flow to let a permitted run finish.
 async function graphStub() {
   const seen = []
+  const payloads = []
   const server = http.createServer((req, res) => {
     seen.push(`${req.method} ${req.url.split('?')[0]}`)
+    let requestBody = ''
+    req.on('data', (chunk) => { requestBody += chunk })
+    req.on('end', () => payloads.push({ path: req.url.split('?')[0], params: Object.fromEntries(new URLSearchParams(requestBody)) }))
     if (req.url.includes('graph-is-down')) { res.writeHead(503, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"unavailable","code":2}}') }
     if (req.url.includes('bad-param')) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"Invalid parameter","code":100}}') }
     if (req.url.includes('throttled')) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"Application request limit reached","code":4}}') }
@@ -95,7 +99,7 @@ async function graphStub() {
     res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(body))
   })
   await new Promise((r) => server.listen(0, '127.0.0.1', r))
-  return { seen, base: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((r) => server.close(r)) }
+  return { seen, payloads, base: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((r) => server.close(r)) }
 }
 
 function run(script, args, { cwd, base, token = 'test-token-not-a-credential' }) {
@@ -349,7 +353,8 @@ test('when Graph cannot say whether a saved container published, nothing is rebu
   const q = incidentQueue(); q.items[0].ig_container_id = id; q.items[0].ig_container_digest = 'digest-of-the-old-payload'
   const sb = sandbox({ queue: q }); const graph = await graphStub()
   try {
-    await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', ITEM_ID, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    const result = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--count', '1', '--id', ITEM_ID, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    assert.equal(result.code, 1, 'an unresolved publish must fail for the caller as well as in the ledger')
     assert.deepEqual(graph.seen.filter((s) => s.startsWith('POST')), [], `rebuilt or published on an unknown status: ${graph.seen.join(', ')}`)
     const item = JSON.parse(readFileSync(sb.queuePath(), 'utf8')).items[0]
     assert.equal(item.status, 'error'); assert.match(item.error, /could not confirm/); assert.equal(item.ig_container_id, id)
@@ -454,6 +459,89 @@ test('post-now --dry-run with a reason shows the receipt it would record', async
 })
 
 // --- the decision itself ----------------------------------------------------
+
+test('local publisher sends Reel cover/collaborator and Story mention to Meta', async () => {
+  for (const [type, extra] of [
+    ['REELS', { video_url: 'https://media.invalid/reel.mp4', cover_url: 'https://media.invalid/cover.jpg', caption: 'Great teams solve problems.', collaborators: ['nick_maruyama'] }],
+    ['STORIES', { image_url: 'https://media.invalid/story.jpg', user_tags: ['nick_maruyama'] }],
+  ]) {
+    const item = { id: '630-' + type, account: '630', media_type: type, scheduledAt: '2026-10-02T00:00:00Z', status: 'pending', ...extra }
+    const sb = sandbox({ queue: { event: EVENT, items: [item] } }); const graph = await graphStub()
+    try {
+      const result = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', item.id, '--count', '1', '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+      assert.equal(result.code, 0, `${result.out}\n${result.err}`)
+      assert.equal(JSON.parse(readFileSync(sb.queuePath())).items[0].status, 'posted')
+      const params = graph.payloads.find((p) => p.path === '/17841411569230130/media')?.params
+      assert.ok(params, 'the exact 630 account receives a container request')
+      if (type === 'REELS') {
+        assert.equal(params.cover_url, extra.cover_url)
+        assert.equal(params.caption, extra.caption)
+        assert.deepEqual(JSON.parse(params.collaborators), ['nick_maruyama'])
+      } else {
+        assert.deepEqual(JSON.parse(params.user_tags), [{ username: 'nick_maruyama' }])
+        assert.equal(params.caption, undefined)
+        assert.equal(params.collaborators, undefined)
+      }
+    } finally { await graph.close(); sb.cleanup() }
+  }
+})
+
+test('post-now retains Story mentions and validates Reel-only JPEG cover before side effects', async () => {
+  const sb = sandbox({ queue: null }); const graph = await graphStub()
+  try {
+    const video = join(sb.root, 'clip.mp4'), jpeg = join(sb.root, 'cover.jpg')
+    writeFileSync(video, 'fixture video'); writeFileSync(jpeg, 'fixture jpeg')
+    const base = ['--account', '630', '--graph-route', REASON, '--dry-run']
+    const reel = await run(join(sb.social, 'post-now.mjs'), [...base, '--file', video, '--cover', jpeg, '--collab', 'nick_maruyama'], { cwd: sb.root, base: graph.base })
+    assert.equal(reel.code, 0, reel.err)
+    assert.match(reel.out, /"cover_file":/)
+    const story = await run(join(sb.social, 'post-now.mjs'), [...base, '--file', jpeg, '--story', '--tag', 'nick_maruyama'], { cwd: sb.root, base: graph.base })
+    assert.equal(story.code, 0, story.err)
+    assert.match(story.out, /"user_tags": \[\s*"nick_maruyama"/)
+    for (const flags of [['--cover', jpeg], ['--collab', 'nick_maruyama']]) {
+      const bad = await run(join(sb.social, 'post-now.mjs'), [...base, '--file', jpeg, '--story', ...flags], { cwd: sb.root, base: graph.base })
+      assert.equal(bad.code, 1)
+    }
+    assert.equal(existsSync(sb.queuePath('adhoc')), false)
+    assert.deepEqual(graph.seen, [])
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('changing a Reel cover or Story mention invalidates its saved approval/container digest', () => {
+  const reel = { id: 'r', account: '630', media_type: 'REELS', video_url: 'https://x/reel.mp4', cover_url: 'https://x/old.jpg' }
+  assert.notEqual(digestOf(reel), digestOf({ ...reel, cover_url: 'https://x/new.jpg' }))
+  const story = { id: 's', account: '630', media_type: 'STORIES', image_url: 'https://x/story.jpg', user_tags: ['nick_maruyama'] }
+  assert.notEqual(digestOf(story), digestOf({ ...story, user_tags: ['other_user'] }))
+  assert.notEqual(digestOf(story), digestOf({ ...story, user_tags: [] }))
+})
+
+test('a requested cover that is not hosted blocks every Graph call', async () => {
+  const item = { id: 'cover-pending', account: '630', media_type: 'REELS', video_url: 'https://media.invalid/reel.mp4', cover_file: '/fixture/cover.jpg', cover_url: null, scheduledAt: '2026-10-02T00:00:00Z', status: 'pending' }
+  const sb = sandbox({ queue: { event: EVENT, items: [item] } }); const graph = await graphStub()
+  try {
+    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', item.id, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, 1)
+    assert.deepEqual(graph.seen, [])
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('prepare-only validates one saved container without publishing; finishing reuses it', async () => {
+  const item = { id: 'prepared-reel', account: '630', media_type: 'REELS', video_url: 'https://media.invalid/reel.mp4', cover_url: 'https://media.invalid/cover.jpg', caption: 'Great teams solve problems.', collaborators: ['nick_maruyama'], scheduledAt: '2026-10-02T00:00:00Z', status: 'pending' }
+  const sb = sandbox({ queue: { event: EVENT, items: [item] } }); const graph = await graphStub()
+  try {
+    const args = ['--event', EVENT, '--id', item.id, '--count', '1', '--graph-route', REASON]
+    const prepared = await run(join(sb.social, 'post-reels.mjs'), [...args, '--prepare-only'], { cwd: sb.root, base: graph.base })
+    assert.equal(prepared.code, 0, prepared.err)
+    const saved = JSON.parse(readFileSync(sb.queuePath())).items[0]
+    assert.equal(saved.status, 'prepared')
+    assert.ok(saved.ig_container_id)
+    assert.ok(!graph.seen.some((r) => r.includes('/media_publish')))
+    const finished = await run(join(sb.social, 'post-reels.mjs'), args, { cwd: sb.root, base: graph.base })
+    assert.equal(finished.code, 0, finished.err)
+    assert.equal(graph.seen.filter((r) => r === 'POST /17841411569230130/media').length, 1)
+    assert.equal(graph.seen.filter((r) => r.includes('/media_publish')).length, 1)
+  } finally { await graph.close(); sb.cleanup() }
+})
 
 test('digestOf: a legacy item with no alt_text and no Facebook destination hashes exactly as the pre-alt_text/pre-Facebook formula did', () => {
   // Reconstructs digestOf()'s formula as it stood before alt_text/Facebook were added
