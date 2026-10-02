@@ -31,10 +31,10 @@ worker/src/index.js      scheduled Instagram + Facebook Page publisher; also ser
 ```
 
 ## Architecture
-- **One Business Manager — Almost Flickday** (`id 4033438730307424`) owns every IG account (`nino.chavez.photo`, `letspepper.open`, `flickday.media`). One ownership root.
+- **Owned accounts:** Almost Flickday (`id 4033438730307424`) owns `nino.chavez.photo`, `letspepper.open` and `flickday.media`. **Partner accounts are separate:** `630volleyball` remains owned by 630 Volleyball and uses its own Facebook User OAuth token through `accounts.json.token_ref`. An account registry entry does not grant access.
 - **Two Meta apps, two isolated System Users, separate tokens.** Meta exposes the Instagram-content and Page-management use cases separately in the current app flow. `Lets Pepper Publisher` owns the Instagram credential; the employee-level `Pepper Page Publisher` owns the Facebook Page credential. This keeps a Page-token rotation from revoking the working Instagram token. Validate granted scopes and asset tasks live before enabling a destination. Use Meta's current 60-day System User token option and refresh it before expiry.
 - Host is **`graph.facebook.com`** (Business path) — each account addressed by its numeric `ig_user_id`. (`graph.instagram.com` is the single-account Instagram-Login path; not used here.)
-- Hard API limits to design around: **Business accounts only** (Creator rejected); **can't tag private collaborators**; **Stories can't have collaborators** (→ Playwright fallback). Limit: 100 published posts / 24h / account.
+- Facebook Login supports Instagram professional accounts (Business or Creator); Story publishing requires a Business account. Collaborators must meet Meta's eligibility requirements; API Stories cannot have coauthors. Story `user_tags` mentions are supported. Read the account's `content_publishing_limit` instead of assuming unused quota. Current source: [Meta Facebook Login setup](https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-facebook-login/get-started) and [IG User Media](https://developers.facebook.com/documentation/instagram-platform/instagram-graph-api/reference/ig-user/media), read 2026-10-02.
 
 ---
 
@@ -983,6 +983,22 @@ where Instagram needs a public URL.
   carousel builder's `qualityScore()` always returns null and it has been ranking
   by the caption heuristic on albums that were in fact scored.
 
+## Prepare, verify, then publish an approved correction
+
+Use the local publisher for an explicitly approved API correction. A one-off correction does not require changes to the scheduled Worker, cron, KV queues or standing routes.
+
+1. Verify the selected credential against the known Page and Instagram IDs. Full access in Business Suite is not an OAuth token. Check granted scopes, target assets and expiry. An empty `/me/accounts` result does not disprove access when a direct linked-Page read succeeds.
+2. Use the account's `token_ref` from 1Password. Keep credentials in process environment, never command arguments, logs, source or receipts. `post-now.mjs` resolves this reference when `IG_ACCESS_TOKEN` is absent. Direct `post-reels.mjs` calls require `IG_ACCESS_TOKEN` to be supplied for that account.
+3. Prepare a Reel with `post-now.mjs --cover <approved.jpg> --collab <confirmed_handle> --prepare-only` plus its ordinary account/file/caption/route arguments. Prepare a companion Story separately with `--story --tag <confirmed_handle> --prepare-only`. A Story is a mention-bearing card, not a coauthor post or tappable Reel reshare.
+4. Read `queue/adhoc.json`: both items must be `prepared`, with a saved `ig_container_id`, matching `ig_container_digest` and no error. Meta must report `FINISHED`. Preparation uploads public assets and creates containers; it does not call `media_publish`.
+5. Publish the saved item with `post-reels.mjs --event adhoc --id <saved-id> --count 1`, using the same credential and Graph version. **Do not rerun `post-now.mjs` to resume:** that creates a new item. A timeout requires reconciliation of the saved container and account media before any replacement container is made.
+6. Read the published ID back: compare the entire caption, open the permalink, and inspect the profile cover. Read `/{media-id}/collaborators` and report `Pending` separately from `Accepted`. Publish the prepared Story after the Reel succeeds, and inspect its live frame. An accepted Story `user_tags` payload is not proof of a visible/tappable sticker or notification delivery.
+7. Only after replacement verification, and only with explicit replacement/deletion authority, delete the exact original ID. Save the old ID, replacement ID, deletion response and live receipts together. Keep an unaffected Facebook post; Business Suite can edit its cover separately.
+
+Cover upload failure exits nonzero; a requested `cover_file` without `cover_url` blocks publishing. Uploads use an account/item prefix to prevent filename collisions. The route digest binds the cover and Story mentions as well as the existing caption/media fields. Publisher errors exit nonzero and leave the saved item for reconciliation; the ledger and live readback remain the publication evidence.
+
+The 630 correction on 2026-10-02 used `GRAPH_BASE=https://graph.facebook.com/v26.0`. The default remains v25.0 for existing campaigns. Its Reel and Story reached `FINISHED` before publication; the Reel returned a pending Nick Maruyama invite. Account-specific instructions and receipts belong in `apps/630/630-marketing-automation/docs/internal/ops/META-PUBLISHING.md` and that repository's social draft folder.
+
 ## Ad-hoc one-shot post (no event, no schedule)
 
 An ad hoc post goes out by hand unless Nino named the Graph API for it (the
@@ -995,9 +1011,9 @@ ledger, uploads, or calls Meta.
 node scripts/social-publish/post-now.mjs --account letspepper \
   --file /path/to/graphic.jpg --caption "..." --graph-route "<Nino's words>"
 
-# story (bare media — API stories take no caption/stickers/tags):
+# story (real mentions use --tag; no caption, coauthor or link sticker):
 node scripts/social-publish/post-now.mjs --account letspepper \
-  --file /path/to/story.jpg --story --graph-route "<Nino's words>"
+  --file /path/to/story.jpg --story --tag confirmed_handle --graph-route "<Nino's words>"
 
 # preview without touching anything:
 node scripts/social-publish/post-now.mjs ... --dry-run
@@ -1013,10 +1029,10 @@ that item via `post-reels.mjs --id`. Reads the token from 1Password itself if
 - **Facebook Pages:** Worker items with `"channels":["instagram","facebook"]` publish an image, Reel, or (2026-09-25) a CAROUSEL to the paired Page and preserve independent destination state. A carousel crosspost uploads each child as an unpublished photo then attaches them all to one `/feed` post (see "Gallery announcements" above) — needs a real Page token, not the System User fallback.
 - **Facebook Reel collaborators:** matching owned collaborator handles become Page collaborator invitations; invitation errors are recorded without rewriting a successful Reel receipt. **Not extended to a carousel crosspost** — that publishes with no Facebook-side collaborator.
 - **User tags:** item `user_tags: ["flickday.media"]` → `user_tags=[{username}]` on the post.
-- **Collab:** item `collaborators: ["flickday.media"]` → co-author invite (reels/image/carousel; not Stories; public accounts only). `collaborators` is community-confirmed but not in Meta's main doc — first live call verifies it; on rejection the item is marked `error` with the API message, not silently dropped. Verified working on a five-image carousel 2026-09-21. An invite is not an accept: `GET /{ig-media-id}/collaborators` reports Pending/Accepted/Declined, and the invited account has to accept it itself — nothing here does that on flickday.media's behalf. **Supported is not approved:** an ad hoc Collab goes out through native Instagram unless Nino named the API for it — the route gate refuses it otherwise.
+- **Collab:** item `collaborators: ["flickday.media"]` → co-author invite (reels/image/carousel; not Stories; public accounts only). `collaborators` is documented in Meta's IG User Media reference (rechecked 2026-10-02); on rejection the item is marked `error`, not silently retried without the invitation. Verified working on a five-image carousel 2026-09-21. An invite is not an accept: `GET /{ig-media-id}/collaborators` reports Pending/Accepted/Declined, and the invited account has to accept it itself — nothing here does that on flickday.media's behalf. **Supported is not approved:** an ad hoc Collab goes out through native Instagram unless Nino named the API for it — the route gate refuses it otherwise.
 - **Alt text (2026-09-25):** `alt_text` on an item/child → Instagram's `alt_text` on a single image or an image carousel child (never video/reels/stories, confirmed from Meta's current IG media reference). `facebook_alt_text` → Facebook's `alt_text_custom` on an IMAGE post or each CAROUSEL child photo. See alt-text.mjs for how gallery-announce derives it from the site's own caption.
-- **Media types:** `media_type` = `REELS` (default) | `IMAGE` (`image_url`) | `STORIES` (`image_url` or `video_url`; bare media) | `CAROUSEL` (`children: [{media_type,image_url|video_url,alt_text}]`).
-- **Stories:** published via the API since 2026-07-12 (Business accounts; `media_type=STORIES`). No caption, no collaborators, and no link/poll/location sticker — none of that is in the API (see STORIES-SPEC.md for the decorated-firehose design this doesn't cover). **Corrected 2026-09-26:** `user_tags` (mentions) IS supported on an image/video Story — Meta added it to the IG User /media endpoint 2025-07-09, x/y optional — see "Companion Story" above; this doc previously said Stories took bare media with no exception, which stopped being true then. Accidental story? `DELETE /{ig-media-id}` works (verified live) — feed-media delete is unverified.
+- **Media types:** `media_type` = `REELS` (default) | `IMAGE` (`image_url`) | `STORIES` (`image_url` or `video_url`, optional `user_tags` mentions) | `CAROUSEL` (`children: [{media_type,image_url|video_url,alt_text}]`).
+- **Stories:** published via the API since 2026-07-12 (Business accounts; `media_type=STORIES`). No caption, no collaborators, and no link/poll/location sticker — none of that is in the API (see STORIES-SPEC.md for the decorated-firehose design this doesn't cover). **Corrected 2026-09-26:** `user_tags` (mentions) IS supported on an image/video Story — Meta added it to the IG User /media endpoint 2025-07-09, x/y optional — see "Companion Story" above; this doc previously said Stories took bare media with no exception, which stopped being true then. Deletion is a separate authorized action: `DELETE /{ig-media-id}` is documented for posts, Reels and Stories with `instagram_manage_contents`. Story deletion was previously verified; Reel deletion was verified on the replaced 630 Reel on 2026-10-02. See [IG Media](https://developers.facebook.com/documentation/instagram-platform/reference/instagram-media).
 - **Hold + veto (2026-09-25):** item `status: "held"` + `holdUntil` → neither destination publishes before that timestamp, in either publisher, even with `--force` (hold-shape.mjs). `status: "vetoed"` is the same gate, permanently, and (2026-09-26) cascades to any item whose `linked_item_id` points at the vetoed one — see "Companion Story" above. See "Gallery announcements" above; veto-announce.mjs is the CLI for it.
 
 ## Notes

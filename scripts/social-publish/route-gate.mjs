@@ -122,15 +122,19 @@ export function digestOf(item, account, event = '') {
     : type === 'IMAGE' ? [imageTuple(item?.image_url, item?.alt_text)]
     : type === 'STORIES' ? [item?.video_url ? ['VIDEO', item.video_url] : ['IMAGE', item?.image_url || null]]
     : [['VIDEO', item?.video_url || null]]
-  // Stories are bare media: caption, tags and collaborators are not sent, so they are not part of what was approved.
-  const words = type === 'STORIES' ? [] : [item?.caption || '', item?.collaborators || [], item?.user_tags || []]
+  // Story mentions are sent; captions/collaborators are not. Preserve legacy
+  // digests when no mentions or Reel cover were supplied.
+  const words = type === 'STORIES'
+    ? (item?.user_tags?.length ? [item.user_tags] : [])
+    : [item?.caption || '', item?.collaborators || [], item?.user_tags || []]
   // channels/facebook_* only matter when this item also crosses to a Facebook Page —
   // included so a one-off approval binds to that destination's content too. Omitted
   // entirely (not even as a null slot) for anything that isn't a Facebook crosspost.
   const facebook = Array.isArray(item?.channels) && item.channels.includes('facebook')
     ? [item?.facebook_caption || null, item?.facebook_alt_text || null]
     : null
-  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, ...(facebook ? [facebook] : [])]
+  const cover = type === 'REELS' && item?.cover_url ? [item.cover_url] : []
+  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, ...cover, ...(facebook ? [facebook] : [])]
   return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
 }
 
@@ -233,7 +237,9 @@ export function refusal({ event, items = [], missing = [], stale = [], changed =
       ? `${list(changed)}: the post has changed since its route was approved — account, caption, media, tags or collaborators. The yes was for what Nino was shown then. Show him this version and ask again.\n`
       : null,
     "Posts to Nino's accounts go out by hand unless he has approved the Graph API for them:",
-    '  a Collab, or a Story with a sticker, link or mention  → native Instagram (Computer Use + iPhone Mirroring)',
+    '  a Collab, or a Story with a link/sticker              → native Instagram when direct access is available',
+    '  partner-only access                                 → Meta Business Suite or explicitly approved Graph; no phone detour',
+    '  a Story mention                                     → supported as user_tags on an approved Graph route',
     '  an ordinary Instagram + Facebook Page crosspost       → Meta Business Suite',
     '  a scheduled, batch, drip or queue-owned campaign      → this publisher',
     '',

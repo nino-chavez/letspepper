@@ -74,7 +74,7 @@ const isCarousel = (it) => Array.isArray(it.files) && it.files.length > 0
 const hostedCount = (it) => isCarousel(it)
   ? (it.children ?? []).filter((c) => c.image_url || c.video_url).length
   : (it.file && it[kindOf(it.file).urlField] ? 1 : 0)
-const pending = (it) => filesOf(it).length > hostedCount(it)
+const pending = (it) => filesOf(it).length > hostedCount(it) || (it.cover_file && !it.cover_url)
 
 const put = (file) => {
   const { contentType, urlField } = kindOf(file)
@@ -86,7 +86,8 @@ const put = (file) => {
 }
 
 const todo = q.items.filter(pending)
-const fileCount = todo.reduce((n, it) => n + filesOf(it).length, 0)
+const fileCount = todo.reduce((n, it) => n + filesOf(it).length - hostedCount(it) + (it.cover_file && !it.cover_url ? 1 : 0), 0)
+let failures = 0
 console.log(`Uploading ${fileCount} media file(s) across ${todo.length}/${q.items.length} item(s) to r2://${bucket}/${prefix}/ ...\n`)
 
 for (const it of q.items) {
@@ -100,14 +101,21 @@ for (const it of q.items) {
         return { media_type: urlField === 'video_url' ? 'VIDEO' : 'IMAGE', [urlField]: url }
       })
       console.log(`✓ ${it.id} → ${it.children.length} child media`)
-    } else {
+    } else if (it.file && !it[kindOf(it.file).urlField]) {
       const { urlField, url } = put(it.file)
       it[urlField] = url
       console.log(`✓ ${it.id} → ${url}`)
     }
+    if (it.cover_file && !it.cover_url) {
+      if (!/\.jpe?g$/i.test(it.cover_file)) throw new Error('Reel cover must be a JPEG')
+      it.cover_url = put(it.cover_file).url
+      console.log(`✓ ${it.id} cover → ${it.cover_url}`)
+    }
     writeFileSync(queuePath, JSON.stringify(q, null, 2)) // persist after each
   } catch (e) {
+    failures++
     console.error(`✗ ${it.id}: ${e.message}`)
   }
 }
 console.log(`\nDone. URLs written to ${queuePath}`)
+if (failures) process.exitCode = 1

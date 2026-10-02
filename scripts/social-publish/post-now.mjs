@@ -4,7 +4,7 @@
  *   node scripts/social-publish/post-now.mjs \
  *     --account letspepper --file /path/to/media.jpg \
  *     --caption "..." --graph-route "<Nino's words>" \
- *     [--alt-text "..."] [--story] [--collab user,user] [--tag user,user] [--dry-run]
+ *     [--alt-text "..."] [--cover /path/to/cover.jpg] [--story] [--collab user,user] [--tag user,user] [--prepare-only] [--dry-run]
  *
  * --graph-route is REQUIRED. An ad hoc post to one of Nino's accounts goes out
  * by hand (native Instagram or Meta Business Suite — the `meta-publish` skill
@@ -16,9 +16,13 @@
  * the container's alt_text, which Meta supports on a single image). It is refused on a
  * Story or a video, where Meta has no alt text field, rather than silently dropped.
  *
+ * --prepare-only uploads and waits for Meta to finish an unpublished container.
+ * It saves the queue item ID. Publish or retry that item with post-reels.mjs --id;
+ * re-running post-now creates another item and can duplicate the post.
+ *
  * Media type is inferred from the file extension (.jpg/.png → IMAGE,
- * .mp4/.mov → REELS); --story posts it as a Story instead (bare media —
- * the API ignores captions/tags on Stories, verified live 2026-07-20).
+ * .mp4/.mov → REELS); --story posts it as a Story instead. Stories support
+ * --tag mentions, but no caption, collaborators, or link/poll/location sticker.
  * --tag on a feed IMAGE lands as a real Graph API tag dead-center on the
  * photo (post-reels.mjs's tagParams() supplies the x/y Meta requires for a
  * single image); pass {username,x,y} objects directly in the queue item
@@ -32,7 +36,7 @@
  * --dry-run prints the composed item and exits — nothing persisted, uploaded,
  * or posted.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -56,12 +60,13 @@ const file = typeof args.file === 'string' ? resolve(args.file) : null
 const caption = typeof args.caption === 'string' ? args.caption : ''
 const altText = typeof args['alt-text'] === 'string' ? args['alt-text'].trim() : ''
 const story = !!args.story
+const coverFile = typeof args.cover === 'string' ? resolve(args.cover) : null
 const dryRun = !!args['dry-run']
 const bucket = typeof args.bucket === 'string' ? args.bucket : 'flickday-social'
 const publicBase = typeof args['public-base'] === 'string' ? args['public-base'] : 'https://pub-068210f3c0834d56a2eef0f10bf15e2d.r2.dev'
 
 if (!account || !file) {
-  console.error('Required: --account <slug> --file <path> --graph-route "<Nino\'s words>" [--caption "..."] [--alt-text "..."] [--story] [--collab u,u] [--tag u,u] [--dry-run]')
+  console.error('Required: --account <slug> --file <path> --graph-route "<Nino\'s words>" [--caption "..."] [--alt-text "..."] [--story] [--collab u,u] [--tag u,u] [--cover cover.jpg] [--prepare-only] [--dry-run]')
   process.exit(1)
 }
 const registry = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
@@ -72,11 +77,17 @@ const KIND = { '.jpg': 'IMAGE', '.jpeg': 'IMAGE', '.png': 'IMAGE', '.mp4': 'REEL
 const inferred = KIND[extname(file).toLowerCase()]
 if (!inferred) { console.error(`Unsupported extension "${extname(file)}" — use jpg/jpeg/png/mp4/mov.`); process.exit(1) }
 const media_type = story ? 'STORIES' : inferred
+if (coverFile && (media_type !== 'REELS' || !/\.jpe?g$/i.test(coverFile) || !existsSync(coverFile))) {
+  console.error('--cover requires an existing JPEG and applies to a Reel only.'); process.exit(1)
+}
+if (story && list(args.collab).length) {
+  console.error('Stories support mentions (--tag), but cannot carry collaborators.'); process.exit(1)
+}
 if (altText && media_type !== 'IMAGE') {
   console.error(`--alt-text applies to a feed image only; Meta has no alt text on ${media_type}.`)
   process.exit(1)
 }
-if (story && caption) console.warn('Note: Stories are bare media — the caption will not appear on the story.')
+if (story && caption) console.warn('Note: the caption will not appear on a Story; render its text into the media.')
 
 const queuePath = join(HERE, 'queue', `${EVENT}.json`)
 const q = existsSync(queuePath)
@@ -92,11 +103,12 @@ const item = {
   account,
   media_type,
   file,
+  ...(coverFile ? { cover_file: coverFile, cover_url: null } : {}),
   caption: story ? '' : caption,
   ...(altText ? { alt_text: altText } : {}),
   video_url: null,
   image_url: null,
-  user_tags: story ? [] : list(args.tag),
+  user_tags: list(args.tag),
   collaborators: story ? [] : list(args.collab),
   scheduledAt: new Date().toISOString(),
   status: 'pending',
@@ -116,6 +128,7 @@ if (dryRun) {
 }
 
 q.items.push(item)
+mkdirSync(dirname(queuePath), { recursive: true })
 writeFileSync(queuePath, JSON.stringify(q, null, 2))
 console.log(`Queued ${id} [${media_type}] → @${registry[account].handle}\n`)
 
@@ -127,12 +140,12 @@ execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mj
   { stdio: 'inherit' })
 
 execFileSync('node', [join(HERE, 'upload-r2.mjs'),
-  '--event', EVENT, '--bucket', bucket, '--prefix', EVENT, '--public-base', publicBase],
+  '--event', EVENT, '--bucket', bucket, '--prefix', `${EVENT}/${account}/${id}`, '--public-base', publicBase],
   { stdio: 'inherit' })
 
 const token = process.env.IG_ACCESS_TOKEN ||
-  execFileSync('op', ['read', 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
+  execFileSync('op', ['read', registry[account].token_ref || 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
 
 console.log('')
-execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id, '--graph-route', args['graph-route']],
+execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id, '--graph-route', args['graph-route'], ...(args['prepare-only'] ? ['--prepare-only'] : [])],
   { stdio: 'inherit', env: { ...process.env, IG_ACCESS_TOKEN: token } })

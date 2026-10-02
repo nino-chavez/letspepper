@@ -5,12 +5,11 @@
  *   IG_ACCESS_TOKEN=$(op read "op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential") \
  *   node scripts/social-publish/post-reels.mjs --event bell-pepper-2026 --count 2
  *
- * Auth model: one 60-day Instagram System User token issued from the Almost
- * Flickday Business Manager, which owns every account in accounts.json. Page
- * publishing uses a separate System User and Worker secret. Each Instagram
- * account is addressed by its numeric ig_user_id (resolved into accounts.json
- * — see SETUP.md). Host is graph.facebook.com (Business path), NOT
- * graph.instagram.com (that's the single-account Instagram-Login path).
+ * Auth: owned accounts use the Almost Flickday System User token; partner
+ * accounts may use their own Facebook User OAuth token (accounts.json token_ref).
+ * This entry point expects the selected account's token in IG_ACCESS_TOKEN.
+ * Page publishing has a separate credential. Host is graph.facebook.com;
+ * address each Instagram account by its verified numeric ig_user_id.
  *
  * Per queue item (see build-queue.mjs):
  *   account        slug into accounts.json (e.g. "letspepper")
@@ -20,17 +19,17 @@
  *   children       [{media_type,image_url|video_url,user_tags?}, ...]  (CAROUSEL only)
  *   caption        post caption
  *   user_tags      ["username", ...] or [{username,x,y}, ...]   real Graph API
- *                  tags (not caption mentions) — IGNORED on STORIES (Graph API
- *                  has no caption/tag support for Stories, media only). On a
+ *                  tags (not caption mentions), including Story mentions. On an
  *                  IMAGE (including a carousel image child), tagParams() defaults bare usernames to a
  *                  dead-center (0.5, 0.5) position — pass {username,x,y} for
  *                  a precise spot. On CAROUSELs, tags go on each image child,
  *                  never the parent; a child's tags override the item-level
  *                  fallback. REELS take bare usernames as-is.
  *   collaborators  ["username", ...]      send Collab co-author invites
+ *   cover_url      public JPEG URL for a REELS cover
  *
  * Flags: --count N (default 2) · --account slug (override) · --id <item-id>
- *        (publish only that queue item) · --force · --dry-run
+ *        (publish only that queue item) · --force · --dry-run · --prepare-only
  *        --graph-route "<Nino's words>"  one-off approval to use this publisher
  *
  * ROUTE GATE (route-gate.mjs): nothing here runs — not the copy audit, not a
@@ -50,9 +49,11 @@
  *   POST /{ig}/media_publish  creation_id  → media id
  * Queue persisted after every item so a crash never double-posts.
  *
- * NOTE: `collaborators` is community-confirmed but absent from Meta's main
- * publishing doc excerpt — verify on first live call; on rejection the item
- * is marked error with the API message rather than silently dropping the tag.
+ * --prepare-only creates and validates an unpublished container, retaining its
+ * ID and payload digest. Resume with --id without this flag; do not create a new
+ * post-now item. A failure exits nonzero and retains the ledger for reconciliation.
+ * Meta's IG User /media reference documents collaborators, cover_url and Story
+ * user_tags (rechecked 2026-10-02). Never silently drop a requested field.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
@@ -62,7 +63,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { assertGraphRoute, digestOf } from './route-gate.mjs'
 import { holdBlock, linkedItemBlock } from './hold-shape.mjs'
 import { collabBlock } from './collab-shape.mjs'
-import { tagParams } from './tag-params.mjs'
+import { tagParams, userTagsParams } from './tag-params.mjs'
 import { carouselChildParams, carouselParentParams } from './carousel-container-params.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -81,6 +82,7 @@ const event = args.event
 const count = Number(args.count ?? 2)
 const force = !!args.force
 const dryRun = !!args['dry-run']
+const prepareOnly = !!args['prepare-only']
 const accountOverride = typeof args.account === 'string' ? args.account : null
 const idFilter = typeof args.id === 'string' ? args.id : null
 
@@ -108,7 +110,7 @@ if (ids.some((id) => typeof id !== 'string' || !id.trim()) || new Set(ids).size 
 }
 
 const now = Date.now()
-const ready = (it) => it.status !== 'posted' &&
+const ready = (it) => it.status !== 'posted' && (!it.cover_file || !!it.cover_url) &&
   (it.media_type === 'CAROUSEL' ? Array.isArray(it.children) && it.children.length : (it.video_url || it.image_url))
 // A hold or a veto blocks BOTH destinations and is never opened by --force: --force
 // exists to skip a future scheduledAt, not to skip a hold window nobody has cleared
@@ -145,7 +147,7 @@ const batch = due.slice(0, count)
 // post should not be going through this publisher at all.
 assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs', named: !!idFilter, candidates: due.length, account: accountOverride })
 
-if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN (System User token — see SETUP.md).'); process.exit(1) }
+if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN for the selected account (see accounts.json token_ref and SETUP.md).'); process.exit(1) }
 
 // Refuse to publish when the current caption queue breaks its reader contract.
 // This runs before the first Graph API call and audits only JSON caption fields.
@@ -222,19 +224,21 @@ async function buildContainer(ig, it) {
     return id
   }
   if (it.media_type === 'STORIES') {
-    // Stories containers take no caption/user_tags — media only (Graph v16+).
+    // Meta's IG User /media reference supports Story user_tags since 2025-07-09.
+    // A mention is required when supplied: do not silently retry without it.
     const media = it.video_url ? { video_url: it.video_url } : { image_url: it.image_url }
-    const { id } = await api(`${ig}/media`, { media_type: 'STORIES', ...media })
+    const { id } = await api(`${ig}/media`, { media_type: 'STORIES', ...media, ...userTagsParams(it) })
     return id
   }
   // REELS (default)
   const { id } = await api(`${ig}/media`, {
-    media_type: 'REELS', video_url: it.video_url, caption: it.caption, share_to_feed: 'true', ...tagParams(it),
+    media_type: 'REELS', video_url: it.video_url, caption: it.caption, share_to_feed: 'true',
+    ...(it.cover_url ? { cover_url: it.cover_url } : {}), ...tagParams(it),
   })
   return id
 }
 
-console.log(`${dryRun ? '[dry-run] ' : ''}Publishing ${batch.length} of ${due.length} due items...\n`)
+console.log(`${dryRun ? '[dry-run] ' : ''}${prepareOnly ? 'Preparing' : 'Publishing'} ${batch.length} of ${due.length} due items...\n`)
 
 let ok = 0
 for (const it of batch) {
@@ -287,6 +291,11 @@ for (const it of batch) {
       it.ig_container_id = containerId; it.ig_container_digest = payload; save()
     }
     await waitFinished(containerId)
+    if (prepareOnly) {
+      it.status = 'prepared'; it.prepared_at = new Date().toISOString(); it.error = null
+      save(); console.log(`prepared (container ${containerId}); not published`); ok++
+      continue
+    }
     const { id: mediaId } = await publishWithRetry(ig, containerId)
     it.status = 'posted'; it.ig_media_id = mediaId; it.posted_at = new Date().toISOString(); it.error = null
     save()
@@ -297,4 +306,6 @@ for (const it of batch) {
     console.error(`FAILED: ${e.message}`)
   }
 }
-if (!dryRun) console.log(`\n${ok}/${batch.length} posted. ${q.items.filter((i) => i.status !== 'posted').length} remaining.`)
+if (!dryRun) console.log(`\n${ok}/${batch.length} ${prepareOnly ? 'prepared' : 'posted'}. ${q.items.filter((i) => i.status !== 'posted').length} not yet posted.`)
+
+if (!dryRun && ok < batch.length) process.exitCode = 1
