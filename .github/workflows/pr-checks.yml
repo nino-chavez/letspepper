@@ -34,6 +34,10 @@ jobs:
         # build installs the same way.
         run: pnpm install --frozen-lockfile
 
+      - name: Standings points
+        # Points by finishing tier, including double-elimination places like 4th.
+        run: pnpm test:standings
+
       - name: Check mascot derivatives
         # Fails fast if src/ references an anime/web derivative that was never
         # committed (this shipped a 404 header logo once).

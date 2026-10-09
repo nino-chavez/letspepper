@@ -22,6 +22,7 @@
     "creative:jpo-review:test": "node scripts/media-kit/test-jpo-review.mjs",
     "test:social": "node --test scripts/social-publish/test/*.test.mjs",
     "check:rhq-drift": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-rhq-drift.mjs",
+    "test:standings": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/standings-points.test.mjs",
     "derive:mascots": "node scripts/site/derive-mascot-images.mjs"
   },
   "dependencies": {
