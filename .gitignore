@@ -8,12 +8,9 @@ out
 dist
 build
 
-# Environment
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Environment (secrets; .env.example is the committed template)
+.env*
+!.env.example
 
 # Debug
 npm-debug.log*
@@ -37,7 +34,10 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Cloudflare: wrangler state, and local-dev secrets read by `wrangler pages dev`
 .wrangler
+.dev.vars*
 
 # Generated social/story assets (regenerable via scripts/story-assets/*.mjs —
 # renders are hermetic: source art in *-mascot/, fonts in fonts/, both tracked)
@@ -47,8 +47,12 @@ scripts/story-assets/highlights/
 scripts/story-assets/teams/
 scripts/story-assets/standings/
 
-# Local scratch / per-event scratch assets (not repo content)
-scripts/apparel/ref/
+# Local scratch / per-event scratch assets (not repo content), except the
+# three apparel references scripts/apparel/PROMPTS.md and SPECS.md cite by path
+scripts/apparel/ref/*
+!scripts/apparel/ref/Brand Kit-13.png
+!scripts/apparel/ref/Brand Kit-14.png
+!scripts/apparel/ref/Brand Kit-5-tee-front-red.png
 scripts/story-assets/2026-bpo/
 tmp/
 
