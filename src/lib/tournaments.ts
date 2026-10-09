@@ -139,7 +139,7 @@ export const tournaments: Record<string, TournamentDetail> = {
 		mediaPerks: [
 			'Professional photo and video by Flickday Media',
 			'Post-tournament highlight reels',
-			'Taggable galleries available at nino.photos'
+			'Full gallery access at letspepper.com/gallery'
 		]
 	},
 	'jalapeno-open': {

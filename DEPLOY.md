@@ -41,7 +41,7 @@ These run on every PR. The `auto-merge-gate` ruleset on `main` requires them to 
 - **`Cloudflare Pages`**: the branch's preview build
 - **`GitGuardian Security Checks`**
 
-**The reader-clarity check.** It compares the branch's `src/app` and `src/components` with the source recorded in the last review, `docs/reader-audits/website.json`. It fails with `manual-review-stale` whenever they differ, whichever PR made the change. To clear it:
+**The reader-clarity check.** It compares the branch's `src/app`, `src/components` and `src/lib` (the folders `reader-contract.json` lists for the website) with the source recorded in the last review, `docs/reader-audits/website.json`. It fails with `manual-review-stale` whenever they differ, whichever PR made the change. To clear it:
 1. Walk the changed pages on the branch preview against [`reader-contract.json`](reader-contract.json).
 2. Record the review on the branch.
 3. Commit the receipt with the change.

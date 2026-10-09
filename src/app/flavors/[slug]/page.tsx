@@ -16,7 +16,7 @@ import { usePhase, type EventPhase } from '@/components/rhq/usePhase'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { CourtBoard } from '@/components/rhq/CourtBoard'
 import { cn } from '@/lib/utils'
-import { tournaments, type TournamentDetail } from '@/lib/tournaments'
+import { tournaments, nextOpenEvent, type TournamentDetail } from '@/lib/tournaments'
 
 const heatConfig = {
   bell: { color: 'var(--heat-bell)', textClass: 'text-heat-bell', borderClass: 'border-heat-bell', bgClass: 'bg-heat-bell', glowClass: 'hover:bg-heat-bell-glow', level: 'Mild', bars: 1 },
@@ -131,7 +131,16 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
   // record lives on over there), so cancellation overrides all three faces —
   // otherwise the page would keep showing a roster, a countdown, and a champion
   // pick for a bracket that is never played.
-  const isPre = !cancellation && phase === 'pre'
+  // usePhase reports 'pre' until Rally HQ says otherwise, and also when it has no
+  // data at all (a preview build has no RALLY_HQ_API_KEY). A date that has
+  // passed is not upcoming, so it never gets the countdown or the pick, unless
+  // a ?phase=pre override asks for that face.
+  const todayISO = new Date().toISOString().split('T')[0]
+  const datePassed = tournament.startsAt.slice(0, 10) < todayISO
+  // Same test the header's Sign Up / Registration Closed link uses: only the
+  // next open event takes sign-ups, and /signup shows only that event's form.
+  const registrationOpen = nextOpenEvent(todayISO)?.slug === tournament.slug
+  const isPre = !cancellation && phase === 'pre' && (override === 'pre' || !datePassed)
   const isLive = !cancellation && phase === 'live'
   const isPost = !cancellation && phase === 'post'
   const signupHref = `/signup?utm_source=letspepper.com&utm_medium=event_page&utm_campaign=${tournament.rhqSlug}`
@@ -349,7 +358,9 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 {isPre && (
                   <>
                     <Countdown target={tournament.startsAt} />
-                    <Link href={signupHref} className={cn('btn-heat', config.bgClass, config.glowClass)}><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
+                    {registrationOpen && (
+                      <Link href={signupHref} className={cn('btn-heat', config.bgClass, config.glowClass)}><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
+                    )}
                     <a href="#predict" className="font-accent text-sm uppercase tracking-wider text-zinc-300 hover:text-white transition-colors self-center">Predict the champ →</a>
                   </>
                 )}
@@ -523,10 +534,10 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 Grass roots. High level. Real stakes.
               </p>
               <div className="flex flex-wrap justify-center gap-4 pt-4">
-                {cancellation ? (
-                  <Link href="/standings" className="btn-primary"><span>Season Standings</span><span aria-hidden="true">→</span></Link>
-                ) : (
+                {registrationOpen ? (
                   <Link href={signupHref} className="btn-primary"><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
+                ) : (
+                  <Link href="/standings" className="btn-primary"><span>Season Standings</span><span aria-hidden="true">→</span></Link>
                 )}
                 <Link href="/gallery" className="btn-secondary">
                   <span>View Gallery</span><span aria-hidden="true">→</span>

@@ -23,7 +23,8 @@
       "renderedRoots": [],
       "sourceRoots": [
         "src/app",
-        "src/components"
+        "src/components",
+        "src/lib"
       ],
       "manualReview": {
         "evidencePath": "docs/reader-audits/website.json"
