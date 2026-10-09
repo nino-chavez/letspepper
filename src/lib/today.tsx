@@ -13,42 +13,48 @@ import { createContext, useContext, useEffect, useState } from 'react'
  *
  * The root layout passes the moment it rendered at: the build's for a prebuilt
  * page, the request's for one rendered per request. The browser's first render
- * uses that same moment, so it matches the HTML exactly; the visitor's clock
- * replaces it after mount.
+ * uses that same moment, so it matches the HTML exactly. After mount the
+ * visitor's clock takes over and keeps moving, so a tab left open still locks at
+ * a deadline and still changes state at midnight.
  */
-interface Clock {
-  /** YYYY-MM-DD, UTC — the form the tournament date checks compare against. */
-  todayISO: string
-  /** Milliseconds since the epoch. */
-  now: number
+const TodayContext = createContext<string | null>(null)
+const NowContext = createContext<number | null>(null)
+
+/** YYYY-MM-DD in UTC: the form the tournament date checks compare against. */
+export function toISODate(ms: number): string {
+  return new Date(ms).toISOString().split('T')[0]
 }
 
-const ClockContext = createContext<Clock | null>(null)
-
-export function clockAt(now: number): Clock {
-  return { todayISO: new Date(now).toISOString().split('T')[0], now }
-}
+/** How often the clock moves after mount, so an open tab crosses deadlines and midnights. */
+const TICK_MS = 30_000
 
 export function TodayProvider({ renderedAt, children }: { renderedAt: number; children: React.ReactNode }) {
-  const [clock, setClock] = useState(() => clockAt(renderedAt))
+  const [now, setNow] = useState(renderedAt)
   useEffect(() => {
-    setClock(clockAt(Date.now()))
+    setNow(Date.now())
+    const id = setInterval(() => setNow(Date.now()), TICK_MS)
+    return () => clearInterval(id)
   }, [])
-  return <ClockContext.Provider value={clock}>{children}</ClockContext.Provider>
+  // Two contexts: a string only changes at midnight, so date readers re-render
+  // once a day, while the few deadline checks follow every tick.
+  return (
+    <TodayContext.Provider value={toISODate(now)}>
+      <NowContext.Provider value={now}>{children}</NowContext.Provider>
+    </TodayContext.Provider>
+  )
 }
 
-function useClock(): Clock {
-  const clock = useContext(ClockContext)
-  if (!clock) throw new Error('useTodayISO and useNow need <TodayProvider>, which src/app/layout.tsx provides')
-  return clock
+function required<T>(value: T | null): T {
+  if (value === null) throw new Error('useTodayISO and useNow need <TodayProvider>, which src/app/layout.tsx provides')
+  return value
 }
 
-/** Today as YYYY-MM-DD (UTC). Safe to read while rendering. */
+/** Today as YYYY-MM-DD (UTC). Safe to read while rendering; moves at midnight UTC. */
 export function useTodayISO(): string {
-  return useClock().todayISO
+  return required(useContext(TodayContext))
 }
 
-/** The current time in ms. Safe to read while rendering; refreshed once after mount. */
+/** The current time in ms. Safe to read while rendering; moves every 30 s after mount. */
 export function useNow(): number {
-  return useClock().now
+  return required(useContext(NowContext))
 }
