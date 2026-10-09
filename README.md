@@ -101,7 +101,7 @@ The brand uses pepper-themed heat levels for visual hierarchy:
 ## Media
 
 - **Photography:** [Flickday Media](https://flickdaymedia.com)
-- **Gallery:** [gallery.ninochavez.co](https://gallery.ninochavez.co/Sports/Volleyball/Grass/LPO)
+- **Gallery:** [letspepper.com/gallery](https://letspepper.com/gallery)
 
 ## Deployment
 

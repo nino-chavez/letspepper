@@ -8,6 +8,7 @@ import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
 import { cfImageLoader } from '@/lib/cloudflare-images'
 import { HERO_PHOTO_SRC, heroPhotoLoader } from '@/lib/hero-photo'
+import { tournaments, isCancelled, nextOpenEvent, HEAT_LEVEL, type TournamentDetail } from '@/lib/tournaments'
 
 const galleryImages = [
   {
@@ -27,6 +28,31 @@ const galleryImages = [
     alt: 'Competitive grass volleyball',
   },
 ]
+
+type Heat = TournamentDetail['heat']
+
+// Literal class names per heat, so Tailwind keeps them.
+const heatStyle: Record<Heat, { text: string; bar: string; border: string }> = {
+  bell: { text: 'text-heat-bell', bar: 'bg-heat-bell', border: 'hover:border-heat-bell/30' },
+  jalapeno: { text: 'text-heat-jalapeno', bar: 'bg-heat-jalapeno', border: 'hover:border-heat-jalapeno/30' },
+  poblano: { text: 'text-heat-poblano', bar: 'bg-heat-poblano', border: 'hover:border-heat-poblano/30' },
+}
+
+const heatBars: Record<Heat, number> = { bell: 1, poblano: 2, jalapeno: 3 }
+
+// About's one-line pitch per event. Status and names come from the shared
+// tournament record: this page once kept its own copy and went on selling the
+// finale for months after it was cancelled. A cancelled event shows its
+// canonical description (the notice), as the homepage cards do.
+const seriesCards = [
+  { slug: 'bell-pepper-open', pitch: "Season opener. Full media coverage and real stakes. Where the Let's Pepper Series begins." },
+  { slug: 'jalapeno-open', pitch: 'Mid-season pressure. Fast pace, high intensity, no room to coast.' },
+  { slug: 'poblano-open', pitch: 'Season finale. One final field, one final bracket.' },
+].map(({ slug, pitch }) => {
+  const t = tournaments[slug]
+  const cancelled = isCancelled(t)
+  return { slug, name: t.name, heat: t.heat, cancelled, description: cancelled ? t.description : pitch }
+})
 
 const values = [
   {
@@ -48,6 +74,8 @@ const values = [
 ]
 
 export default function AboutPage() {
+  // Same test the header's Sign Up / Registration Closed link uses.
+  const registrationOpen = Boolean(nextOpenEvent(new Date().toISOString().split('T')[0]))
   return (
     <>
       <Header />
@@ -334,86 +362,48 @@ export default function AboutPage() {
               viewport={MOTION.viewport.once}
               transition={{ staggerChildren: 0.15 }}
             >
-              {/* Bell Pepper */}
-              <motion.div
-                className="p-6 rounded-xl bg-zinc-900/50 border border-zinc-800/50 hover:border-heat-bell/30 transition-colors"
-                variants={MOTION.variants.slideUp}
-              >
-                <div className="flex items-center gap-2 text-heat-bell mb-3">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-4 rounded-sm bg-heat-bell" />
-                    <div className="w-2 h-4 rounded-sm bg-zinc-700" />
-                    <div className="w-2 h-4 rounded-sm bg-zinc-700" />
-                  </div>
-                  <span className="font-accent text-xs uppercase tracking-wider">Mild</span>
-                </div>
-                <h3 className="font-display text-2xl uppercase text-white mb-2">
-                  Bell Pepper Open
-                </h3>
-                <p className="text-zinc-500 text-sm mb-4">
-                  Season opener. Full media coverage and real stakes. Where the Let&apos;s Pepper Series begins.
-                </p>
-                <Link
-                  href="/flavors/bell-pepper-open"
-                  className="text-heat-bell font-accent text-sm uppercase tracking-wider hover:underline"
-                >
-                  Learn More →
-                </Link>
-              </motion.div>
-
-              {/* Jalapeño */}
-              <motion.div
-                className="p-6 rounded-xl bg-zinc-900/50 border border-zinc-800/50 hover:border-heat-jalapeno/30 transition-colors"
-                variants={MOTION.variants.slideUp}
-              >
-                <div className="flex items-center gap-2 text-heat-jalapeno mb-3">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-4 rounded-sm bg-heat-jalapeno" />
-                    <div className="w-2 h-4 rounded-sm bg-heat-jalapeno" />
-                    <div className="w-2 h-4 rounded-sm bg-heat-jalapeno" />
-                  </div>
-                  <span className="font-accent text-xs uppercase tracking-wider">Hot</span>
-                </div>
-                <h3 className="font-display text-2xl uppercase text-white mb-2">
-                  Jalapeño Open
-                </h3>
-                <p className="text-zinc-500 text-sm mb-4">
-                  Mid-season pressure. Fast pace, high intensity, no room to coast.
-                </p>
-                <Link
-                  href="/flavors/jalapeno-open"
-                  className="text-heat-jalapeno font-accent text-sm uppercase tracking-wider hover:underline"
-                >
-                  Learn More →
-                </Link>
-              </motion.div>
-
-              {/* Poblano */}
-              <motion.div
-                className="p-6 rounded-xl bg-zinc-900/50 border border-zinc-800/50 hover:border-heat-poblano/30 transition-colors"
-                variants={MOTION.variants.slideUp}
-              >
-                <div className="flex items-center gap-2 text-heat-poblano mb-3">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-4 rounded-sm bg-heat-poblano" />
-                    <div className="w-2 h-4 rounded-sm bg-heat-poblano" />
-                    <div className="w-2 h-4 rounded-sm bg-zinc-700" />
-                  </div>
-                  <span className="font-accent text-xs uppercase tracking-wider">Medium</span>
-                </div>
-                <h3 className="font-display text-2xl uppercase text-white mb-2">
-                  Poblano Open
-                </h3>
-                <p className="text-zinc-500 text-sm mb-4">
-                  Season finale. One final field, one final bracket.
-                </p>
-                <Link
-                  href="/flavors/poblano-open"
-                  className="text-heat-poblano font-accent text-sm uppercase tracking-wider hover:underline"
-                >
-                  Learn More →
-                </Link>
-              </motion.div>
+              {seriesCards.map((card) => {
+                const style = heatStyle[card.heat]
+                return (
+                  <motion.div
+                    key={card.slug}
+                    className={cn(
+                      'p-6 rounded-xl bg-zinc-900/50 border border-zinc-800/50 transition-colors',
+                      card.cancelled ? 'opacity-70 saturate-50' : style.border,
+                    )}
+                    variants={MOTION.variants.slideUp}
+                  >
+                    {card.cancelled && (
+                      <div className="inline-flex px-3 py-1 rounded-full text-xs font-accent uppercase tracking-widest mb-3 bg-zinc-800 border border-zinc-600 text-zinc-200">
+                        Cancelled
+                      </div>
+                    )}
+                    <div className={cn('flex items-center gap-2 mb-3', style.text)}>
+                      <div className="flex gap-1">
+                        {[1, 2, 3].map((n) => (
+                          <div key={n} className={cn('w-2 h-4 rounded-sm', n <= heatBars[card.heat] ? style.bar : 'bg-zinc-700')} />
+                        ))}
+                      </div>
+                      <span className="font-accent text-xs uppercase tracking-wider">{HEAT_LEVEL[card.heat]}</span>
+                    </div>
+                    <h3 className="font-display text-2xl uppercase text-white mb-2">
+                      {card.name}
+                    </h3>
+                    <p className="text-zinc-500 text-sm mb-4">
+                      {card.description}
+                    </p>
+                    <Link
+                      href={`/flavors/${card.slug}`}
+                      className={cn(
+                        'font-accent text-sm uppercase tracking-wider hover:underline',
+                        card.cancelled ? 'text-zinc-300' : style.text,
+                      )}
+                    >
+                      {card.cancelled ? 'Read the notice' : 'Learn More'} →
+                    </Link>
+                  </motion.div>
+                )
+              })}
             </motion.div>
           </div>
         </section>
@@ -427,28 +417,42 @@ export default function AboutPage() {
               viewport={MOTION.viewport.once}
               className="space-y-6"
             >
-              <p className="font-display text-3xl sm:text-4xl uppercase text-white">
-                Ready to play?
-              </p>
-              <p className="text-lg text-zinc-400 max-w-xl mx-auto">
-                Grass roots. High level. Real stakes.
-              </p>
+              {registrationOpen ? (
+                <>
+                  <p className="font-display text-3xl sm:text-4xl uppercase text-white">
+                    Ready to play?
+                  </p>
+                  <p className="text-lg text-zinc-400 max-w-xl mx-auto">
+                    Grass roots. High level. Real stakes.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-display text-3xl sm:text-4xl uppercase text-white">
+                    The season is complete.
+                  </p>
+                  <p className="text-lg text-zinc-400 max-w-xl mx-auto">
+                    Results are final. Follow @letspepper.open for next season&apos;s dates.
+                  </p>
+                </>
+              )}
 
               <div className="flex flex-wrap justify-center gap-4 pt-4">
-                <Link href="/#series" className="btn-primary">
-                  <span>View Events</span>
+                {registrationOpen ? (
+                  <Link href="/#series" className="btn-primary">
+                    <span>View Events</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                ) : (
+                  <Link href="/standings" className="btn-primary">
+                    <span>Season Standings</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                )}
+                <Link href="/gallery" className="btn-secondary">
+                  <span>View Gallery</span>
                   <span aria-hidden="true">→</span>
                 </Link>
-                <a
-                  href="https://gallery.ninochavez.co/Sports/Volleyball/Grass/LPO"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary"
-                  aria-label="View Let's Pepper photo gallery (opens in new tab)"
-                >
-                  <span>View Gallery</span>
-                  <span aria-hidden="true">↗</span>
-                </a>
               </div>
 
               {/* Flickday Attribution */}
