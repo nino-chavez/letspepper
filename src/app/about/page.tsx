@@ -78,8 +78,10 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Philosophy Section */}
-        <section className="section-padding bg-pepper-charcoal/30">
+        {/* Philosophy Section. overflow-x-clip: the copy column enters from
+            x: 30, and until it scrolls into view that offset widened a 390 px
+            phone page to 404 px. */}
+        <section className="section-padding bg-pepper-charcoal/30 overflow-x-clip">
           <div className="section-container">
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
               {/* Image Grid */}

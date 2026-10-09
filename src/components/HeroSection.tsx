@@ -248,9 +248,14 @@ export function HeroSection() {
       "PLAYER-OWNED", hiding the tape's own event details in the process. The
       hero is also `overflow-hidden`, so the banner cannot be pushed to the seam
       from within it. Rendering it as a sibling is what puts it in clear space.
+
+      overflow-x-clip: the tape is 110% wide with -5% side margins, then
+      rotated, so it reaches past the right edge (a 1345 px document at a
+      1280 px viewport, 411 px at 390). `clip`, not `hidden`, so the tilted
+      ends can still overhang vertically and no scroll container is created.
     */}
     <motion.div
-      className={cn('relative z-30 my-4', !cancelled && 'pointer-events-none')}
+      className={cn('relative z-30 my-4 overflow-x-clip', !cancelled && 'pointer-events-none')}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 1.8, duration: 0.8 }}
