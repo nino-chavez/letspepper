@@ -43,5 +43,5 @@ jobs:
         # Fails when src/app or src/components differs from the source the last
         # recorded review covered (docs/reader-audits/website.json). Walk
         # the branch's Cloudflare preview, then record a new receipt (see
-        # CLAUDE.md, "Deploys").
+        # DEPLOY.md, "Preflight checks").
         run: pnpm reader:check:website
