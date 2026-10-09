@@ -7,7 +7,7 @@ import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { heatText, heatBg, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
-import { tournaments as canonicalTournaments, isCancelled } from '@/lib/tournaments'
+import { tournaments as canonicalTournaments, isCancelled, nextOpenEvent } from '@/lib/tournaments'
 
 /**
  * Card-only presentation, keyed by the canonical tournament slug. Everything
@@ -236,6 +236,9 @@ function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext
 
 export function TournamentSeries() {
   const nextEventSlug = getNextEventSlug(tournaments)
+  // Same test the header's Sign Up / Registration Closed link uses: with nothing
+  // open, "choose your format" invites a pick there is no event to make.
+  const registrationOpen = Boolean(nextOpenEvent(new Date().toISOString().split('T')[0]))
 
   return (
     <section
@@ -259,7 +262,7 @@ export function TournamentSeries() {
           transition={{ duration: 0.6, ease: MOTION.ease.outExpo }}
         >
           <p className="font-accent text-[0.6rem] uppercase tracking-[0.1em] text-zinc-500 mb-4">
-            Choose Your Format
+            {registrationOpen ? 'Choose Your Format' : 'Season Complete'}
           </p>
           <h2 className="block-heading text-4xl sm:text-5xl">
             The <span className={heatText['jalapeno']}>Series</span>

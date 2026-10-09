@@ -1,16 +1,22 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-07-29T00:44:20.693Z",
-  "reviewedBy": "Claude Opus 5 (Claude Code) + browse-tool",
-  "method": "local production-build walkthrough (pnpm start): browser screenshots of home, /flavors/poblano-open, /signup; rendered-DOM text extraction for those plus /standings; opengraph-image fetched and viewed",
-  "sourceDigest": "sha256:39b056be2e1f021de6c808f1c289f1cd6cf0a60b10615a194ed7264311497836",
+  "reviewedAt": "2026-10-09T17:53:13.862Z",
+  "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
+  "method": "Cloudflare preview walkthrough, logged-out browser. Branch at 4f2d592 (dd0ef8ff.letspepper.pages.dev) at 390, 768, 900, 1023, 1024 and 1280 px: read rendered text of every page in scope; screenshots of home hero and tape, phone menu, About series and header; tape pause button clicked and keyboard-focused; image load and horizontal-overflow checks; banned-term scan of all pages in scope. After merging #74, re-walked the three changed lines on 41b4c58 (74e9ed15.letspepper.pages.dev): FAQ photo answer, /privacy gallery line and date; ninochavez.co/photography returns 200. Covers the website source changed since the 2026-07-29 review (#51, #70, #71, #74) plus this branch. Noted, unchanged: Bell Pepper media perks name nino.photos (live, redirects to ninochavez.co).",
+  "sourceDigest": "sha256:b05c89eb5b22af0b458de1acd26d82e507fac3967e0f302cf6426e6d124f7ddd",
   "sourceFiles": 98,
   "scope": [
     "home",
-    "flavors/poblano-open",
+    "about",
+    "faq",
     "signup",
     "standings",
-    "flavors/poblano-open opengraph-image"
+    "gallery",
+    "privacy gallery line",
+    "flavors/bell-pepper-open",
+    "flavors/jalapeno-open",
+    "flavors/poblano-open",
+    "header and phone menu"
   ]
 }

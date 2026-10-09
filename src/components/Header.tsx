@@ -96,8 +96,9 @@ export function Header() {
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <ul className="hidden md:flex items-center gap-8" role="menubar">
+          {/* Desktop Navigation. Starts at lg: below ~1000px the logo and six
+              items wrap onto two lines ("Registration Closed" is the longest). */}
+          <ul className="hidden lg:flex items-center gap-8" role="menubar">
             {navLinks.map((link) => (
               <li key={link.href} role="none">
                 <Link
@@ -169,7 +170,7 @@ export function Header() {
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden flex flex-col items-center justify-center w-11 h-11 gap-1.5"
+            className="lg:hidden flex flex-col items-center justify-center w-11 h-11 gap-1.5"
             aria-expanded={isOpen}
             aria-controls="mobile-menu"
             aria-label={isOpen ? 'Close menu' : 'Open menu'}
@@ -199,7 +200,7 @@ export function Header() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3, ease: MOTION.ease.outExpo }}
-            className="md:hidden bg-pepper-charcoal border-t border-zinc-800"
+            className="lg:hidden bg-pepper-charcoal border-t border-zinc-800"
           >
             <ul className="section-container py-6 space-y-4" role="menu">
               {navLinks.map((link, index) => (
