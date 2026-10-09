@@ -28,8 +28,8 @@ export const awardCategories: AwardCategory[] = [
     nominees: [
       { id: 'charlie', name: 'Charlie Podgorny', reason: '2x Champion — the backbone of both winning squads' },
       { id: 'nate', name: 'Nate Meyer', reason: '2x Champion — consistent excellence across both events' },
-      { id: 'casey', name: 'Casey Maas', reason: '2x Bronze — the most consistent performer in the series' },
-      { id: 'nick', name: 'Nick Maruyama', reason: 'Silver + Bronze — always in the mix at the top' },
+      { id: 'casey', name: 'Casey Maas', reason: 'Bronze + top-five finish — the most consistent performer in the series' },
+      { id: 'nick', name: 'Nick Maruyama', reason: 'Silver + top-five finish — always in the mix at the top' },
     ],
   },
   {
