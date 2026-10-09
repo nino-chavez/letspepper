@@ -43,7 +43,7 @@ export const powerRankings: PowerRanking[] = [
     scovilleRating: 4,
     trend: 'new',
     blurb: 'Their first series event ended in the final. After a semifinal loss to Maruyama they won three straight elimination matches, the last a 30–27 rematch with Maruyama, before Meyer stopped them in the grand final.',
-    highlights: ['2026 Jalapeño Open Runner-Up', '3 straight elimination wins', 'Beat Maruyama 30–27 in the losers final'],
+    highlights: ['2026 Jalapeño Open Runner-Up', '3 straight elimination wins', 'Beat Maruyama 30–27'],
   },
   {
     rank: 4,
