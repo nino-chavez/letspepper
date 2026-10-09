@@ -41,7 +41,7 @@ These run on every PR. The `auto-merge-gate` ruleset on `main` requires them to 
 - **`Cloudflare Pages`**: the branch's preview build
 - **`GitGuardian Security Checks`**
 
-**The reader-clarity check.** It compares the branch's `src/app`, `src/components` and `src/lib` (the folders `reader-contract.json` lists for the website) with the source recorded in the last review, `docs/reader-audits/website.json`. It fails with `manual-review-stale` whenever they differ, whichever PR made the change. To clear it:
+**The reader-clarity check.** It compares the reader-facing copy in the branch's `src/app`, `src/components` and `src/lib` (the folders `reader-contract.json` lists for the website) with the copy recorded in the last review, `docs/reader-audits/website.json` (`"fingerprint": "copy"` in the contract). Copy is JSX text, every string and number a page can show (links, image sources, alt text, aria labels, data strings, prices and dates written as numbers), and the image files themselves. Class names, styles, imports, comments and code without strings or numbers do not count, so a layout or logic-only change passes. The check fails with `manual-review-stale` when the copy differs, whichever PR changed it. It cannot see logic that changes which existing text appears (for example a condition that swaps one blurb for another): walk those changes on the preview anyway. To see what counts as copy in a file, run `node tools/lib/copy-segments.mjs <file>`. To clear a stale check:
 1. Walk the changed pages on the branch preview against [`reader-contract.json`](reader-contract.json).
 2. Record the review on the branch.
 3. Commit the receipt with the change.
