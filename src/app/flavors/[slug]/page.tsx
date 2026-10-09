@@ -465,7 +465,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                   { icon: '📍', title: 'Getting there', body: tournament.location },
                   { icon: '🗺️', title: 'On site', body: 'Grass triples on open-field courts. On-site check-in before first serve.' },
                   { icon: '⏱️', title: 'Timing', body: `${tournament.time}. ${tournament.format}.` },
-                  { icon: '📸', title: 'Media', body: 'Photo & video by Flickday Media — taggable galleries at gallery.ninochavez.co.' },
+                  { icon: '📸', title: 'Media', body: 'Photo & video by Flickday Media — galleries at letspepper.com/gallery.' },
                 ].map((c) => (
                   <div key={c.title} className="rounded-xl border border-zinc-800 bg-pepper-charcoal/30 p-5">
                     <div className="text-xl" aria-hidden="true">{c.icon}</div>
@@ -528,15 +528,9 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
                 ) : (
                   <Link href={signupHref} className="btn-primary"><span>Sign Up Your Team</span><span aria-hidden="true">→</span></Link>
                 )}
-                <a
-                  href="https://gallery.ninochavez.co/Sports/Volleyball/Grass/LPO"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary"
-                  aria-label="View Let's Pepper photo gallery (opens in new tab)"
-                >
-                  <span>View Gallery</span><span aria-hidden="true">↗</span>
-                </a>
+                <Link href="/gallery" className="btn-secondary">
+                  <span>View Gallery</span><span aria-hidden="true">→</span>
+                </Link>
                 <Link href="/#series" className="font-accent text-sm uppercase tracking-wider text-zinc-400 hover:text-white transition-colors self-center">
                   View all events →
                 </Link>

@@ -439,16 +439,10 @@ export default function AboutPage() {
                   <span>View Events</span>
                   <span aria-hidden="true">→</span>
                 </Link>
-                <a
-                  href="https://gallery.ninochavez.co/Sports/Volleyball/Grass/LPO"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary"
-                  aria-label="View Let's Pepper photo gallery (opens in new tab)"
-                >
+                <Link href="/gallery" className="btn-secondary">
                   <span>View Gallery</span>
-                  <span aria-hidden="true">↗</span>
-                </a>
+                  <span aria-hidden="true">→</span>
+                </Link>
               </div>
 
               {/* Flickday Attribution */}
