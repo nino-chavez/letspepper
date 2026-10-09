@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { chromium } from 'playwright'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -8,23 +9,26 @@ import { assertPageReady, localFonts, requiredAsset, verifyPng } from '../story-
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..', '..')
-const APPS = resolve(ROOT, '..')
 const OUT = join(ROOT, 'creative', 'exports', 'facebook')
 const TMP = join(OUT, '.render-tmp')
 
-const FLICKDAY = join(APPS, 'flickdaymedia')
-const PHOTOGRAPHY = join(APPS, 'photography')
+// Sibling repos resolve from the main checkout, so the script also runs from a linked worktree.
+const GIT_COMMON_DIR = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: ROOT, encoding: 'utf8' }).trim()
+const WORKSPACE = resolve(dirname(GIT_COMMON_DIR), '..', '..')
+const FLICKDAY = join(WORKSPACE, 'sites', 'ventures', 'flickdaymedia')
+const PHOTOGRAPHY = join(WORKSPACE, 'sites', 'nino', 'nino-chavez-photography')
 const PHOTO = {
   grassReceive: join(TMP, 'grass-receive.jpg'),
-  grassCourt: join(TMP, 'grass-court.jpg'),
+  // Frame 231 was never imported into Cloudflare Images; the site serves it from this committed copy.
+  grassCourt: join(ROOT, 'public', 'images', 'photos', 'bell-pepper-open-2025-231-1800.webp'),
   flickdayBeach: join(FLICKDAY, 'images', 'gallery', 'portfolio-16.jpg'),
   flickdayServe: join(FLICKDAY, 'images', 'gallery', 'portfolio-17.jpg'),
   flickdayNight: join(FLICKDAY, 'images', 'gallery', 'portfolio-23.jpg'),
   flickdayBlock: join(FLICKDAY, 'images', 'gallery', 'portfolio-29.jpg'),
 }
+// Bell Pepper Open 2025, frame 003: Cloudflare Images `large` variant (1600px).
 const PHOTO_SOURCE = {
-  grassReceive: 'https://photos.smugmug.com/Sports/Volleyball/Grass/LPO/Bell-Pepper-Open-20250719/i-MKbtxb7/0/MGmNvWrKdGFhbQHwBwWM7DkpqR8LRnQhv9kjQ59RR/X3/lpo-green-pepper-2025-003-X3.jpg',
-  grassCourt: 'https://photos.smugmug.com/Sports/Volleyball/Grass/LPO/Bell-Pepper-Open-20250719/i-kTh9bRS/0/LTtD3WCXjvSmKKVqJ3bzwJG7Cvb6MvDLdhwRk4GHn/X3/lpo-green-pepper-2025-231-X3.jpg',
+  grassReceive: 'https://imagedelivery.net/wg34HB28-JkySWVm5fW4kA/MKbtxb7/large',
 }
 const ASSET = {
   poblano: join(ROOT, 'public', 'images', 'mascots', 'anime', 'poblano-verde', 'champion.png'),
@@ -45,10 +49,7 @@ async function download(source, destination) {
   writeFileSync(destination, Buffer.from(await response.arrayBuffer()))
 }
 
-await Promise.all([
-  download(PHOTO_SOURCE.grassReceive, PHOTO.grassReceive),
-  download(PHOTO_SOURCE.grassCourt, PHOTO.grassCourt),
-])
+await download(PHOTO_SOURCE.grassReceive, PHOTO.grassReceive)
 
 function url(path) {
   return requiredAsset(path)

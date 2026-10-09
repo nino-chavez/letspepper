@@ -5,10 +5,6 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**.smugmug.com',
-      },
-      {
-        protocol: 'https',
         hostname: 'imagedelivery.net',
       },
       {
