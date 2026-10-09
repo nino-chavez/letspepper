@@ -1,22 +1,12 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T17:53:13.862Z",
+  "reviewedAt": "2026-10-09T18:08:39.437Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Cloudflare preview walkthrough, logged-out browser. Branch at 4f2d592 (dd0ef8ff.letspepper.pages.dev) at 390, 768, 900, 1023, 1024 and 1280 px: read rendered text of every page in scope; screenshots of home hero and tape, phone menu, About series and header; tape pause button clicked and keyboard-focused; image load and horizontal-overflow checks; banned-term scan of all pages in scope. After merging #74, re-walked the three changed lines on 41b4c58 (74e9ed15.letspepper.pages.dev): FAQ photo answer, /privacy gallery line and date; ninochavez.co/photography returns 200. Covers the website source changed since the 2026-07-29 review (#51, #70, #71, #74) plus this branch. Noted, unchanged: Bell Pepper media perks name nino.photos (live, redirects to ninochavez.co).",
-  "sourceDigest": "sha256:b05c89eb5b22af0b458de1acd26d82e507fac3967e0f302cf6426e6d124f7ddd",
+  "method": "Only website source change since the previous receipt (ff90361): aria-expanded on the phone menu's Community button in Header.tsx; no copy changed. Walked on this branch's Cloudflare preview (f28d548f.letspepper.pages.dev, cf3c6e4), logged-out browser at 800 px, the menu-button layout used below 1024 px: opened the menu, toggled Community; aria-expanded read false, then true with all six community links visible, then false; no horizontal overflow. Earlier receipt walks (#75) cover the rest of the site.",
+  "sourceDigest": "sha256:cd3d06a4aeff9e1b42fd815f8b4f801999e376e83a1ff331a96df8c03f158f32",
   "sourceFiles": 98,
   "scope": [
-    "home",
-    "about",
-    "faq",
-    "signup",
-    "standings",
-    "gallery",
-    "privacy gallery line",
-    "flavors/bell-pepper-open",
-    "flavors/jalapeno-open",
-    "flavors/poblano-open",
-    "header and phone menu"
+    "header phone/tablet menu, Community toggle"
   ]
 }

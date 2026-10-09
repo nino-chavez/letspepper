@@ -105,15 +105,7 @@ The brand uses pepper-themed heat levels for visual hierarchy:
 
 ## Deployment
 
-The site is deployed on Cloudflare Pages at [letspepper.com](https://letspepper.com). Push to `main` triggers the GitHub Actions workflow at `.github/workflows/deploy.yml`, which builds with `@cloudflare/next-on-pages` and deploys via `wrangler pages deploy`.
-
-```bash
-# Manual production deployment (rarely needed; CI handles it)
-pnpm exec @cloudflare/next-on-pages
-pnpm dlx wrangler pages deploy .vercel/output/static --project-name=letspepper
-```
-
-The build output directory is named `.vercel/output/static` because that's the Next.js standard output path that `@cloudflare/next-on-pages` consumes — not a sign of a Vercel deployment.
+The site runs on Cloudflare Pages at [letspepper.com](https://letspepper.com). Cloudflare's GitHub connection builds a preview for every branch and deploys production when a PR merges to `main`. [DEPLOY.md](DEPLOY.md) has the details: build settings, required checks, environment variables, and the emergency manual deploy.
 
 ## License
 

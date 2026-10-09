@@ -236,6 +236,7 @@ export function Header() {
               >
                 <button
                   type="button"
+                  aria-expanded={mobileCommunityOpen}
                   onClick={() => setMobileCommunityOpen(!mobileCommunityOpen)}
                   className={cn(
                     'flex items-center gap-2 font-display text-3xl uppercase transition-colors w-full text-left',

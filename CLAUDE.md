@@ -139,32 +139,7 @@ pnpm build
 
 ## Deploys
 
-Cloudflare Pages' GitHub connection is the only deploy path. It replaced a GitHub Actions deploy on 2026-10-09; the two had both deployed every merge since June.
-
-- **A push to any branch** builds a preview on `letspepper.pages.dev`. Cloudflare posts the URL on the PR.
-- **A merge to `main`** builds and deploys production. The build command lives in the Pages project settings: `pnpm install --frozen-lockfile && pnpm dlx @cloudflare/next-on-pages@1`. A failed build leaves the previous deploy live.
-- **`.github/workflows/pr-checks.yml`** runs on every PR and must pass to merge. It checks that the lockfile matches `package.json`, that every mascot derivative `src/` references exists, and that the website's reader review is current.
-
-The reader check compares the branch's `src/app` and `src/components` with the source recorded in the last review, `docs/reader-audits/website.json`. It fails with `manual-review-stale` whenever they differ, whichever PR made the change. Walk the changed pages on the branch preview against [`reader-contract.json`](reader-contract.json). Then record the review on the branch and commit the receipt with the change:
-
-```bash
-node tools/lib/encounter-audit.mjs --root=. --record-manual=website \
-  --reviewed-by="<who>" --method="<what was walked, and how>" --scope="home|about"
-```
-
-Record a review only after walking the pages. The receipt is the only evidence that someone read the copy the way a player meets it.
-
-To check a deploy, read `latest_stage.status` for the commit from the Pages API (`/accounts/{id}/pages/projects/letspepper/deployments`), or open the project in the Cloudflare dashboard.
-
-Emergency manual deploy. It skips the PR checks, and the next merge replaces it. The dummy project settings keep `vercel build` offline (CLI 56+ otherwise tries to link a Vercel project, which needs auth and creates one as a side effect):
-
-```bash
-mkdir -p .vercel
-echo '{"projectId":"_","orgId":"_","settings":{"framework":"nextjs"}}' > .vercel/project.json
-pnpm dlx vercel build --yes
-pnpm dlx @cloudflare/next-on-pages@1 --skip-build
-pnpm dlx wrangler pages deploy .vercel/output/static --project-name=letspepper --branch=main
-```
+[`DEPLOY.md`](DEPLOY.md) owns the deploy facts. In short: Cloudflare Pages' GitHub connection deploys `main` and builds a preview for every branch. A PR needs three passing checks to merge: `checks`, `Cloudflare Pages` and GitGuardian. When `checks` fails with `manual-review-stale`, follow the reader-review steps in `DEPLOY.md`. Never record a review without walking the branch preview.
 
 ## Content Updates
 
