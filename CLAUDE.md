@@ -146,26 +146,20 @@ pnpm build
 Before changing website or social copy, read [`reader-contract.json`](reader-contract.json). Preserve dates, prices, eligibility, registration state, legal language, and the pepper-brand voice exactly; simplify the path to the player's next action. Review the built page or queued post as the reader encounters it, not only the component or generator source.
 
 ### Adding Tournament Results
-Edit `src/app/standings/page.tsx` - add to `tournamentResults` array:
-```typescript
-{
-  id: 'event-id-YYYY-MM-DD',
-  event: 'Event Name',
-  date: 'Month DD, YYYY',
-  location: 'City, State',
-  heat: 'bell' | 'jalapeno' | 'poblano',
-  results: [
-    { place: 1, players: ['Player 1', 'Player 2', 'Player 3'] },
-    // ...
-  ]
-}
-```
+Rally HQ is the source of truth for results. The site reads them live, and `tournamentResults` in `src/lib/standings-data.ts` is the offline fallback snapshot. After an event:
+1. Run `pnpm check:rhq-drift`. It reports any event or roster the snapshot is missing.
+2. Regenerate the missing entry from `GET /api/standings-results` (production) rather than typing it. Fix a wrong roster in Rally HQ, then re-snapshot.
+3. Run `pnpm check:rhq-drift` again until it reports no drift.
+
+Points come from `getPoints` in the same file, by finishing tier: 1st 100, 2nd 75, 3rd–4th 50, 5th–8th 25, 9th–16th 10, otherwise 5. `pnpm test:standings` covers it.
+
+The power rankings (`src/lib/rankings-data.ts`) are hand-written. Refresh them after each event, and take every result a blurb cites from the event's Rally HQ bracket (`/api/rhq/bracket?slug=…`).
 
 ### Adding Gallery Images
 Edit `src/components/GalleryPreview.tsx` - update the `galleryImages` array with `cfImageId` values from `photo_metadata.cf_image_id`.
 
 ### Updating Event Details
-Edit `src/app/flavors/[slug]/page.tsx` - update `tournaments` object with new dates, locations, entry fees.
+Edit the `tournaments` record in `src/lib/tournaments.ts`: dates, locations, entry fees, perks, and `cancellation` when an event is called off. The event pages, home cards, `/about` and share images all read it.
 
 ## Important Notes
 
