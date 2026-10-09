@@ -1,16 +1,15 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T19:01:41.188Z",
+  "reviewedAt": "2026-10-09T19:22:16.543Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Re-record after 4655ee1, a code-only guard in getPoints whose numeric literal changed the copy fingerprint; no rendered copy changed. Walked this branch's previews 0ca11d84 (9394352), a3acdc40 (c080778) and 740c9d26 (4655ee1), logged-out browser at 1280 and 390 px. /rankings: all eight entries read in full against the Rally HQ brackets for the 2026 Bell Pepper and Jalapeño Opens (every cited score and result matched); stats row 5,480 points, 4 events, 8 teams, identical on 740c9d26; no horizontal overflow; highlight chips fit on a phone. /standings: Jalapeño Open listed; corrected points (Jaral 75, Konopack 60, Krygsheld 50, Aro 25; 9th place 10) identical on 740c9d26. Home points race top 3 unchanged. Known and unchanged: /predictions targets Bell Pepper Open 2026; /awards still runs the 2025 season vote; /hot-takes visitor take about the Poblano Open.",
+  "method": "Walked this branch's Cloudflare previews 8423f77e (8245514) and 3af153eb (d30f7b4), logged-out browser at 1280 and 390 px. /awards as a new visitor and as a past voter (submitted state in localStorage): closed intro ('Voting on the 2025 season awards is closed. These were the nominees.'), five categories, 19 read-only nominee cards, no buttons, no submit, no tallies, no announcement promise, no 2026 names, no horizontal overflow. Every results claim in the nominee list checked against the 2025 standings snapshot; two corrected (Maas, Maruyama). Unverifiable and left as voters saw them: the Messer / Mir / Adler roster (results list Kirschbaum / Messer / Mir), the Vandenberg brothers (in no 2025 results), and 'from 9th seed' (no Grass Launch seeding in Rally HQ). Share tags and the re-rendered Open Graph card read 'The 2025 season nominees. Voting is closed.' Server: POST /api/votes (awards:mvp) and /api/engagement (award_vote) both return 403 'Awards voting is closed'.",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:59eb28e0cfb0378a5881f52a42106140f3c27abc60f84933c3852a22027a479c",
+  "sourceDigest": "sha256:479ffae90418234d3379c3479fab0fe1eb769e0499b5fc540f3001b1ebe6815b",
   "sourceFiles": 116,
   "scope": [
-    "rankings",
-    "standings",
-    "home points race",
-    "head-to-head"
+    "awards",
+    "awards share card",
+    "awards API refusal"
   ]
 }
