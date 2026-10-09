@@ -4,7 +4,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { MOTION, useReducedMotion } from '@/lib/motion'
-import { cn } from '@/lib/utils'
 import { NextEventMarquee } from './Marquee'
 import { activeCancellation } from '@/lib/tournaments'
 
@@ -253,9 +252,14 @@ export function HeroSection() {
       rotated, so it reaches past the right edge (a 1345 px document at a
       1280 px viewport, 411 px at 390). `clip`, not `hidden`, so the tilted
       ends can still overhang vertically and no scroll container is created.
+
+      No pointer-events-none: that dated from the overlay placement above, and
+      in clear space it only disabled the tape's pause button and hover pause.
+      The tilted ends overhang no link or button from 320 to 1440 px wide
+      (hit-tested 2026-10-09).
     */}
     <motion.div
-      className={cn('relative z-30 my-4 overflow-x-clip', !cancelled && 'pointer-events-none')}
+      className="relative z-30 my-4 overflow-x-clip"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 1.8, duration: 0.8 }}

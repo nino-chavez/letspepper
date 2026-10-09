@@ -3,6 +3,8 @@
  * Underground Athletic Aesthetic
  */
 
+import { useSyncExternalStore } from 'react'
+
 export const MOTION = {
   // Easing curves
   ease: {
@@ -90,11 +92,28 @@ export const MOTION = {
 export type MotionVariant = keyof typeof MOTION.variants
 export type MotionSpring = keyof typeof MOTION.spring
 
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+function subscribeToReducedMotion(onChange: () => void) {
+  const query = window.matchMedia(REDUCED_MOTION_QUERY)
+  query.addEventListener('change', onChange)
+  return () => query.removeEventListener('change', onChange)
+}
+
 /**
- * Hook to detect user's reduced motion preference
- * Returns true if user prefers reduced motion
+ * True when the user prefers reduced motion.
+ *
+ * The server render and hydration read false; the real value follows on the
+ * next render, and later changes to the OS setting are picked up. Reading
+ * matchMedia during render instead gave the server and the client different
+ * answers, and React 18 does not repair mismatched attributes on hydration:
+ * the marquee's pause button kept its server "Pause" label while its state
+ * said paused, so a reduced-motion user's first tap did nothing.
  */
 export function useReducedMotion(): boolean {
-  if (typeof window === 'undefined') return false
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return useSyncExternalStore(
+    subscribeToReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false,
+  )
 }
