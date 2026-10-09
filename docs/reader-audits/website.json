@@ -1,15 +1,16 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T19:22:16.543Z",
+  "reviewedAt": "2026-10-09T19:27:10.080Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Walked this branch's Cloudflare previews 8423f77e (8245514) and 3af153eb (d30f7b4), logged-out browser at 1280 and 390 px. /awards as a new visitor and as a past voter (submitted state in localStorage): closed intro ('Voting on the 2025 season awards is closed. These were the nominees.'), five categories, 19 read-only nominee cards, no buttons, no submit, no tallies, no announcement promise, no 2026 names, no horizontal overflow. Every results claim in the nominee list checked against the 2025 standings snapshot; two corrected (Maas, Maruyama). Unverifiable and left as voters saw them: the Messer / Mir / Adler roster (results list Kirschbaum / Messer / Mir), the Vandenberg brothers (in no 2025 results), and 'from 9th seed' (no Grass Launch seeding in Rally HQ). Share tags and the re-rendered Open Graph card read 'The 2025 season nominees. Voting is closed.' Server: POST /api/votes (awards:mvp) and /api/engagement (award_vote) both return 403 'Awards voting is closed'.",
+  "method": "Re-record after merging main (#81, SmugMug removal) into this branch. Walked the merged preview 8bc1a189 (3a7ab0e): /awards closed state unchanged (closed intro, 19 read-only nominee cards, no buttons, submit or tallies; awards ballot POST returns 403); /privacy photo-hosting line reads 'Cloudflare Images for gallery hosting' with no SmugMug mention (#81's own receipt, 9ec11a4, covers its walk). This branch's earlier walks on 8423f77e and 3af153eb: /awards as new visitor and past voter at 1280 and 390 px; every nominee results claim checked against the 2025 standings, two corrected (Maas, Maruyama); unverifiable and left as voters saw them: Messer / Mir / Adler (results list Kirschbaum / Messer / Mir), the Vandenberg brothers, 'from 9th seed'. Share tags and Open Graph card read 'The 2025 season nominees. Voting is closed.'",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:479ffae90418234d3379c3479fab0fe1eb769e0499b5fc540f3001b1ebe6815b",
+  "sourceDigest": "sha256:34ffcd930bb457eab92fb58dbab47437341ea73cfd58cd557a3cbb05169b2423",
   "sourceFiles": 116,
   "scope": [
     "awards",
     "awards share card",
-    "awards API refusal"
+    "awards API refusal",
+    "privacy photo-hosting line"
   ]
 }
