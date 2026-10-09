@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { cfImageLoader } from '@/lib/cloudflare-images'
 import { HERO_PHOTO_SRC, heroPhotoLoader } from '@/lib/hero-photo'
 import { tournaments, isCancelled, nextOpenEvent, HEAT_LEVEL, type TournamentDetail } from '@/lib/tournaments'
+import { useTodayISO } from '@/lib/today'
 
 const galleryImages = [
   {
@@ -75,7 +76,7 @@ const values = [
 
 export default function AboutPage() {
   // Same test the header's Sign Up / Registration Closed link uses.
-  const registrationOpen = Boolean(nextOpenEvent(new Date().toISOString().split('T')[0]))
+  const registrationOpen = Boolean(nextOpenEvent(useTodayISO()))
   return (
     <>
       <Header />

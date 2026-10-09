@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { useTodayISO } from '@/lib/today'
 
 const socialLinks = [
   {
@@ -91,7 +92,7 @@ const legalLinks = [
 ]
 
 export function Footer() {
-  const currentYear = new Date().getFullYear()
+  const currentYear = Number(useTodayISO().slice(0, 4))
 
   return (
     <footer

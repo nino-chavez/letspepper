@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
 import { activeCancellation, nextOpenEvent } from '@/lib/tournaments'
+import { useTodayISO } from '@/lib/today'
 
 const GOOGLE_FORM_URL =
   'https://docs.google.com/forms/d/e/1FAIpQLSekSFGfAlPtyzjeVhgPPpZhSOwNsYNAVBib0YeIWQMNT1pRYQ/viewform'
@@ -41,7 +42,7 @@ export default function SignupClient({ formSource }: { formSource: SignupFormSou
   // cannot be closed from this codebase. So when nothing is open for registration,
   // this page stops rendering it — otherwise a header link lands a player on a
   // roster form for an event the rest of the site says is cancelled.
-  const today = new Date().toISOString().split('T')[0]
+  const today = useTodayISO()
   const openEvent = nextOpenEvent(today)
   const cancelled = activeCancellation(today)
 

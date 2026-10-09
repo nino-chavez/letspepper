@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from '@/lib/motion'
 import { tournaments, isCancelled, monthDay } from '@/lib/tournaments'
+import { useTodayISO } from '@/lib/today'
 
 interface MarqueeItem {
   text: string
@@ -252,7 +253,7 @@ const seasonEvents = Object.values(tournaments)
  * WCAG 2.2.2 compliant with pause controls and reduced motion support.
  */
 export function NextEventMarquee({ className }: { className?: string }) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = useTodayISO()
   // A cancelled event is never "next up" — it is not happening, so the tape must
   // skip past it to whatever genuinely is (or to the off-season fallback).
   const next = seasonEvents.find((e) => e.date >= today && !e.cancelled)

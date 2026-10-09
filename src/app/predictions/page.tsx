@@ -8,6 +8,7 @@ import { Header, Footer, ChampionPick } from '@/components'
 import { cn } from '@/lib/utils'
 import { currentPredictionEvent, calculatePredictionScore, type PredictionEvent, type PropHeat } from '@/lib/predictions-data'
 import { HEAT_CONFIG } from '@/lib/heat-config'
+import { useNow, useTodayISO } from '@/lib/today'
 import { getStoredValue, setStoredValue, getDeviceId, STORAGE_KEYS } from '@/lib/local-storage'
 import { heatText, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
@@ -59,30 +60,17 @@ function DeadlineTimer({ deadline }: { deadline: string }) {
 
 export default function PredictionsPage() {
   // The next open event, by the header's Sign Up / Registration Closed test;
-  // null in the off-season. Chosen after mount: this page is prebuilt, and the
-  // open event depends on the visitor's date, not the build's. Until then the
-  // page shows only its title.
-  const [event, setEvent] = useState<PredictionEvent | null | undefined>(undefined)
-  useEffect(() => {
-    setEvent(currentPredictionEvent(new Date().toISOString().split('T')[0]))
-  }, [])
+  // null in the off-season. useTodayISO keeps the first render on the date the
+  // HTML was built for, then moves to the visitor's.
+  const event = currentPredictionEvent(useTodayISO())
 
   return (
     <>
       <Header />
 
       <main id="main-content" className="pt-24">
-        {event === undefined ? (
-          <section className="section-padding">
-            <div className="section-container">
-              <PropsTitle />
-            </div>
-          </section>
-        ) : event ? (
-          <PredictionBoard event={event} />
-        ) : (
-          <NoOpenEvent />
-        )}
+        {/* key: a different event after mount is a different board, not this one's picks. */}
+        {event ? <PredictionBoard key={event.id} event={event} /> : <NoOpenEvent />}
       </main>
 
       <Footer />
@@ -142,6 +130,7 @@ function PredictionBoard({ event }: { event: PredictionEvent }) {
   // Set when the server refuses picks (first serve passed while the page was open).
   const [closedByServer, setClosedByServer] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
+  const now = useNow()
 
   useEffect(() => {
     const saved = getStoredValue<{ picks: Record<string, number>; submitted: boolean }>(storageKey, { picks: {}, submitted: false })
@@ -162,7 +151,7 @@ function PredictionBoard({ event }: { event: PredictionEvent }) {
       .catch(() => {})
   }, [event.id])
 
-  const isLocked = closedByServer || event.isLocked || new Date(event.deadline).getTime() <= Date.now()
+  const isLocked = closedByServer || event.isLocked || new Date(event.deadline).getTime() <= now
 
   function handlePick(propId: string, optionIndex: number) {
     if (isLocked || submitted) return
