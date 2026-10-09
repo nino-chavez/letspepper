@@ -26,7 +26,8 @@
         "src/components"
       ],
       "manualReview": {
-        "evidencePath": "docs/reader-audits/website.json"
+        "evidencePath": "docs/reader-audits/website.json",
+        "fingerprint": "copy"
       },
       "allowTerms": [
         "Bell Pepper Open",

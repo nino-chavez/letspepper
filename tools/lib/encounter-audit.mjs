@@ -7,15 +7,32 @@
  * Explicit deny terms and missing source roots BLOCK. Density, opaque tokens,
  * acronyms, and unavailable rendered output WARN for human/agent review.
  * Dependency-free and safe to run in CI.
+ *
+ * A surface with no rendered output is covered by a manual-review receipt: a
+ * fingerprint of its source roots, recorded after someone walks the real
+ * encounter. `manualReview.fingerprint` picks what the fingerprint covers:
+ *   - "bytes" (default): every byte of every source file, so any edit, code
+ *     or copy, makes the receipt stale;
+ *   - "copy": only the reader-facing text of each file (copy-segments.mjs for
+ *     JS/TS/JSX/TSX; bytes for other text files; images, fonts and
+ *     stylesheets skipped), so class, layout, import, comment and logic edits
+ *     leave the receipt current. Files with no reader-facing text drop out.
+ * Switching a reviewed snapshot to a new fingerprint without a new walk is
+ * --refingerprint=<surface>: it refuses unless the receipt still matches the
+ * source under its old fingerprint, and keeps the original reviewer fields.
  */
 import { promises as fs } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { invokedDirectly } from './invoked-directly.mjs';
+import { copySegments, CopyScanError, scannerModeFor } from './copy-segments.mjs';
 
 export const ENCOUNTER_AUDIT_VERSION = 2;
 const CONTRACT_NAME = 'reader-contract.json';
 const MANUAL_REVIEW_VERSION = 1;
+const FINGERPRINTS = new Set(['bytes', 'copy']);
+/** Never reader-facing text: skipped entirely by the copy fingerprint. */
+const NOT_COPY_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.bmp', '.tif', '.tiff', '.woff', '.woff2', '.ttf', '.otf', '.eot', '.css', '.scss', '.sass', '.less', '.map']);
 const PLAINNESS = new Set(['lay', 'practitioner', 'specialist']);
 const SCANNABLE = new Set(['.html', '.htm', '.md', '.mdx', '.txt', '.json']);
 const SKIP_DIRS = new Set(['node_modules', '.git', '.astro', '.svelte-kit', '.next', '.wrangler']);
@@ -161,22 +178,48 @@ function safeRepoPath(root, relativePath) {
   return full;
 }
 
-export async function digestSourceRoots(root, sourceRoots = []) {
+/**
+ * Fingerprint the declared source roots. `bytes` hashes every file; `copy`
+ * hashes only reader-facing text and counts only files that carry some. A file
+ * the copy scanner cannot follow is hashed by bytes and listed in
+ * scanFallbacks, so a scanner gap can only make a receipt stale, never hide copy.
+ */
+export async function digestSourceRoots(root, sourceRoots = [], { fingerprint = 'bytes' } = {}) {
+  if (!FINGERPRINTS.has(fingerprint)) throw new Error(`unknown fingerprint: ${fingerprint}`);
   const files = [];
   for (const sourceRoot of sourceRoots) await walkSourceFiles(path.resolve(root, sourceRoot), files);
   const unique = [...new Set(files)].sort();
   const hash = createHash('sha256');
+  let sourceFiles = 0;
+  const scanFallbacks = [];
   for (const file of unique) {
     const relative = path.relative(root, file).split(path.sep).join('/');
     const contents = await fs.readFile(file);
+    let payload = contents;
+    if (fingerprint === 'copy') {
+      const ext = path.extname(file).toLowerCase();
+      if (NOT_COPY_EXTS.has(ext)) continue;
+      const mode = scannerModeFor(ext);
+      if (mode) {
+        try {
+          const segments = copySegments(contents.toString('utf8'), mode);
+          if (segments.length === 0) continue;
+          payload = Buffer.from(JSON.stringify(segments), 'utf8');
+        } catch (error) {
+          if (!(error instanceof CopyScanError)) throw error;
+          scanFallbacks.push(relative);
+        }
+      }
+    }
+    sourceFiles += 1;
     hash.update(relative);
     hash.update('\0');
-    hash.update(String(contents.length));
+    hash.update(String(payload.length));
     hash.update('\0');
-    hash.update(contents);
+    hash.update(payload);
     hash.update('\0');
   }
-  return { sourceDigest: `sha256:${hash.digest('hex')}`, sourceFiles: unique.length };
+  return { sourceDigest: `sha256:${hash.digest('hex')}`, sourceFiles, fingerprint, scanFallbacks };
 }
 
 function validateAudience(value, label, findings) {
@@ -229,6 +272,8 @@ export function validateContract(contract) {
         findings.push(finding('BLOCK', 'invalid-contract', label, CONTRACT_NAME, `${label}.manualReview must be an object when present`));
       } else if (!safeRepoPath('/', surface.manualReview.evidencePath)) {
         findings.push(finding('BLOCK', 'invalid-contract', label, CONTRACT_NAME, `${label}.manualReview.evidencePath must be a non-empty repository-relative path`));
+      } else if (surface.manualReview.fingerprint !== undefined && !FINGERPRINTS.has(surface.manualReview.fingerprint)) {
+        findings.push(finding('BLOCK', 'invalid-contract', label, CONTRACT_NAME, `${label}.manualReview.fingerprint must be "bytes" or "copy" when present`));
       }
     }
     if (Array.isArray(surface.sourceRoots) && surface.sourceRoots.length === 0) {
@@ -275,29 +320,42 @@ async function verifyManualReview({ root, surface, findings }) {
     findings.push(finding('WARN', 'manual-review-invalid', name, evidencePath, `manual-review evidence is not valid JSON: ${error.message}`));
     return false;
   }
-  const invalid = [];
-  if (evidence.version !== MANUAL_REVIEW_VERSION) invalid.push(`version must be ${MANUAL_REVIEW_VERSION}`);
-  if (evidence.surface !== name) invalid.push(`surface must be ${JSON.stringify(name)}`);
-  if (typeof evidence.reviewedAt !== 'string' || Number.isNaN(Date.parse(evidence.reviewedAt))) invalid.push('reviewedAt must be an ISO date-time');
-  if (typeof evidence.reviewedBy !== 'string' || !evidence.reviewedBy.trim()) invalid.push('reviewedBy must be a non-empty string');
-  if (typeof evidence.method !== 'string' || !evidence.method.trim()) invalid.push('method must be a non-empty string');
-  if (typeof evidence.sourceDigest !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(evidence.sourceDigest)) invalid.push('sourceDigest must be a sha256 digest');
-  if (!Number.isInteger(evidence.sourceFiles) || evidence.sourceFiles < 1) invalid.push('sourceFiles must be a positive integer');
-  if (evidence.scope !== undefined && (!Array.isArray(evidence.scope) || evidence.scope.some((item) => typeof item !== 'string' || !item.trim()))) invalid.push('scope entries must be non-empty strings');
+  const invalid = receiptProblems(evidence, name);
   if (invalid.length) {
     findings.push(finding('WARN', 'manual-review-invalid', name, evidencePath, invalid.join('; '), 'Record the manual review again after completing the encounter walk.'));
     return false;
   }
-  const current = await digestSourceRoots(root, surface.sourceRoots || []);
+  const wanted = surface.manualReview.fingerprint ?? 'bytes';
+  const recorded = evidence.fingerprint ?? 'bytes';
+  if (recorded !== wanted) {
+    findings.push(finding('WARN', 'manual-review-stale', name, evidencePath, `the receipt fingerprints ${recorded} but the contract asks for ${wanted}`, `If the reviewed source has not changed, run encounter-audit.mjs --refingerprint=${JSON.stringify(name)}; otherwise walk the encounter and record a new receipt.`));
+    return false;
+  }
+  const current = await digestSourceRoots(root, surface.sourceRoots || [], { fingerprint: wanted });
   if (evidence.sourceDigest !== current.sourceDigest || evidence.sourceFiles !== current.sourceFiles) {
-    findings.push(finding('WARN', 'manual-review-stale', name, evidencePath, `the reviewed source snapshot changed (${evidence.sourceFiles} → ${current.sourceFiles} file(s))`, 'Walk the changed encounter and record a new manual-review receipt.'));
+    const what = wanted === 'copy' ? 'reader-facing copy' : 'source snapshot';
+    findings.push(finding('WARN', 'manual-review-stale', name, evidencePath, `the reviewed ${what} changed (${evidence.sourceFiles} → ${current.sourceFiles} file(s))`, 'Walk the changed encounter and record a new manual-review receipt.'));
     return false;
   }
   return true;
 }
 
-export async function recordManualReview({ targetDir, contractPath = CONTRACT_NAME, surfaceName, reviewedBy, method, scope = [], reviewedAt } = {}) {
-  const root = path.resolve(targetDir || '.');
+function receiptProblems(evidence, name) {
+  const invalid = [];
+  if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) return ['receipt must be a JSON object'];
+  if (evidence.version !== MANUAL_REVIEW_VERSION) invalid.push(`version must be ${MANUAL_REVIEW_VERSION}`);
+  if (evidence.surface !== name) invalid.push(`surface must be ${JSON.stringify(name)}`);
+  if (typeof evidence.reviewedAt !== 'string' || Number.isNaN(Date.parse(evidence.reviewedAt))) invalid.push('reviewedAt must be an ISO date-time');
+  if (typeof evidence.reviewedBy !== 'string' || !evidence.reviewedBy.trim()) invalid.push('reviewedBy must be a non-empty string');
+  if (typeof evidence.method !== 'string' || !evidence.method.trim()) invalid.push('method must be a non-empty string');
+  if (evidence.fingerprint !== undefined && !FINGERPRINTS.has(evidence.fingerprint)) invalid.push('fingerprint must be "bytes" or "copy" when present');
+  if (typeof evidence.sourceDigest !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(evidence.sourceDigest)) invalid.push('sourceDigest must be a sha256 digest');
+  if (!Number.isInteger(evidence.sourceFiles) || evidence.sourceFiles < 1) invalid.push('sourceFiles must be a positive integer');
+  if (evidence.scope !== undefined && (!Array.isArray(evidence.scope) || evidence.scope.some((item) => typeof item !== 'string' || !item.trim()))) invalid.push('scope entries must be non-empty strings');
+  return invalid;
+}
+
+async function loadManualSurface(root, contractPath, surfaceName) {
   const raw = await read(path.resolve(root, contractPath));
   if (raw == null) throw new Error(`${contractPath} is missing`);
   const contract = JSON.parse(raw);
@@ -306,15 +364,21 @@ export async function recordManualReview({ targetDir, contractPath = CONTRACT_NA
   const surface = (contract.surfaces || []).find((item) => item?.name === surfaceName);
   if (!surface) throw new Error(`surface not found: ${surfaceName}`);
   if ((surface.renderedRoots || []).length > 0) throw new Error(`surface ${JSON.stringify(surfaceName)} has renderedRoots; audit the rendered output instead of recording a manual receipt`);
-  if (!reviewedBy || !String(reviewedBy).trim()) throw new Error('--reviewed-by is required');
-  if (!method || !String(method).trim()) throw new Error('--method is required');
   const evidencePath = surface.manualReview?.evidencePath;
   const full = safeRepoPath(root, evidencePath);
   if (!full) throw new Error(`surface ${JSON.stringify(surfaceName)} needs a safe manualReview.evidencePath`);
   for (const sourceRoot of surface.sourceRoots || []) {
     if (!(await exists(path.resolve(root, sourceRoot)))) throw new Error(`declared copy source does not exist: ${sourceRoot}`);
   }
-  const digest = await digestSourceRoots(root, surface.sourceRoots || []);
+  return { surface, evidencePath, full, fingerprint: surface.manualReview.fingerprint ?? 'bytes' };
+}
+
+export async function recordManualReview({ targetDir, contractPath = CONTRACT_NAME, surfaceName, reviewedBy, method, scope = [], reviewedAt } = {}) {
+  const root = path.resolve(targetDir || '.');
+  const { surface, evidencePath, full, fingerprint } = await loadManualSurface(root, contractPath, surfaceName);
+  if (!reviewedBy || !String(reviewedBy).trim()) throw new Error('--reviewed-by is required');
+  if (!method || !String(method).trim()) throw new Error('--method is required');
+  const digest = await digestSourceRoots(root, surface.sourceRoots || [], { fingerprint });
   if (digest.sourceFiles < 1) throw new Error(`surface ${JSON.stringify(surfaceName)} has no source files to fingerprint`);
   const evidence = {
     version: MANUAL_REVIEW_VERSION,
@@ -322,13 +386,47 @@ export async function recordManualReview({ targetDir, contractPath = CONTRACT_NA
     reviewedAt: reviewedAt || new Date().toISOString(),
     reviewedBy: String(reviewedBy).trim(),
     method: String(method).trim(),
+    fingerprint,
     sourceDigest: digest.sourceDigest,
     sourceFiles: digest.sourceFiles,
     ...(scope.length ? { scope } : {}),
   };
   await fs.mkdir(path.dirname(full), { recursive: true });
   await fs.writeFile(full, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
-  return { evidencePath, evidence };
+  return { evidencePath, evidence, scanFallbacks: digest.scanFallbacks };
+}
+
+/**
+ * Move a reviewed snapshot to the contract's fingerprint without a new walk.
+ * Refuses unless the receipt still matches the source under the fingerprint it
+ * was recorded with, so it can only re-describe what was already reviewed. The
+ * reviewer, method, date and scope are kept; `refingerprinted` records the move.
+ */
+export async function refingerprintManualReview({ targetDir, contractPath = CONTRACT_NAME, surfaceName, at } = {}) {
+  const root = path.resolve(targetDir || '.');
+  const { surface, evidencePath, full, fingerprint } = await loadManualSurface(root, contractPath, surfaceName);
+  const raw = await read(full);
+  if (raw == null) throw new Error(`no receipt to re-fingerprint at ${evidencePath}; walk the encounter and record one`);
+  const evidence = JSON.parse(raw);
+  const invalid = receiptProblems(evidence, surfaceName);
+  if (invalid.length) throw new Error(`receipt is invalid: ${invalid.join('; ')}`);
+  const from = evidence.fingerprint ?? 'bytes';
+  if (from === fingerprint) throw new Error(`receipt already fingerprints ${fingerprint}; nothing to change`);
+  const prior = await digestSourceRoots(root, surface.sourceRoots || [], { fingerprint: from });
+  if (prior.sourceDigest !== evidence.sourceDigest || prior.sourceFiles !== evidence.sourceFiles) {
+    throw new Error(`the source changed since this receipt was recorded (${from} fingerprint no longer matches); walk the changed encounter and record a new receipt instead`);
+  }
+  const next = await digestSourceRoots(root, surface.sourceRoots || [], { fingerprint });
+  if (next.sourceFiles < 1) throw new Error(`surface ${JSON.stringify(surfaceName)} has no reader-facing source to fingerprint`);
+  const updated = {
+    ...evidence,
+    fingerprint,
+    sourceDigest: next.sourceDigest,
+    sourceFiles: next.sourceFiles,
+    refingerprinted: { at: at || new Date().toISOString(), from, note: 'Same reviewed source under a new fingerprint; no new walk.' },
+  };
+  await fs.writeFile(full, `${JSON.stringify(updated, null, 2)}\n`, 'utf8');
+  return { evidencePath, evidence: updated, scanFallbacks: next.scanFallbacks };
 }
 
 function termPattern(term) {
@@ -554,10 +652,76 @@ async function selfTest() {
   await writeFile(path.join(root, 'src', 'page.md'), '# changed source\n');
   const staleReceipt = await auditReaderContract({ targetDir: root });
   if (staleReceipt.status !== 'WARN' || !staleReceipt.findings.some((item) => item.code === 'manual-review-stale')) throw new Error('stale manual-review receipt did not warn');
-  console.log('encounter-audit self-test: PASS (contract, rendered audit, manual receipt, stale-source invalidation)');
+
+  // Copy fingerprint: code-only edits keep the receipt current; any reader-facing edit makes it stale.
+  const copyRoot = await mkdtemp(path.join(os.tmpdir(), 'bp-encounter-copy-'));
+  await mkdir(path.join(copyRoot, 'src'), { recursive: true });
+  const page = (o = {}) => `import Link from 'next/link'
+// ${o.comment ?? 'hero'}
+export const items = [{ title: '${o.title ?? 'Media'}', body: 'Photo and video' }]
+export default function Page() {
+  return (
+    <main className="${o.cls ?? 'p-4'}">
+      <h1>${o.heading ?? 'Grassroots volleyball'}</h1>
+      <Link href="${o.href ?? '/gallery'}" aria-label="${o.label ?? 'View the gallery'}">View Gallery</Link>
+    </main>
+  )
+}
+`;
+  const put = (file, text) => writeFile(path.join(copyRoot, 'src', file), text);
+  const oddFile = (param) => `const pick = <T,>(${param}: T) => ${param}\nexport const tag = pick('Hi')\n`;
+  await put('page.tsx', page());
+  await put('helpers.ts', 'export const twice = (n: number) => n * 2\n'); // no reader-facing text: not a copy file
+  await put('site.css', 'main { padding: 1rem; }\n'); // never copy
+  await put('notes.md', '# Visitor notes\n'); // other text: hashed by bytes
+  await put('odd.tsx', oddFile('x')); // the scanner cannot follow a generic arrow: hashed by bytes
+  const copyContract = { ...base, surfaces: [{ ...base.surfaces[0], renderedRoots: [], manualReview: { evidencePath: 'reader-audits/page.json', fingerprint: 'copy' } }] };
+  const byteContract = { ...base, surfaces: [{ ...copyContract.surfaces[0], manualReview: { evidencePath: 'reader-audits/page.json' } }] };
+  await writeFile(path.join(copyRoot, CONTRACT_NAME), `${JSON.stringify(copyContract, null, 2)}\n`);
+  const recorded = await recordManualReview({ targetDir: copyRoot, surfaceName: 'page', reviewedBy: 'self-test', method: 'fixture walk', reviewedAt: '2026-01-01T00:00:00.000Z' });
+  if (recorded.evidence.fingerprint !== 'copy' || recorded.evidence.sourceFiles !== 3) throw new Error(`copy receipt should count page.tsx, notes.md and odd.tsx: ${JSON.stringify(recorded.evidence)}`);
+  if (JSON.stringify(recorded.scanFallbacks) !== JSON.stringify(['src/odd.tsx'])) throw new Error(`odd.tsx should fall back to bytes: ${JSON.stringify(recorded.scanFallbacks)}`);
+  const audit = () => auditReaderContract({ targetDir: copyRoot });
+  const expectCurrent = async (label) => {
+    const result = await audit();
+    if (result.status !== 'PASS') throw new Error(`${label} should keep the copy receipt current: ${JSON.stringify(result.findings)}`);
+  };
+  const expectStale = async (label) => {
+    const result = await audit();
+    if (!result.findings.some((item) => item.code === 'manual-review-stale')) throw new Error(`${label} should make the copy receipt stale`);
+  };
+  await put('page.tsx', page({ cls: 'p-6 md:p-8' })); await expectCurrent('a class edit');
+  await put('page.tsx', page({ comment: 'hero, rewritten' })); await expectCurrent('a comment edit');
+  await put('page.tsx', page());
+  await put('helpers.ts', 'export const twice = (n: number) => n + n\n'); await expectCurrent('a logic edit in a file with no copy');
+  await put('site.css', 'main { padding: 2rem; }\n'); await expectCurrent('a stylesheet edit');
+  for (const [label, change] of [['a heading edit', { heading: 'Grass volleyball' }], ['an aria-label edit', { label: 'Open the gallery' }], ['a data-string edit', { title: 'Photos' }], ['an href edit', { href: '/photos' }]]) {
+    await put('page.tsx', page(change)); await expectStale(label);
+    await put('page.tsx', page()); await expectCurrent(`restoring after ${label}`);
+  }
+  await put('notes.md', '# Visitor notes, revised\n'); await expectStale('an edit to a non-code text file');
+  await put('notes.md', '# Visitor notes\n');
+  await put('odd.tsx', oddFile('y')); await expectStale('a code-only edit to a file the scanner falls back on');
+  await put('odd.tsx', oddFile('x')); await expectCurrent('restoring the fallback file');
+
+  // Moving an already-reviewed byte receipt to the copy fingerprint.
+  await writeFile(path.join(copyRoot, CONTRACT_NAME), `${JSON.stringify(byteContract, null, 2)}\n`);
+  await recordManualReview({ targetDir: copyRoot, surfaceName: 'page', reviewedBy: 'self-test', method: 'fixture walk', reviewedAt: '2026-01-01T00:00:00.000Z' });
+  await writeFile(path.join(copyRoot, CONTRACT_NAME), `${JSON.stringify(copyContract, null, 2)}\n`);
+  const mismatch = await audit();
+  if (!mismatch.findings.some((item) => item.code === 'manual-review-stale' && /fingerprints bytes/.test(item.message))) throw new Error('a byte receipt under a copy contract should be stale with the mismatch named');
+  await put('page.tsx', page({ cls: 'p-6' }));
+  let refused = false;
+  try { await refingerprintManualReview({ targetDir: copyRoot, surfaceName: 'page' }); } catch { refused = true; }
+  if (!refused) throw new Error('refingerprint should refuse once the source changed since the byte receipt');
+  await put('page.tsx', page());
+  const moved = await refingerprintManualReview({ targetDir: copyRoot, surfaceName: 'page', at: '2026-01-02T00:00:00.000Z' });
+  if (moved.evidence.reviewedAt !== '2026-01-01T00:00:00.000Z' || moved.evidence.reviewedBy !== 'self-test' || moved.evidence.refingerprinted?.from !== 'bytes') throw new Error(`refingerprint should keep the review fields: ${JSON.stringify(moved.evidence)}`);
+  await expectCurrent('a re-fingerprinted receipt');
+  console.log('encounter-audit self-test: PASS (contract, rendered audit, manual receipt, stale-source invalidation, copy fingerprint, refingerprint)');
 }
 
-const isDirect = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isDirect = invokedDirectly(import.meta.url);
 if (isDirect) {
   if (process.argv.includes('--selftest') || process.argv.includes('--self-test')) {
     await selfTest();
@@ -569,7 +733,13 @@ if (isDirect) {
     const targetDir = value('root', '.');
     const contractPath = value('contract', CONTRACT_NAME);
     const recordSurface = value('record-manual', null);
-    if (recordSurface) {
+    const refingerprintSurface = value('refingerprint', null);
+    if (refingerprintSurface) {
+      const receipt = await refingerprintManualReview({ targetDir, contractPath, surfaceName: refingerprintSurface });
+      console.log(`manual review re-fingerprinted: ${receipt.evidencePath}`);
+      console.log(`${receipt.evidence.refingerprinted.from} → ${receipt.evidence.fingerprint}: ${receipt.evidence.sourceDigest} (${receipt.evidence.sourceFiles} file(s) with reader-facing copy)`);
+      if (receipt.scanFallbacks.length) console.log(`hashed by bytes (the copy scanner could not follow them): ${receipt.scanFallbacks.join(', ')}`);
+    } else if (recordSurface) {
       const scope = value('scope', '').split('|').map((item) => item.trim()).filter(Boolean);
       const receipt = await recordManualReview({
         targetDir,
@@ -580,7 +750,8 @@ if (isDirect) {
         scope,
       });
       console.log(`manual review recorded: ${receipt.evidencePath}`);
-      console.log(`${receipt.evidence.sourceDigest} (${receipt.evidence.sourceFiles} source file(s))`);
+      console.log(`${receipt.evidence.fingerprint} fingerprint ${receipt.evidence.sourceDigest} (${receipt.evidence.sourceFiles} source file(s))`);
+      if (receipt.scanFallbacks.length) console.log(`hashed by bytes (the copy scanner could not follow them): ${receipt.scanFallbacks.join(', ')}`);
     } else {
       const result = await auditReaderContract({ targetDir, contractPath, surfaceName: value('surface', null) });
       if (process.argv.includes('--json')) console.log(JSON.stringify(result, null, 2));

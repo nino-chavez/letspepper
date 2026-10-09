@@ -4,9 +4,15 @@
   "reviewedAt": "2026-10-09T18:08:39.437Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
   "method": "Only website source change since the previous receipt (ff90361): aria-expanded on the phone menu's Community button in Header.tsx; no copy changed. Walked on this branch's Cloudflare preview (f28d548f.letspepper.pages.dev, cf3c6e4), logged-out browser at 800 px, the menu-button layout used below 1024 px: opened the menu, toggled Community; aria-expanded read false, then true with all six community links visible, then false; no horizontal overflow. Earlier receipt walks (#75) cover the rest of the site.",
-  "sourceDigest": "sha256:cd3d06a4aeff9e1b42fd815f8b4f801999e376e83a1ff331a96df8c03f158f32",
-  "sourceFiles": 98,
+  "sourceDigest": "sha256:8beec629355b3463fb2ca9710199d1f2ffc5248e025f945721d0818ff55c886f",
+  "sourceFiles": 93,
   "scope": [
     "header phone/tablet menu, Community toggle"
-  ]
+  ],
+  "fingerprint": "copy",
+  "refingerprinted": {
+    "at": "2026-10-09T18:27:18.775Z",
+    "from": "bytes",
+    "note": "Same reviewed source under a new fingerprint; no new walk."
+  }
 }
