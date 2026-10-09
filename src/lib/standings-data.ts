@@ -63,6 +63,10 @@ const POINT_TIERS: { through: number; points: number }[] = [
 const PARTICIPATION = 5
 
 export function getPoints(place: number): number {
+  // Live Rally HQ results arrive unvalidated. A team with no finish yet can come
+  // through as 0 or null, which would otherwise match the first tier and score a
+  // win.
+  if (!Number.isInteger(place) || place < 1) return PARTICIPATION
   return POINT_TIERS.find((tier) => place <= tier.through)?.points ?? PARTICIPATION
 }
 

@@ -19,6 +19,14 @@ test('each finishing tier scores its points', () => {
   }
 })
 
+test('a missing or invalid place scores the participation floor, never a win', () => {
+  // Live Rally HQ results reach getPoints unvalidated. A team with no finish yet
+  // (place 0, null, or not a number) must not outrank the champion.
+  for (const place of [0, -1, 2.5, null, undefined, Number.NaN, '1']) {
+    assert.equal(getPoints(place), 5, `place ${String(place)}`)
+  }
+})
+
 test('a worse finish never scores more points', () => {
   for (let place = 2; place <= 40; place++) {
     assert.ok(getPoints(place) <= getPoints(place - 1), `place ${place} outscores place ${place - 1}`)
