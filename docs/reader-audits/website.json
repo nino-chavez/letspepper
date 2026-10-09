@@ -1,16 +1,13 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T19:01:41.188Z",
-  "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Re-record after 4655ee1, a code-only guard in getPoints whose numeric literal changed the copy fingerprint; no rendered copy changed. Walked this branch's previews 0ca11d84 (9394352), a3acdc40 (c080778) and 740c9d26 (4655ee1), logged-out browser at 1280 and 390 px. /rankings: all eight entries read in full against the Rally HQ brackets for the 2026 Bell Pepper and Jalapeño Opens (every cited score and result matched); stats row 5,480 points, 4 events, 8 teams, identical on 740c9d26; no horizontal overflow; highlight chips fit on a phone. /standings: Jalapeño Open listed; corrected points (Jaral 75, Konopack 60, Krygsheld 50, Aro 25; 9th place 10) identical on 740c9d26. Home points race top 3 unchanged. Known and unchanged: /predictions targets Bell Pepper Open 2026; /awards still runs the 2025 season vote; /hot-takes visitor take about the Poblano Open.",
+  "reviewedAt": "2026-10-09T19:17:09.557Z",
+  "reviewedBy": "Claude Opus 5.5 (implementing session, self-review; not a cold reviewer)",
+  "method": "Walked /privacy on the branch preview a78633a0.letspepper.pages.dev (commit 3a556b2) at 1024 desktop and 375 phone. Section 4 Third-Party Services now reads 'Photo Hosting: Cloudflare Images for gallery hosting' (wording approved by Nino); no SmugMug left on the page; 'Last updated: October 2026' unchanged; no horizontal scroll at 375. This was the only reader-facing copy change in the PR (next.config, a media-kit script and DESIGN-SYSTEM.md are outside the website source roots). Not covered: the rest of section 4 was not re-verified against current vendors (registration runs through a Google Form, which the list does not name).",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:59eb28e0cfb0378a5881f52a42106140f3c27abc60f84933c3852a22027a479c",
+  "sourceDigest": "sha256:39f939d16b1a9110b667066780e921ef46bfdbf7a70626dda7344e292c208b64",
   "sourceFiles": 116,
   "scope": [
-    "rankings",
-    "standings",
-    "home points race",
-    "head-to-head"
+    "privacy"
   ]
 }
