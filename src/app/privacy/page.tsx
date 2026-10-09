@@ -131,7 +131,7 @@ export default function PrivacyPage() {
                     By participating in Let&apos;s Pepper events, you consent to being photographed and filmed. This media may be shared on:
                   </p>
                   <ul className="list-disc pl-6 space-y-2">
-                    <li>Our website and photo galleries (gallery.ninochavez.co)</li>
+                    <li>Our website and photo galleries (letspepper.com/gallery and ninochavez.co/photography)</li>
                     <li>Social media platforms (@letspepper.open, @flickday.media)</li>
                     <li>YouTube and other video platforms</li>
                     <li>Partner and sponsor channels</li>
@@ -259,7 +259,7 @@ export default function PrivacyPage() {
 
               {/* Contact */}
               <div className="text-zinc-500 text-sm">
-                <p className="mt-4">Last updated: June 2026</p>
+                <p className="mt-4">Last updated: October 2026</p>
               </div>
             </motion.div>
           </div>
