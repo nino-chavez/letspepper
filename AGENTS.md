@@ -13,7 +13,7 @@ Let's Pepper is an underground grass volleyball tournament series website. The b
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS with custom design system
 - **Animations:** Framer Motion
-- **Deployment:** Cloudflare Pages (via GitHub Actions → `wrangler pages deploy`)
+- **Deployment:** Cloudflare Pages git integration builds and deploys `main` (build command `pnpm dlx @cloudflare/next-on-pages@1`; verified via the Pages API 2026-10-09). `.github/workflows/deploy.yml` also runs on push, but has been failing at its reader-clarity step, so it is not what ships production.
 - **Fonts:** Bebas Neue (display), Inter (body), Space Mono (accent)
 
 ## Project Structure
@@ -88,15 +88,15 @@ The brand uses pepper-themed heat levels:
 
 ## Media & Images
 
-- **Photo galleries:** SmugMug (photos.smugmug.com)
-- **Gallery URL:** gallery.ninochavez.co/Sports/Volleyball/Grass/LPO
+- **Photos:** Cloudflare Images (imagedelivery.net), shared with the photography site. The shared Supabase `photo_metadata` table maps each photo to its `cf_image_id`.
 - **Media partner:** Flickday Media (@flickday.media)
 - **Photography:** Nino Chavez Photography
 
-Images are loaded from SmugMug CDN with URLs like:
-```
-https://photos.smugmug.com/Sports/Volleyball/Grass/[ALBUM]/[IMAGE-ID]/0/[HASH]/[SIZE]/[FILENAME]-[SIZE].jpg
-```
+Do not reference `photos.smugmug.com` URLs. SmugMug stopped serving these photos (every size and the API return 404, checked 2026-10-09).
+
+Do not rely on `/_next/image` to resize. On this host it is a passthrough: `@cloudflare/next-on-pages` fetches the source unresized and relays the upstream status. Instead:
+- Cloudflare Images photo: `<Image loader={cfImageLoader} src={cfImageId} … />` (`src/lib/cloudflare-images.ts`). The loader picks the smallest named variant (`grid` 400, `medium` 800, `large` 1600) that covers the requested width. Flexible variants (`/w=…`) are off on this account.
+- A photo not in Cloudflare Images: commit WebP derivatives under `public/images/` with a loader, as `src/lib/hero-photo.ts` does.
 
 ## Key Pages
 
@@ -136,7 +136,7 @@ pnpm dev
 # Build for production
 pnpm build
 
-# Deploy is automatic on push to main via .github/workflows/deploy.yml
+# Deploy is automatic on push to main via the Cloudflare Pages git integration
 # Manual deploy (rare). Write dummy project settings first — it keeps
 # `vercel build` offline (CLI 56+ otherwise tries to auto-link a Vercel
 # project, which needs auth and creates a project as a side effect):
@@ -168,7 +168,7 @@ Edit `src/app/standings/page.tsx` - add to `tournamentResults` array:
 ```
 
 ### Adding Gallery Images
-Edit `src/components/GalleryPreview.tsx` - update `galleryImages` array with SmugMug URLs.
+Edit `src/components/GalleryPreview.tsx` - update the `galleryImages` array with `cfImageId` values from `photo_metadata.cf_image_id`.
 
 ### Updating Event Details
 Edit `src/app/flavors/[slug]/page.tsx` - update `tournaments` object with new dates, locations, entry fees.
@@ -185,7 +185,7 @@ Edit `src/app/flavors/[slug]/page.tsx` - update `tournaments` object with new da
 
 - Instagram: @letspepper.open
 - Flickday Media: flickdaymedia.com
-- Photo Gallery: gallery.ninochavez.co
+- Photo Gallery: https://letspepper.com/gallery (gallery.ninochavez.co returned 404 on 2026-10-09)
 
 ## Browser automation: use browse-tool, not MCP
 

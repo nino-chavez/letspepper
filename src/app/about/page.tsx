@@ -6,22 +6,24 @@ import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
+import { cfImageLoader } from '@/lib/cloudflare-images'
+import { HERO_PHOTO_SRC, heroPhotoLoader } from '@/lib/hero-photo'
 
 const galleryImages = [
   {
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/LPO/Bell-Pepper-Open-20250719/i-MKbtxb7/0/MGmNvWrKdGFhbQHwBwWM7DkpqR8LRnQhv9kjQ59RR/L/lpo-green-pepper-2025-003-L.jpg',
+    cfImageId: 'MKbtxb7',
     alt: 'Grass volleyball action at Bell Pepper Open',
   },
   {
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/KrushSuburbanSlam2025/i-V5b7DfL/0/NHcnwG9P2kjf9Mq3HjnnMPG4cLZwXTFCcJ4Vn23XF/L/krush-suburban-slam-028-L.jpg',
+    cfImageId: 'V5b7DfL',
     alt: 'Diving save on grass court',
   },
   {
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/2025-Cookout-Volleyball-Grass-Tournament/i-pBgXBfb/0/LfkpqrRfKQJRcttfjGxCvGcJzTk4nLGvw5VXWWRKs/L/2025-cookout-vb-004-L.jpg',
+    cfImageId: 'pBgXBfb',
     alt: 'Cookout volleyball tournament action',
   },
   {
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/Krush-Reverse-CoEd-20250720/i-g7tTzCp/0/LkngPzKtmhwzV3njpFKqSB2qQpKHFNzfWFW8rrS6c/L/krush-reverse-coed-003-L.jpg',
+    cfImageId: 'g7tTzCp',
     alt: 'Competitive grass volleyball',
   },
 ]
@@ -100,9 +102,11 @@ export default function AboutPage() {
                     )}
                   >
                     <Image
-                      src={image.src}
+                      loader={cfImageLoader}
+                      src={image.cfImageId}
                       alt={image.alt}
                       fill
+                      sizes="(min-width: 1024px) 300px, 50vw"
                       className="object-cover"
                     />
                   </div>
@@ -178,9 +182,11 @@ export default function AboutPage() {
               transition={{ duration: 0.8, ease: MOTION.ease.outExpo, delay: 0.2 }}
             >
               <Image
-                src="https://photos.smugmug.com/Sports/Volleyball/Grass/LPO/Bell-Pepper-Open-20250719/i-kTh9bRS/0/LTtD3WCXjvSmKKVqJ3bzwJG7Cvb6MvDLdhwRk4GHn/XL/lpo-green-pepper-2025-231-XL.jpg"
+                loader={heroPhotoLoader}
+                src={HERO_PHOTO_SRC}
                 alt="Bell Pepper Open grass volleyball tournament"
                 fill
+                sizes="(min-width: 1280px) 1216px, 100vw"
                 className="object-cover"
               />
               <div
