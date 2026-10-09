@@ -69,7 +69,7 @@
     { "id": "rankings", "label": "POWER RANKINGS", "detail": "The current read on the field.", "status": "approved" },
     { "id": "gallery", "label": "FULL GALLERY", "detail": "Find your team and download the frame.", "status": "approved" },
     { "id": "quiz", "label": "WHAT PEPPER ARE YOU?", "detail": "Seven questions. One court identity.", "status": "approved" },
-    { "id": "awards", "label": "SEASON AWARDS", "detail": "Vote for the performances that defined 2026.", "status": "approved" }
+    { "id": "awards", "label": "SEASON AWARDS", "detail": "The 2025 season nominees. Voting is closed.", "status": "approved" }
   ],
   "quizResults": [
     { "id": "bell", "label": "BELL PEPPER", "detail": "Keeps the team connected.", "status": "approved" },

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
-import { awardCategories, AWARDS_RESULTS_REVEALED } from '@/lib/awards-data'
+import { awardCategories, AWARDS_RESULTS_REVEALED, AWARDS_VOTING_OPEN } from '@/lib/awards-data'
 import { HEAT_CONFIG, type HeatLevel } from '@/lib/heat-config'
 import { heatText, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
@@ -49,6 +49,10 @@ export default function AwardsPage() {
   const [categories, setCategories] = useState(awardCategories)
 
   useEffect(() => {
+    // A closed vote shows the nominees it ran with. The live Rally HQ list is
+    // recomputed from every event, including ones after the vote, so it would
+    // put later names under the 2025 heading.
+    if (!AWARDS_VOTING_OPEN) return
     const RHQ_BY_LP: Record<string, string> = {
       mvp: 'mvp',
       improved: 'most_improved',
@@ -89,7 +93,8 @@ export default function AwardsPage() {
 
   // Fetch live tallies when submitted or on mount if already submitted
   useEffect(() => {
-    if (!submitted) return
+    // Results stay hidden once voting closes (AWARDS_RESULTS_REVEALED).
+    if (!submitted || !AWARDS_VOTING_OPEN) return
     const scopes = categories.map((c) => `awards:${c.id}`).join(',')
     fetch(`/api/votes?scopes=${scopes}`)
       .then((r) => r.json())
@@ -100,7 +105,7 @@ export default function AwardsPage() {
   }, [submitted, categories])
 
   function handleVote(categoryId: string, nomineeId: string) {
-    if (submitted) return
+    if (submitted || !AWARDS_VOTING_OPEN) return
     setVotes(prev => {
       const next = { ...prev, [categoryId]: nomineeId }
       return next
@@ -175,7 +180,9 @@ export default function AwardsPage() {
                 Pepper <span style={{ color: 'var(--gold)' }}>Awards</span>
               </h1>
               <p className="text-xl text-zinc-400">
-                Vote for the best of the 2025 season. One vote per category. Choose wisely.
+                {AWARDS_VOTING_OPEN
+                  ? 'Vote for the best of the 2025 season. One vote per category. Choose wisely.'
+                  : 'Voting on the 2025 season awards is closed. These were the nominees.'}
               </p>
             </motion.div>
           </div>
@@ -225,21 +232,8 @@ export default function AwardsPage() {
                         const voteCount = scopeTallies[nominee.id] || 0
                         const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0
 
-                        return (
-                          <motion.button
-                            key={nominee.id}
-                            type="button"
-                            onClick={() => handleVote(category.id, nominee.id)}
-                            disabled={submitted}
-                            className={cn(
-                              'text-left p-4 rounded-xl border transition-all',
-                              isSelected
-                                ? 'border-zinc-800 bg-zinc-900/60'
-                                : 'border-zinc-800/50 bg-zinc-900/30 hover:border-zinc-700',
-                              submitted && 'cursor-default'
-                            )}
-                            whileTap={!submitted ? { scale: 0.98 } : undefined}
-                          >
+                        const details = (
+                          <>
                             <p className={cn('font-display text-lg uppercase mb-1', isSelected ? 'text-white' : 'text-zinc-300')}>
                               {nominee.name}
                             </p>
@@ -263,6 +257,34 @@ export default function AwardsPage() {
                                 </div>
                               </div>
                             )}
+                          </>
+                        )
+
+                        if (!AWARDS_VOTING_OPEN) {
+                          // A closed vote is a record of the nominees, not a ballot.
+                          return (
+                            <div key={nominee.id} className="text-left p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/30">
+                              {details}
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <motion.button
+                            key={nominee.id}
+                            type="button"
+                            onClick={() => handleVote(category.id, nominee.id)}
+                            disabled={submitted}
+                            className={cn(
+                              'text-left p-4 rounded-xl border transition-all',
+                              isSelected
+                                ? 'border-zinc-800 bg-zinc-900/60'
+                                : 'border-zinc-800/50 bg-zinc-900/30 hover:border-zinc-700',
+                              submitted && 'cursor-default'
+                            )}
+                            whileTap={!submitted ? { scale: 0.98 } : undefined}
+                          >
+                            {details}
                           </motion.button>
                         )
                       })}
@@ -273,7 +295,7 @@ export default function AwardsPage() {
             </motion.div>
 
             {/* Submit */}
-            {!submitted && (
+            {AWARDS_VOTING_OPEN && !submitted && (
               <div className="mt-12 text-center">
                 <button
                   type="button"
@@ -294,7 +316,7 @@ export default function AwardsPage() {
 
             {/* Confirmation */}
             <AnimatePresence>
-              {submitted && !AWARDS_RESULTS_REVEALED && (
+              {AWARDS_VOTING_OPEN && submitted && !AWARDS_RESULTS_REVEALED && (
                 <motion.div
                   className="mt-12 bg-zinc-900/30 rounded-xl border p-8 text-center max-w-lg mx-auto"
                   style={{ borderColor: 'color-mix(in srgb, var(--gold) 30%, transparent)' }}

@@ -87,3 +87,11 @@ export const awardCategories: AwardCategory[] = [
 
 /** Whether results are revealed (admin toggle) */
 export const AWARDS_RESULTS_REVEALED = false
+
+/**
+ * Whether the fan vote takes ballots. The 2025 season vote closed on 2026-10-09.
+ * While false, /awards shows the nominees read-only, and the server refuses
+ * awards ballots (/api/votes, awards:* scopes) and award-vote points
+ * (/api/engagement, award_vote), so a direct POST can't vote either.
+ */
+export const AWARDS_VOTING_OPEN = false
