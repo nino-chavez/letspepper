@@ -45,26 +45,54 @@ export interface PlayerStats {
   placements: { eventId: string; place: number }[]
 }
 
-// Point system: 1st=100, 2nd=75, 3rd=50, 5th=25, 9th=10.
+// Point system by finishing tier: 1st=100, 2nd=75, 3rd–4th=50, 5th–8th=25,
+// 9th–16th=10. A single-elimination bracket only produces the tied places 1, 2,
+// 3, 5, 9 and 17; a double-elimination bracket (the 2026 Jalapeño Open) also
+// produces exact places like 4th and 7th, which belong to the same tiers. The
+// table used to list single places, so 4th fell to the floor and scored below
+// 9th. scripts/standings-points.test.mjs holds that line.
 // Participation floor: every team that plays scores (play-in/lower), so showing up
 // year over year always climbs the all-time board — not just winning.
-const POINTS_MAP: Record<number, number> = {
-  1: 100,
-  2: 75,
-  3: 50,
-  5: 25,
-  9: 10,
-}
+const POINT_TIERS: { through: number; points: number }[] = [
+  { through: 1, points: 100 },
+  { through: 2, points: 75 },
+  { through: 4, points: 50 },
+  { through: 8, points: 25 },
+  { through: 16, points: 10 },
+]
 const PARTICIPATION = 5
 
-function getPoints(place: number): number {
-  return POINTS_MAP[place] ?? PARTICIPATION
+export function getPoints(place: number): number {
+  // Live Rally HQ results arrive unvalidated. A team with no finish yet can come
+  // through as 0 or null, which would otherwise match the first tier and score a
+  // win.
+  if (!Number.isInteger(place) || place < 1) return PARTICIPATION
+  return POINT_TIERS.find((tier) => place <= tier.through)?.points ?? PARTICIPATION
 }
 
 // Snapshot of Rally HQ's derived results (regenerate from /api/standings-results;
 // see the file header). IDs are the RHQ tournament slugs. Do not hand-edit rosters
 // here — fix them in Rally HQ and re-snapshot, so the harness stays the gate.
 export const tournamentResults: TournamentResult[] = [
+  {
+    id: "jalapeno-open-2026",
+    event: "Jalapeño Open",
+    date: "Jul 18, 2026",
+    location: "Aurora, IL",
+    heat: "jalapeno",
+    results: [
+      { place: 1, players: ["Nate Meyer", "Charlie Podgorny", "Ethan Carroll"] },
+      { place: 2, players: ["Nathen Toth", "Andrew Flores", "Christian Teresi"] },
+      { place: 3, players: ["Nick Maruyama", "Jakobi Lange", "Lincoln Geist"] },
+      { place: 4, players: ["Noah Konopack", "Connor Jaral", "Nolan Krygsheld"] },
+      { place: 5, players: ["Will Mensching", "Kevin Messer", "Manny Campazuno"], tied: true },
+      { place: 5, players: ["Quinn Bozarth", "Charlie Clifford", "David Hill"], tied: true },
+      { place: 7, players: ["Jeremiah Aro", "Aaron Dennie", "Jt Snider", "Will Ashum"], tied: true },
+      { place: 7, players: ["Ever Ortega", "Danny Ortega", "Edwin Rojas"], tied: true },
+      { place: 9, players: ["Tony Solis", "Brayden Tejeda", "Danny Overlin"], tied: true },
+      { place: 9, players: ["Nathaniel Cossyleon", "Alec Donald", "Kenyon Haynes"], tied: true },
+    ],
+  },
   {
     id: "bell-pepper-open-2026",
     event: "Bell Pepper Open",
