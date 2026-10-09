@@ -13,7 +13,7 @@ Let's Pepper is an underground grass volleyball tournament series website. The b
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS with custom design system
 - **Animations:** Framer Motion
-- **Deployment:** Cloudflare Pages git integration builds and deploys `main` (build command `pnpm dlx @cloudflare/next-on-pages@1`; verified via the Pages API 2026-10-09). `.github/workflows/deploy.yml` also runs on push, but has been failing at its reader-clarity step, so it is not what ships production.
+- **Deployment:** Cloudflare Pages' GitHub connection: a preview build for every branch, production on merge to `main`. See [Deploys](#deploys).
 - **Fonts:** Bebas Neue (display), Inter (body), Space Mono (accent)
 
 ## Project Structure
@@ -135,16 +135,35 @@ pnpm dev
 
 # Build for production
 pnpm build
+```
 
-# Deploy is automatic on push to main via the Cloudflare Pages git integration
-# Manual deploy (rare). Write dummy project settings first — it keeps
-# `vercel build` offline (CLI 56+ otherwise tries to auto-link a Vercel
-# project, which needs auth and creates a project as a side effect):
+## Deploys
+
+Cloudflare Pages' GitHub connection is the only deploy path. It replaced a GitHub Actions deploy on 2026-10-09; the two had both deployed every merge since June.
+
+- **A push to any branch** builds a preview on `letspepper.pages.dev`. Cloudflare posts the URL on the PR.
+- **A merge to `main`** builds and deploys production. The build command lives in the Pages project settings: `pnpm install --frozen-lockfile && pnpm dlx @cloudflare/next-on-pages@1`. A failed build leaves the previous deploy live.
+- **`.github/workflows/pr-checks.yml`** runs on every PR and must pass to merge. It checks that the lockfile matches `package.json`, that every mascot derivative `src/` references exists, and that the website's reader review is current.
+
+The reader check fails with `manual-review-stale` when a PR changes files under `src/app` or `src/components`. Walk the changed pages on the branch preview against [`reader-contract.json`](reader-contract.json), then record the review on the branch and commit `docs/reader-audits/website.json` with the change:
+
+```bash
+node tools/lib/encounter-audit.mjs --root=. --record-manual=website \
+  --reviewed-by="<who>" --method="<what was walked, and how>" --scope="home|about"
+```
+
+Record a review only after walking the pages. The receipt is the only evidence that someone read the copy the way a player meets it.
+
+To check a deploy, read `latest_stage.status` for the commit from the Pages API (`/accounts/{id}/pages/projects/letspepper/deployments`), or open the project in the Cloudflare dashboard.
+
+Emergency manual deploy. It skips the PR checks, and the next merge replaces it. The dummy project settings keep `vercel build` offline (CLI 56+ otherwise tries to link a Vercel project, which needs auth and creates one as a side effect):
+
+```bash
 mkdir -p .vercel
 echo '{"projectId":"_","orgId":"_","settings":{"framework":"nextjs"}}' > .vercel/project.json
 pnpm dlx vercel build --yes
 pnpm dlx @cloudflare/next-on-pages@1 --skip-build
-pnpm dlx wrangler pages deploy .vercel/output/static --project-name=letspepper
+pnpm dlx wrangler pages deploy .vercel/output/static --project-name=letspepper --branch=main
 ```
 
 ## Content Updates
