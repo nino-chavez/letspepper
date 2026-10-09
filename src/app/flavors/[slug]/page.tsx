@@ -17,6 +17,7 @@ import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { CourtBoard } from '@/components/rhq/CourtBoard'
 import { cn } from '@/lib/utils'
 import { tournaments, nextOpenEvent, type TournamentDetail } from '@/lib/tournaments'
+import { useTodayISO } from '@/lib/today'
 
 const heatConfig = {
   bell: { color: 'var(--heat-bell)', textClass: 'text-heat-bell', borderClass: 'border-heat-bell', bgClass: 'bg-heat-bell', glowClass: 'hover:bg-heat-bell-glow', level: 'Mild', bars: 1 },
@@ -120,6 +121,7 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
   const override = usePhaseOverride()
   // Hooks must run before any early return.
   const { phase, champion, currentPhase } = usePhase(tournament?.rhqSlug ?? '', override)
+  const todayISO = useTodayISO()
 
   if (!tournament) {
     notFound()
@@ -135,7 +137,6 @@ export default function FlavorPage({ params }: { params: { slug: string } }) {
   // data at all (a preview build has no RALLY_HQ_API_KEY). A date that has
   // passed is not upcoming, so it never gets the countdown or the pick, unless
   // a ?phase=pre override asks for that face.
-  const todayISO = new Date().toISOString().split('T')[0]
   const datePassed = tournament.startsAt.slice(0, 10) < todayISO
   // Same test the header's Sign Up / Registration Closed link uses: only the
   // next open event takes sign-ups, and /signup shows only that event's form.

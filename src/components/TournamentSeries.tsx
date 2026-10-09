@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { heatText, heatBg, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { tournaments as canonicalTournaments, isCancelled, nextOpenEvent } from '@/lib/tournaments'
+import { useTodayISO } from '@/lib/today'
 
 /**
  * Card-only presentation, keyed by the canonical tournament slug. Everything
@@ -101,8 +102,7 @@ function useLiveState(slug: string): boolean {
   return isLive
 }
 
-function getNextEventSlug(tournaments: Tournament[]): string | null {
-  const today = new Date().toISOString().split('T')[0]
+function getNextEventSlug(tournaments: Tournament[], today: string): string | null {
   const upcoming = tournaments.filter((t) => t.date >= today && !t.cancelled)
   return upcoming.length > 0 ? upcoming[0].slug : null
 }
@@ -235,10 +235,11 @@ function TournamentCard({ tournament, isNext }: { tournament: Tournament; isNext
 }
 
 export function TournamentSeries() {
-  const nextEventSlug = getNextEventSlug(tournaments)
+  const today = useTodayISO()
+  const nextEventSlug = getNextEventSlug(tournaments, today)
   // Same test the header's Sign Up / Registration Closed link uses: with nothing
   // open, "choose your format" invites a pick there is no event to make.
-  const registrationOpen = Boolean(nextOpenEvent(new Date().toISOString().split('T')[0]))
+  const registrationOpen = Boolean(nextOpenEvent(today))
 
   return (
     <section

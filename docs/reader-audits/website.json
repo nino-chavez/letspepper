@@ -1,14 +1,20 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T19:46:41.409Z",
-  "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Walked this branch's Cloudflare preview 66bee64d (cd983a3), logged-out browser at 1280 and 390 px. /predictions in the off-season (today): title, 'No event is open for picks right now. Props open for the next event once it's on the calendar.', 'Follow @letspepper.open for the next dates.', Season Standings and Power Rankings links; no pick buttons; no horizontal overflow. Prebuilt HTML carries only the title (no event baked in). Server: POST /api/predictions for bell-pepper-open-2026 and jalapeno-open-2026 both return 403 'Predictions are closed for this event'. The open-event board (unchanged markup, event name templated into the props) was exercised through currentPredictionEvent across dates in pnpm test:predictions, which pinning the old behavior fails.",
+  "reviewedAt": "2026-10-09T20:16:59.570Z",
+  "reviewedBy": "Claude Opus 5.5 (Claude Code) + Playwright fake clock, for Nino Chavez",
+  "method": "No visible copy changed; the fingerprint moved with new code strings (the date provider and the champion API's 403 message). Walked this branch's previews d13ee80f (4c5ec70) and bf191e85 (2cbd976) with Playwright's fake clock. / /about /rankings /standings /predictions at a visitor date of 2026-05-01: 0 hydration errors (production showed 34, React #425) and the header settles on Sign Up; at today's date: 0 errors, Registration Closed. New Year (2027-01-02) on /: 0 errors, footer 2027 (production 6 errors). Open tab across the Jalapeño Open first serve on /predictions: submit and 45 options before, locked and 0 enabled options 90 s later. Open tab across midnight UTC after the Jalapeño Open on /: Sign Up to Registration Closed. POST /api/champion for jalapeno-open-2026 returns 403 'Champion picks are closed for this event'.",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:79de0383bfa0f482052c360cfb7303bb9f3478b5c6cbedd4f5e7a06edccbd112",
-  "sourceFiles": 116,
+  "sourceDigest": "sha256:1838aa9320d680d504a5b8a7cfd2622ad59fdacbcc31684e324eebdcc2e38cd2",
+  "sourceFiles": 117,
   "scope": [
+    "header",
+    "home hero and tape",
+    "series label",
+    "about",
+    "standings",
     "predictions",
-    "predictions API lock"
+    "footer year",
+    "champion pick lock"
   ]
 }

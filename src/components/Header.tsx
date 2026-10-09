@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { MOTION } from '@/lib/motion'
 import { nextOpenEvent } from '@/lib/tournaments'
+import { useTodayISO } from '@/lib/today'
 
 const baseNavLinks: { href: string; label: string; highlight?: boolean }[] = [
   { href: '/#series', label: 'The Series' },
@@ -46,7 +47,7 @@ export function Header() {
   const [communityOpen, setCommunityOpen] = useState(false)
   const [mobileCommunityOpen, setMobileCommunityOpen] = useState(false)
   const dropdownRef = useRef<HTMLLIElement>(null)
-  const registrationOpen = Boolean(nextOpenEvent(new Date().toISOString().split('T')[0]))
+  const registrationOpen = Boolean(nextOpenEvent(useTodayISO()))
   const navLinks = getNavLinks(registrationOpen)
 
   // Close desktop dropdown on outside click

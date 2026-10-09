@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Bebas_Neue, Inter, Space_Mono } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
+import { TodayProvider } from '@/lib/today'
 
 const bebasNeue = Bebas_Neue({
   weight: '400',
@@ -116,8 +117,9 @@ export default function RootLayout({
         {/* Grain Overlay */}
         <div className="grain-overlay" aria-hidden="true" />
 
-        {/* Main Content */}
-        {children}
+        {/* Main Content. TodayProvider hands date-dependent components the moment
+            this layout rendered at, so their first browser render matches the HTML. */}
+        <TodayProvider renderedAt={Date.now()}>{children}</TodayProvider>
 
         {/* Cloudflare Web Analytics */}
         <Script

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useNow } from '@/lib/today'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -44,7 +45,7 @@ export function ChampionPick({ tournament, tournamentName, deadline, champion, h
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const isLocked = new Date(deadline).getTime() <= Date.now()
+  const isLocked = new Date(deadline).getTime() <= useNow()
 
   // Restore prior pick + shared nickname.
   useEffect(() => {

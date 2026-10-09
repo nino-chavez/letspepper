@@ -9,6 +9,7 @@ import { Header, Footer } from '@/components'
 import { cn } from '@/lib/utils'
 import { tournamentResults, type TournamentResult } from '@/lib/standings-data'
 import { tournaments, isCancelled } from '@/lib/tournaments'
+import { useTodayISO } from '@/lib/today'
 import { heatText, type Heat } from '@/components/rhq/heat'
 import { HeatMeter } from '@/components/rhq/HeatMeter'
 import { PlaceBadge } from '@/components/standings/PlaceBadge'
@@ -247,12 +248,13 @@ export default function StandingsPage() {
   // Season = the latest year present in the results, so the page advances itself each
   // year instead of pinning to a hardcoded season. (Was hardcoded '2025', which
   // silently dropped the live 2026 results once Rally HQ started returning them.)
+  const thisYear = useTodayISO().slice(0, 4)
   const selectedSeason = useMemo(() => {
     const years = Array.from(
       new Set(allResults.map(t => t.date.match(/\d{4}/)?.[0]).filter(Boolean) as string[])
     ).sort()
-    return years.at(-1) ?? String(new Date().getFullYear())
-  }, [allResults])
+    return years.at(-1) ?? thisYear
+  }, [allResults, thisYear])
   const seasonTournaments = allResults.filter(t => t.date.includes(selectedSeason))
   // "Remaining" counts only events that will actually be played, so a cancelled
   // stop drops out of the total instead of showing as one still to come. Derived

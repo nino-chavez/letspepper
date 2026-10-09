@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { MOTION, useReducedMotion } from '@/lib/motion'
 import { NextEventMarquee } from './Marquee'
 import { activeCancellation } from '@/lib/tournaments'
+import { useTodayISO } from '@/lib/today'
 import { HERO_PHOTO_SRC, heroPhotoLoader } from '@/lib/hero-photo'
 
 const taglineWords = ['GRASSROOTS.', 'PLAYER-OWNED.', 'BUILT TO', 'COMPETE.']
@@ -42,7 +43,7 @@ function CancellationNotice({ name, href, date }: { name: string; href: string; 
 
 export function HeroSection() {
   const prefersReducedMotion = useReducedMotion()
-  const cancelled = activeCancellation(new Date().toISOString().split('T')[0])
+  const cancelled = activeCancellation(useTodayISO())
 
   return (
     <>
