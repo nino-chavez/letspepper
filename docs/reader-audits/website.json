@@ -1,16 +1,14 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T19:27:10.080Z",
+  "reviewedAt": "2026-10-09T19:46:41.409Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Re-record after merging main (#81, SmugMug removal) into this branch. Walked the merged preview 8bc1a189 (3a7ab0e): /awards closed state unchanged (closed intro, 19 read-only nominee cards, no buttons, submit or tallies; awards ballot POST returns 403); /privacy photo-hosting line reads 'Cloudflare Images for gallery hosting' with no SmugMug mention (#81's own receipt, 9ec11a4, covers its walk). This branch's earlier walks on 8423f77e and 3af153eb: /awards as new visitor and past voter at 1280 and 390 px; every nominee results claim checked against the 2025 standings, two corrected (Maas, Maruyama); unverifiable and left as voters saw them: Messer / Mir / Adler (results list Kirschbaum / Messer / Mir), the Vandenberg brothers, 'from 9th seed'. Share tags and Open Graph card read 'The 2025 season nominees. Voting is closed.'",
+  "method": "Walked this branch's Cloudflare preview 66bee64d (cd983a3), logged-out browser at 1280 and 390 px. /predictions in the off-season (today): title, 'No event is open for picks right now. Props open for the next event once it's on the calendar.', 'Follow @letspepper.open for the next dates.', Season Standings and Power Rankings links; no pick buttons; no horizontal overflow. Prebuilt HTML carries only the title (no event baked in). Server: POST /api/predictions for bell-pepper-open-2026 and jalapeno-open-2026 both return 403 'Predictions are closed for this event'. The open-event board (unchanged markup, event name templated into the props) was exercised through currentPredictionEvent across dates in pnpm test:predictions, which pinning the old behavior fails.",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:34ffcd930bb457eab92fb58dbab47437341ea73cfd58cd557a3cbb05169b2423",
+  "sourceDigest": "sha256:79de0383bfa0f482052c360cfb7303bb9f3478b5c6cbedd4f5e7a06edccbd112",
   "sourceFiles": 116,
   "scope": [
-    "awards",
-    "awards share card",
-    "awards API refusal",
-    "privacy photo-hosting line"
+    "predictions",
+    "predictions API lock"
   ]
 }
