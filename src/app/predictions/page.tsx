@@ -58,19 +58,45 @@ function DeadlineTimer({ deadline }: { deadline: string }) {
 }
 
 export default function PredictionsPage() {
-  // The next open event, by the header's Sign Up / Registration Closed test.
-  // Null in the off-season: the page then says so instead of taking picks.
-  const event = currentPredictionEvent(new Date().toISOString().split('T')[0])
+  // The next open event, by the header's Sign Up / Registration Closed test;
+  // null in the off-season. Chosen after mount: this page is prebuilt, and the
+  // open event depends on the visitor's date, not the build's. Until then the
+  // page shows only its title.
+  const [event, setEvent] = useState<PredictionEvent | null | undefined>(undefined)
+  useEffect(() => {
+    setEvent(currentPredictionEvent(new Date().toISOString().split('T')[0]))
+  }, [])
 
   return (
     <>
       <Header />
 
       <main id="main-content" className="pt-24">
-        {event ? <PredictionBoard event={event} /> : <NoOpenEvent />}
+        {event === undefined ? (
+          <section className="section-padding">
+            <div className="section-container">
+              <PropsTitle />
+            </div>
+          </section>
+        ) : event ? (
+          <PredictionBoard event={event} />
+        ) : (
+          <NoOpenEvent />
+        )}
       </main>
 
       <Footer />
+    </>
+  )
+}
+
+function PropsTitle() {
+  return (
+    <>
+      <h2 className="block-heading mb-4">Predictions</h2>
+      <h1 className="text-display mb-6">
+        Pepper <span className="text-heat-poblano">Props</span>
+      </h1>
     </>
   )
 }
@@ -85,10 +111,7 @@ function NoOpenEvent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
         >
-          <h2 className="block-heading mb-4">Predictions</h2>
-          <h1 className="text-display mb-6">
-            Pepper <span className="text-heat-poblano">Props</span>
-          </h1>
+          <PropsTitle />
           <p className="text-xl text-zinc-400 mb-4">
             No event is open for picks right now. Props open for the next event once it&apos;s on the calendar.
           </p>
@@ -116,6 +139,9 @@ function PredictionBoard({ event }: { event: PredictionEvent }) {
   const [nickname, setNickname] = useState('')
   const [entryCount, setEntryCount] = useState(0)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  // Set when the server refuses picks (first serve passed while the page was open).
+  const [closedByServer, setClosedByServer] = useState(false)
+  const [saveFailed, setSaveFailed] = useState(false)
 
   useEffect(() => {
     const saved = getStoredValue<{ picks: Record<string, number>; submitted: boolean }>(storageKey, { picks: {}, submitted: false })
@@ -136,7 +162,7 @@ function PredictionBoard({ event }: { event: PredictionEvent }) {
       .catch(() => {})
   }, [event.id])
 
-  const isLocked = event.isLocked || new Date(event.deadline).getTime() <= Date.now()
+  const isLocked = closedByServer || event.isLocked || new Date(event.deadline).getTime() <= Date.now()
 
   function handlePick(propId: string, optionIndex: number) {
     if (isLocked || submitted) return
@@ -147,12 +173,12 @@ function PredictionBoard({ event }: { event: PredictionEvent }) {
     })
   }
 
-  function handleSubmit() {
-    setSubmitted(true)
-    setStoredValue(storageKey, { picks, submitted: true })
-
+  async function handleSubmit() {
+    setSaveFailed(false)
     const deviceId = getDeviceId()
-    fetch('/api/predictions', {
+    // Picks count only once the server accepts them: after first serve it
+    // answers 403, and a pick shown as saved but never stored would mislead.
+    const res = await fetch('/api/predictions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -161,11 +187,18 @@ function PredictionBoard({ event }: { event: PredictionEvent }) {
         picks,
         nickname: nickname.trim() || null,
       }),
-    })
-      .then(() => {
-        // Re-fetch entry count
-        return fetch(`/api/predictions?event_id=${event.id}&device_id=${deviceId}`)
-      })
+    }).catch(() => null)
+
+    if (!res?.ok) {
+      if (res?.status === 403) setClosedByServer(true)
+      else setSaveFailed(true)
+      return
+    }
+
+    setSubmitted(true)
+    setStoredValue(storageKey, { picks, submitted: true })
+
+    fetch(`/api/predictions?event_id=${event.id}&device_id=${deviceId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.entryCount) setEntryCount(data.entryCount)
@@ -189,10 +222,7 @@ function PredictionBoard({ event }: { event: PredictionEvent }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: MOTION.ease.outExpo }}
           >
-            <h2 className="block-heading mb-4">Predictions</h2>
-            <h1 className="text-display mb-6">
-              Pepper <span className="text-heat-poblano">Props</span>
-            </h1>
+            <PropsTitle />
             <p className="text-xl text-zinc-400 mb-4">
               Make your picks for {event.event}. Higher heat = more points if you&apos;re right.
             </p>
@@ -375,7 +405,18 @@ function PredictionBoard({ event }: { event: PredictionEvent }) {
               >
                 Lock In Picks ({pickedCount}/{event.props.length})
               </button>
+              {saveFailed && (
+                <p className="text-sm text-zinc-400 mt-3" role="alert">
+                  Your picks didn&apos;t save. Check your connection and try again.
+                </p>
+              )}
             </div>
+          )}
+
+          {closedByServer && !submitted && (
+            <p className="mt-8 max-w-3xl text-zinc-400" role="alert">
+              Picks closed at first serve, so these weren&apos;t saved.
+            </p>
           )}
 
           {submitted && !event.resultsRevealed && (
