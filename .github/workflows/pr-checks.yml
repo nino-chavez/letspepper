@@ -38,6 +38,10 @@ jobs:
         # Points by finishing tier, including double-elimination places like 4th.
         run: pnpm test:standings
 
+      - name: Predictions target
+        # Picks open only for the next open event and lock at its first serve.
+        run: pnpm test:predictions
+
       - name: Check mascot derivatives
         # Fails fast if src/ references an anime/web derivative that was never
         # committed (this shipped a 404 header logo once).

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { resolveFanToken } from '@/lib/fan-bridge'
-import { isValidUUID, badRequest, serverError, ok } from '../_lib/validate'
+import { isValidUUID, badRequest, forbidden, serverError, ok } from '../_lib/validate'
+import { currentPredictionEvent } from '@/lib/predictions-data'
 
 /** POST — submit or update prediction picks + optional nickname */
 export async function POST(request: Request) {
@@ -12,6 +13,13 @@ export async function POST(request: Request) {
   if (!isValidUUID(device_id)) return badRequest('Invalid device_id')
   if (typeof event_id !== 'string' || !event_id) return badRequest('event_id is required')
   if (!picks || typeof picks !== 'object') return badRequest('picks is required')
+
+  // Picks are taken only for the open event, and only until its first serve.
+  // The page locks at the deadline too, but a direct POST must not get past it.
+  const open = currentPredictionEvent(new Date().toISOString().split('T')[0])
+  if (!open || event_id !== open.id || Date.now() >= Date.parse(open.deadline)) {
+    return forbidden('Predictions are closed for this event')
+  }
 
   const nick = typeof nickname === 'string' && nickname.trim().length > 0
     ? nickname.trim().slice(0, 30)
