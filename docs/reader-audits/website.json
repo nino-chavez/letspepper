@@ -1,11 +1,11 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T18:57:56.214Z",
+  "reviewedAt": "2026-10-09T19:01:41.188Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Walked this branch's Cloudflare previews 0ca11d84 (9394352) and a3acdc40 (c080778), logged-out browser at 1280 and 390 px. /rankings: read all eight entries in full against the Rally HQ brackets for the 2026 Bell Pepper and Jalapeño Opens (every cited score and result matched); stats row 5,480 points, 4 events, 8 teams; head-to-head list includes the Jalapeño teams; no horizontal overflow; highlight chips fit on a phone after shortening one. /standings: Jalapeño Open listed; season leaderboard top 10 unchanged; corrected points shown (Jaral 75, Konopack 60, Krygsheld 50, Aro 25; 9th place still 10). Home points race top 3 unchanged (same leaderboard). Known and unchanged from the previous receipt: /predictions targets Bell Pepper Open 2026; /awards still runs the 2025 season vote; /hot-takes visitor take about the Poblano Open.",
+  "method": "Re-record after 4655ee1, a code-only guard in getPoints whose numeric literal changed the copy fingerprint; no rendered copy changed. Walked this branch's previews 0ca11d84 (9394352), a3acdc40 (c080778) and 740c9d26 (4655ee1), logged-out browser at 1280 and 390 px. /rankings: all eight entries read in full against the Rally HQ brackets for the 2026 Bell Pepper and Jalapeño Opens (every cited score and result matched); stats row 5,480 points, 4 events, 8 teams, identical on 740c9d26; no horizontal overflow; highlight chips fit on a phone. /standings: Jalapeño Open listed; corrected points (Jaral 75, Konopack 60, Krygsheld 50, Aro 25; 9th place 10) identical on 740c9d26. Home points race top 3 unchanged. Known and unchanged: /predictions targets Bell Pepper Open 2026; /awards still runs the 2025 season vote; /hot-takes visitor take about the Poblano Open.",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:c79d567db582f4d62ae2984667543590ca5e5486caaab45228ea5ed0ecf3c2ef",
+  "sourceDigest": "sha256:59eb28e0cfb0378a5881f52a42106140f3c27abc60f84933c3852a22027a479c",
   "sourceFiles": 116,
   "scope": [
     "rankings",
