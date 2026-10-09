@@ -1,6 +1,7 @@
 import { resolveFanToken } from '@/lib/fan-bridge'
 import { submitEngagementPoints } from '@/lib/rally-hq'
-import { isValidUUID, badRequest, serverError, ok } from '../_lib/validate'
+import { isValidUUID, badRequest, forbidden, serverError, ok } from '../_lib/validate'
+import { AWARDS_VOTING_OPEN } from '@/lib/awards-data'
 
 /**
  * Award engagement points (ADR-0007 stage 4) — bingo wins, award votes, etc.
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
   const { device_id, source, ref, nickname } = body
   if (!isValidUUID(device_id)) return badRequest('Invalid device_id')
   if (typeof source !== 'string' || !(source in POINTS)) return badRequest('Unknown source')
+  if (source === 'award_vote' && !AWARDS_VOTING_OPEN) return forbidden('Awards voting is closed')
   if (typeof ref !== 'string' || !ref) return badRequest('ref is required')
 
   const nick = typeof nickname === 'string' && nickname.trim().length > 0

@@ -28,8 +28,8 @@ export const awardCategories: AwardCategory[] = [
     nominees: [
       { id: 'charlie', name: 'Charlie Podgorny', reason: '2x Champion — the backbone of both winning squads' },
       { id: 'nate', name: 'Nate Meyer', reason: '2x Champion — consistent excellence across both events' },
-      { id: 'casey', name: 'Casey Maas', reason: '2x Bronze — the most consistent performer in the series' },
-      { id: 'nick', name: 'Nick Maruyama', reason: 'Silver + Bronze — always in the mix at the top' },
+      { id: 'casey', name: 'Casey Maas', reason: 'Bronze + top-five finish — the most consistent performer in the series' },
+      { id: 'nick', name: 'Nick Maruyama', reason: 'Silver + top-five finish — always in the mix at the top' },
     ],
   },
   {
@@ -87,3 +87,11 @@ export const awardCategories: AwardCategory[] = [
 
 /** Whether results are revealed (admin toggle) */
 export const AWARDS_RESULTS_REVEALED = false
+
+/**
+ * Whether the fan vote takes ballots. The 2025 season vote closed on 2026-10-09.
+ * While false, /awards shows the nominees read-only, and the server refuses
+ * awards ballots (/api/votes, awards:* scopes) and award-vote points
+ * (/api/engagement, award_vote), so a direct POST can't vote either.
+ */
+export const AWARDS_VOTING_OPEN = false

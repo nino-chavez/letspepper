@@ -1,13 +1,16 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T19:17:09.557Z",
-  "reviewedBy": "Claude Opus 5.5 (implementing session, self-review; not a cold reviewer)",
-  "method": "Walked /privacy on the branch preview a78633a0.letspepper.pages.dev (commit 3a556b2) at 1024 desktop and 375 phone. Section 4 Third-Party Services now reads 'Photo Hosting: Cloudflare Images for gallery hosting' (wording approved by Nino); no SmugMug left on the page; 'Last updated: October 2026' unchanged; no horizontal scroll at 375. This was the only reader-facing copy change in the PR (next.config, a media-kit script and DESIGN-SYSTEM.md are outside the website source roots). Not covered: the rest of section 4 was not re-verified against current vendors (registration runs through a Google Form, which the list does not name).",
+  "reviewedAt": "2026-10-09T19:27:10.080Z",
+  "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
+  "method": "Re-record after merging main (#81, SmugMug removal) into this branch. Walked the merged preview 8bc1a189 (3a7ab0e): /awards closed state unchanged (closed intro, 19 read-only nominee cards, no buttons, submit or tallies; awards ballot POST returns 403); /privacy photo-hosting line reads 'Cloudflare Images for gallery hosting' with no SmugMug mention (#81's own receipt, 9ec11a4, covers its walk). This branch's earlier walks on 8423f77e and 3af153eb: /awards as new visitor and past voter at 1280 and 390 px; every nominee results claim checked against the 2025 standings, two corrected (Maas, Maruyama); unverifiable and left as voters saw them: Messer / Mir / Adler (results list Kirschbaum / Messer / Mir), the Vandenberg brothers, 'from 9th seed'. Share tags and Open Graph card read 'The 2025 season nominees. Voting is closed.'",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:39f939d16b1a9110b667066780e921ef46bfdbf7a70626dda7344e292c208b64",
+  "sourceDigest": "sha256:34ffcd930bb457eab92fb58dbab47437341ea73cfd58cd557a3cbb05169b2423",
   "sourceFiles": 116,
   "scope": [
-    "privacy"
+    "awards",
+    "awards share card",
+    "awards API refusal",
+    "privacy photo-hosting line"
   ]
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { isValidUUID, badRequest, serverError, ok } from '../_lib/validate'
+import { isValidUUID, badRequest, forbidden, serverError, ok } from '../_lib/validate'
+import { AWARDS_VOTING_OPEN } from '@/lib/awards-data'
 
 /** POST — cast or update a vote (upsert by device_id + scope) */
 export async function POST(request: Request) {
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
   if (!isValidUUID(device_id)) return badRequest('Invalid device_id')
   if (typeof scope !== 'string' || !scope) return badRequest('scope is required')
   if (typeof choice !== 'string' || !choice) return badRequest('choice is required')
+  if (scope.startsWith('awards:') && !AWARDS_VOTING_OPEN) return forbidden('Awards voting is closed')
 
   const { error } = await supabase
     .from('lp_votes')
