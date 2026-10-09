@@ -5,9 +5,9 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { MOTION, useReducedMotion } from '@/lib/motion'
 import { cn } from '@/lib/utils'
-import { HERO_PHOTO_SRC, heroPhotoLoader } from '@/lib/hero-photo'
 import { NextEventMarquee } from './Marquee'
 import { activeCancellation } from '@/lib/tournaments'
+import { HERO_PHOTO_SRC, heroPhotoLoader } from '@/lib/hero-photo'
 
 const taglineWords = ['GRASSROOTS.', 'PLAYER-OWNED.', 'BUILT TO', 'COMPETE.']
 
