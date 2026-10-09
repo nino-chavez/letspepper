@@ -7,8 +7,8 @@
  * imports, comments, logic without strings) leaves a reviewed snapshot current
  * while any edit to text a reader can meet makes it stale.
  *
- * Counted, in source order: JSX text, and every string and template literal
- * except
+ * Counted, in source order: JSX text, and every string, template and numeric
+ * literal (a price, a team cap or a date can be a bare number) except
  *   - module specifiers (`import … from '…'`, `import '…'`, `import(…)`,
  *     `require(…)`);
  *   - values of presentational JSX attributes (NON_COPY_ATTRS, `data-*`);
@@ -50,6 +50,9 @@ const CONDITION_KEYWORDS = new Set(['if', 'while', 'for', 'with']);
 const REGEX_FLAGS = /^[dgimsuvy]*$/;
 /** What may follow a regex literal: member access, a separator, a closer, an operator, or the end of the line. */
 const REGEX_FOLLOWER = /^[ \t]*(?:$|[\r\n.,;:)\]}?]|&&|\|\||===?|!==?)/;
+
+/** A numeric literal at the sticky position: hex/octal/binary, decimals, exponents, separators, BigInt. */
+const NUMBER = /(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][+-]?\d[\d_]*)?)n?/y;
 
 const isIdentStart = (c) => c !== undefined && /[\p{L}_$]/u.test(c);
 const isIdentPart = (c) => c !== undefined && /[\p{L}\p{N}_$]/u.test(c);
@@ -234,8 +237,12 @@ class Scanner {
         prev = { t: 'ident', v: word };
         continue;
       }
-      if (/[0-9]/.test(c)) {
-        while (/[0-9a-zA-Z_.]/.test(this.s[this.i] ?? '')) this.i += 1;
+      if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(this.s[this.i + 1] ?? ''))) {
+        NUMBER.lastIndex = this.i;
+        const match = NUMBER.exec(this.s);
+        if (!match) this.fail('unreadable number');
+        this.emit(match[0], excluded);
+        this.i += match[0].length;
         prev = { t: 'value' };
         continue;
       }
@@ -367,6 +374,9 @@ export function Card({ open }: { open: boolean }) {
   )
 }`), ['Season', 'recap', 'src=/a.webp', 'alt=Players at the net', 'href=/gallery', 'aria-label=View the gallery', 'View Gallery', 'aria-hidden=true', '→', 'Open now', 'Opens {} at 9'], 'tsx component');
 
+  same(copySegments(`const fee = 40; const cap = 0x18; const starts = new Date(2026, 6, 14); const rate = .5e-1; const big = 1_000n`, { jsx: false }), ['40', '0x18', '2026', '6', '14', '.5e-1', '1_000n'], 'numeric literals count');
+  same(tsx(`const a = <p style={{ opacity: 0.5 }} className={cn('w-4', 2 > 1 && 'h-2')}>Max {24} teams</p>`), ['Max', '24', 'teams'], 'numbers in excluded attributes and class helpers do not count');
+
   same(copySegments(`const items = [{ title: 'Media', className: 'p-2 text-sm', body: "Photo & video" }]
 const re = /^[a-z]+\\/(\\d+)$/gi
 const half = total / 2 / 3
@@ -374,7 +384,7 @@ const lazy = await import('./x')
 const cfg = require('./cfg')
 export * from './more'
 type Variant = 'belle' | 'bell'
-const list = useState<string | null>(null)`, { jsx: false }), ['Media', 'Photo & video', 'belle', 'bell'], 'ts data, regex, division, module specifiers');
+const list = useState<string | null>(null)`, { jsx: false }), ['Media', 'Photo & video', '2', '3', 'belle', 'bell'], 'ts data, regex, division, module specifiers');
 
   same(tsx(`const x = <>
   <p>Line one
@@ -384,9 +394,9 @@ const list = useState<string | null>(null)`, { jsx: false }), ['Media', 'Photo &
   same(tsx(`export const motionProps = <motion.div initial={{ opacity: 0 }} transition={{ ease: 'easeOut' }} whileInView="show">Hi</motion.div>`), ['Hi'], 'motion props excluded');
 
   // Division signs the scanner must not mistake for a regex start (each would hide the string between them).
-  same(copySegments(`const h = i++ / 2; const label = 'Hello reader'; const q = total / 3`, { jsx: false }), ['Hello reader'], 'division after postfix ++');
-  same(copySegments(`const w = size.default / 2; const t = 'Welcome'; const r = a / b`, { jsx: false }), ['Welcome'], 'division after a keyword-named property');
-  same(copySegments(`const n = value! / 2; const s = 'Non-null'; const m = x / y`, { jsx: false }), ['Non-null'], 'division after a non-null assertion');
+  same(copySegments(`const h = i++ / 2; const label = 'Hello reader'; const q = total / 3`, { jsx: false }), ['2', 'Hello reader', '3'], 'division after postfix ++');
+  same(copySegments(`const w = size.default / 2; const t = 'Welcome'; const r = a / b`, { jsx: false }), ['2', 'Welcome'], 'division after a keyword-named property');
+  same(copySegments(`const n = value! / 2; const s = 'Non-null'; const m = x / y`, { jsx: false }), ['2', 'Non-null'], 'division after a non-null assertion');
   same(copySegments(`if (ok) /^a+$/.test(s); const z = 'After a condition'`, { jsx: false }), ['After a condition'], 'regex after an if condition');
 
   const throws = (source, label) => {
@@ -403,7 +413,7 @@ const list = useState<string | null>(null)`, { jsx: false }), ['Media', 'Photo &
   try { tsx(`const s = 'unterminated\n`); } catch (error) { threw = error instanceof CopyScanError; }
   if (!threw) throw new Error('an unterminated string did not throw CopyScanError');
 
-  console.log('copy-segments self-test: PASS (JSX text, attributes, class helpers, data strings, module specifiers, regex vs division, scan errors)');
+  console.log('copy-segments self-test: PASS (JSX text, attributes, class helpers, data strings, numbers, module specifiers, regex vs division, scan errors)');
 }
 
 if (invokedDirectly(import.meta.url)) {

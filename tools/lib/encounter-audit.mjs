@@ -13,10 +13,11 @@
  * encounter. `manualReview.fingerprint` picks what the fingerprint covers:
  *   - "bytes" (default): every byte of every source file, so any edit, code
  *     or copy, makes the receipt stale;
- *   - "copy": only the reader-facing text of each file (copy-segments.mjs for
- *     JS/TS/JSX/TSX; bytes for other text files; images, fonts and
- *     stylesheets skipped), so class, layout, import, comment and logic edits
- *     leave the receipt current. Files with no reader-facing text drop out.
+ *   - "copy": only what a reader can meet (copy-segments.mjs for
+ *     JS/TS/JSX/TSX: text, strings and numbers; bytes for images and other
+ *     text files; fonts, stylesheets and source maps skipped), so class,
+ *     layout, import, comment and string-free logic edits leave the receipt
+ *     current. Files with nothing reader-facing drop out.
  * Switching a reviewed snapshot to a new fingerprint without a new walk is
  * --refingerprint=<surface>: it refuses unless the receipt still matches the
  * source under its old fingerprint, and keeps the original reviewer fields.
@@ -31,8 +32,8 @@ export const ENCOUNTER_AUDIT_VERSION = 2;
 const CONTRACT_NAME = 'reader-contract.json';
 const MANUAL_REVIEW_VERSION = 1;
 const FINGERPRINTS = new Set(['bytes', 'copy']);
-/** Never reader-facing text: skipped entirely by the copy fingerprint. */
-const NOT_COPY_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.bmp', '.tif', '.tiff', '.woff', '.woff2', '.ttf', '.otf', '.eot', '.css', '.scss', '.sass', '.less', '.map']);
+/** Never reader-facing: skipped by the copy fingerprint. Images are not here: a share card or icon is something a reader sees, so it is hashed by bytes. */
+const NOT_COPY_EXTS = new Set(['.woff', '.woff2', '.ttf', '.otf', '.eot', '.css', '.scss', '.sass', '.less', '.map']);
 const PLAINNESS = new Set(['lay', 'practitioner', 'specialist']);
 const SCANNABLE = new Set(['.html', '.htm', '.md', '.mdx', '.txt', '.json']);
 const SKIP_DIRS = new Set(['node_modules', '.git', '.astro', '.svelte-kit', '.next', '.wrangler']);
@@ -671,15 +672,16 @@ export default function Page() {
   const put = (file, text) => writeFile(path.join(copyRoot, 'src', file), text);
   const oddFile = (param) => `const pick = <T,>(${param}: T) => ${param}\nexport const tag = pick('Hi')\n`;
   await put('page.tsx', page());
-  await put('helpers.ts', 'export const twice = (n: number) => n * 2\n'); // no reader-facing text: not a copy file
+  await put('helpers.ts', 'export const twice = (n: number) => n + n\n'); // no strings or numbers: not a copy file
   await put('site.css', 'main { padding: 1rem; }\n'); // never copy
+  await put('card.png', 'PNG-v1'); // a reader sees images: hashed by bytes
   await put('notes.md', '# Visitor notes\n'); // other text: hashed by bytes
   await put('odd.tsx', oddFile('x')); // the scanner cannot follow a generic arrow: hashed by bytes
   const copyContract = { ...base, surfaces: [{ ...base.surfaces[0], renderedRoots: [], manualReview: { evidencePath: 'reader-audits/page.json', fingerprint: 'copy' } }] };
   const byteContract = { ...base, surfaces: [{ ...copyContract.surfaces[0], manualReview: { evidencePath: 'reader-audits/page.json' } }] };
   await writeFile(path.join(copyRoot, CONTRACT_NAME), `${JSON.stringify(copyContract, null, 2)}\n`);
   const recorded = await recordManualReview({ targetDir: copyRoot, surfaceName: 'page', reviewedBy: 'self-test', method: 'fixture walk', reviewedAt: '2026-01-01T00:00:00.000Z' });
-  if (recorded.evidence.fingerprint !== 'copy' || recorded.evidence.sourceFiles !== 3) throw new Error(`copy receipt should count page.tsx, notes.md and odd.tsx: ${JSON.stringify(recorded.evidence)}`);
+  if (recorded.evidence.fingerprint !== 'copy' || recorded.evidence.sourceFiles !== 4) throw new Error(`copy receipt should count page.tsx, card.png, notes.md and odd.tsx: ${JSON.stringify(recorded.evidence)}`);
   if (JSON.stringify(recorded.scanFallbacks) !== JSON.stringify(['src/odd.tsx'])) throw new Error(`odd.tsx should fall back to bytes: ${JSON.stringify(recorded.scanFallbacks)}`);
   const audit = () => auditReaderContract({ targetDir: copyRoot });
   const expectCurrent = async (label) => {
@@ -693,12 +695,16 @@ export default function Page() {
   await put('page.tsx', page({ cls: 'p-6 md:p-8' })); await expectCurrent('a class edit');
   await put('page.tsx', page({ comment: 'hero, rewritten' })); await expectCurrent('a comment edit');
   await put('page.tsx', page());
-  await put('helpers.ts', 'export const twice = (n: number) => n + n\n'); await expectCurrent('a logic edit in a file with no copy');
+  await put('helpers.ts', 'export const square = (n: number) => n * n\n'); await expectCurrent('a logic edit in a file with no copy');
   await put('site.css', 'main { padding: 2rem; }\n'); await expectCurrent('a stylesheet edit');
   for (const [label, change] of [['a heading edit', { heading: 'Grass volleyball' }], ['an aria-label edit', { label: 'Open the gallery' }], ['a data-string edit', { title: 'Photos' }], ['an href edit', { href: '/photos' }]]) {
     await put('page.tsx', page(change)); await expectStale(label);
     await put('page.tsx', page()); await expectCurrent(`restoring after ${label}`);
   }
+  await put('card.png', 'PNG-v2'); await expectStale('a replaced image');
+  await put('card.png', 'PNG-v1');
+  await put('page.tsx', page().replace("const items", "const cap = 24\nexport const items")); await expectStale('an added number');
+  await put('page.tsx', page());
   await put('notes.md', '# Visitor notes, revised\n'); await expectStale('an edit to a non-code text file');
   await put('notes.md', '# Visitor notes\n');
   await put('odd.tsx', oddFile('y')); await expectStale('a code-only edit to a file the scanner falls back on');
