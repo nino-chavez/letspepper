@@ -23,6 +23,7 @@
     "test:social": "node --test scripts/social-publish/test/*.test.mjs",
     "check:rhq-drift": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-rhq-drift.mjs",
     "test:standings": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/standings-points.test.mjs",
+    "test:predictions": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-support/alias-register.mjs --test scripts/predictions-event.test.mjs",
     "derive:mascots": "node scripts/site/derive-mascot-images.mjs"
   },
   "dependencies": {

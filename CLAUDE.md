@@ -159,7 +159,7 @@ The power rankings (`src/lib/rankings-data.ts`) are hand-written. Refresh them a
 Edit `src/components/GalleryPreview.tsx` - update the `galleryImages` array with `cfImageId` values from `photo_metadata.cf_image_id`.
 
 ### Updating Event Details
-Edit the `tournaments` record in `src/lib/tournaments.ts`: dates, locations, entry fees, perks, and `cancellation` when an event is called off. The event pages, home cards, `/about` and share images all read it.
+Edit the `tournaments` record in `src/lib/tournaments.ts`: dates, locations, entry fees, perks, and `cancellation` when an event is called off. The event pages, home cards, `/about`, share images and `/predictions` (picks open for the next open event and lock at its first serve) all read it.
 
 ## Important Notes
 
