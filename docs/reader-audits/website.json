@@ -1,10 +1,10 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T17:49:14.650Z",
+  "reviewedAt": "2026-10-09T17:53:13.862Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Cloudflare preview walkthrough of 4f2d592 (dd0ef8ff.letspepper.pages.dev), logged-out browser at 390, 768, 900, 1023, 1024 and 1280 px: read rendered text of every page in scope; screenshots of home hero and tape, phone menu, About series and header; tape pause button clicked and keyboard-focused; image load and horizontal-overflow checks; banned-term scan of all pages in scope. Covers the website source changed since the 2026-07-29 review (PRs #51, #70, #71) plus this branch's fixes. Noted, unchanged: /privacy names gallery.ninochavez.co (legal text); Bell Pepper media perks name nino.photos.",
-  "sourceDigest": "sha256:ee1e32d4c5ace4cc35d6a376841286874c127659bfb7bfab8690c6580d526883",
+  "method": "Cloudflare preview walkthrough, logged-out browser. Branch at 4f2d592 (dd0ef8ff.letspepper.pages.dev) at 390, 768, 900, 1023, 1024 and 1280 px: read rendered text of every page in scope; screenshots of home hero and tape, phone menu, About series and header; tape pause button clicked and keyboard-focused; image load and horizontal-overflow checks; banned-term scan of all pages in scope. After merging #74, re-walked the three changed lines on 41b4c58 (74e9ed15.letspepper.pages.dev): FAQ photo answer, /privacy gallery line and date; ninochavez.co/photography returns 200. Covers the website source changed since the 2026-07-29 review (#51, #70, #71, #74) plus this branch. Noted, unchanged: Bell Pepper media perks name nino.photos (live, redirects to ninochavez.co).",
+  "sourceDigest": "sha256:b05c89eb5b22af0b458de1acd26d82e507fac3967e0f302cf6426e6d124f7ddd",
   "sourceFiles": 98,
   "scope": [
     "home",
@@ -13,6 +13,7 @@
     "signup",
     "standings",
     "gallery",
+    "privacy gallery line",
     "flavors/bell-pepper-open",
     "flavors/jalapeno-open",
     "flavors/poblano-open",
