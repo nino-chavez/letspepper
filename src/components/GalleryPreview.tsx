@@ -5,42 +5,44 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { MOTION } from '@/lib/motion'
 import { cn } from '@/lib/utils'
+import { cfImageLoader } from '@/lib/cloudflare-images'
 
-// Gallery images from Let's Pepper tournaments via SmugMug
+// Gallery images from Let's Pepper tournaments, by Cloudflare Images ID
+// (the same IDs the shared photo database lists as cf_image_id)
 const galleryImages = [
   {
     id: 1,
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/LPO/Bell-Pepper-Open-20250719/i-MKbtxb7/0/MGmNvWrKdGFhbQHwBwWM7DkpqR8LRnQhv9kjQ59RR/L/lpo-green-pepper-2025-003-L.jpg',
+    cfImageId: 'MKbtxb7',
     alt: 'Bell Pepper Open - intense grass volleyball action',
     event: 'Bell Pepper Open 2025'
   },
   {
     id: 2,
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/KrushSuburbanSlam2025/i-V5b7DfL/0/NHcnwG9P2kjf9Mq3HjnnMPG4cLZwXTFCcJ4Vn23XF/L/krush-suburban-slam-028-L.jpg',
+    cfImageId: 'V5b7DfL',
     alt: 'Krush Suburban Slam - grass volleyball tournament',
     event: 'Krush Suburban Slam 2025'
   },
   {
     id: 3,
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/Players-Player-Appreciation-Turf-4s-20250920/i-qSK643h/0/NM9Q9GH8HdK3LRqb3JZGcmzfzRC7ZRWNs64JLNcVS/L/lifezone-05-L.jpg',
+    cfImageId: 'qSK643h',
     alt: 'Player Appreciation Turf 4s - spike action',
     event: 'Player Appreciation 2025'
   },
   {
     id: 4,
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/Krush-Reverse-CoEd-20250720/i-g7tTzCp/0/LkngPzKtmhwzV3njpFKqSB2qQpKHFNzfWFW8rrS6c/L/krush-reverse-coed-003-L.jpg',
+    cfImageId: 'g7tTzCp',
     alt: 'Krush Reverse Co-Ed - competitive grass volleyball',
     event: 'Krush Reverse Co-Ed 2025'
   },
   {
     id: 5,
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/2025-Cookout-Volleyball-Grass-Tournament/i-pBgXBfb/0/LfkpqrRfKQJRcttfjGxCvGcJzTk4nLGvw5VXWWRKs/L/2025-cookout-vb-004-L.jpg',
+    cfImageId: 'pBgXBfb',
     alt: 'Cookout Grass Tournament - serve action',
     event: 'Cookout Tournament 2025'
   },
   {
     id: 6,
-    src: 'https://photos.smugmug.com/Sports/Volleyball/Grass/Krush-Reverse-Co-Ed-2-20250817/i-tDWZwkq/0/NcLvqJqcQMgLPZnNvQQsBdxRx8tCjWMc9djtmKkz6/L/krush-reverse-coed-2-97-L.jpg',
+    cfImageId: 'tDWZwkq',
     alt: 'Krush Reverse Co-Ed 2 - athletic play',
     event: 'Krush Reverse Co-Ed 2'
   },
@@ -101,7 +103,8 @@ export function GalleryPreview() {
             >
               {/* Gallery Image */}
               <Image
-                src={image.src}
+                loader={cfImageLoader}
+                src={image.cfImageId}
                 alt={image.alt}
                 fill
                 className="object-cover object-center transition-transform duration-500 group-hover:scale-105"
