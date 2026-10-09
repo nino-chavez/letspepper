@@ -120,7 +120,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'Where can I find photos after the event?',
-        answer: 'Galleries are posted to letspepper.com/gallery within a few days of the event. Download and share your photos from there.',
+        answer: 'Galleries are posted to letspepper.com/gallery within a few days of the event. Downloadable and shareable.',
       },
       {
         question: 'Will there be highlight reels?',
