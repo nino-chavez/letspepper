@@ -1,16 +1,21 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-07-29T00:44:20.693Z",
-  "reviewedBy": "Claude Opus 5 (Claude Code) + browse-tool",
-  "method": "local production-build walkthrough (pnpm start): browser screenshots of home, /flavors/poblano-open, /signup; rendered-DOM text extraction for those plus /standings; opengraph-image fetched and viewed",
-  "sourceDigest": "sha256:39b056be2e1f021de6c808f1c289f1cd6cf0a60b10615a194ed7264311497836",
+  "reviewedAt": "2026-10-09T17:49:14.650Z",
+  "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
+  "method": "Cloudflare preview walkthrough of 4f2d592 (dd0ef8ff.letspepper.pages.dev), logged-out browser at 390, 768, 900, 1023, 1024 and 1280 px: read rendered text of every page in scope; screenshots of home hero and tape, phone menu, About series and header; tape pause button clicked and keyboard-focused; image load and horizontal-overflow checks; banned-term scan of all pages in scope. Covers the website source changed since the 2026-07-29 review (PRs #51, #70, #71) plus this branch's fixes. Noted, unchanged: /privacy names gallery.ninochavez.co (legal text); Bell Pepper media perks name nino.photos.",
+  "sourceDigest": "sha256:ee1e32d4c5ace4cc35d6a376841286874c127659bfb7bfab8690c6580d526883",
   "sourceFiles": 98,
   "scope": [
     "home",
-    "flavors/poblano-open",
+    "about",
+    "faq",
     "signup",
     "standings",
-    "flavors/poblano-open opengraph-image"
+    "gallery",
+    "flavors/bell-pepper-open",
+    "flavors/jalapeno-open",
+    "flavors/poblano-open",
+    "header and phone menu"
   ]
 }
