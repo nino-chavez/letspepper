@@ -28,6 +28,19 @@ interface MarqueeProps {
   showControls?: boolean
 }
 
+/**
+ * How far the tape reaches past each side of its container, in % of the
+ * container's width. The tape is rotated, so it is drawn wider than the
+ * container to keep its tilted ends from showing a gap.
+ */
+const OVERHANG_PCT = 5
+
+/**
+ * The same overhang in % of the tape's own width, which is what an absolutely
+ * positioned child's `right` resolves against.
+ */
+const OVERHANG_OF_TAPE_PCT = (OVERHANG_PCT / (100 + 2 * OVERHANG_PCT)) * 100
+
 const variantStyles = {
   live: {
     bg: 'bg-[var(--live)]/90',
@@ -35,8 +48,6 @@ const variantStyles = {
     highlight: 'text-white',
     gradientFrom: 'from-[var(--live)]/90',
     gradientVia: 'via-[var(--live)]/90',
-    buttonBg: 'bg-pepper-black/20 hover:bg-pepper-black/30',
-    buttonText: 'text-pepper-black',
   },
   belle: {
     bg: 'bg-belle-primary/90',
@@ -44,8 +55,6 @@ const variantStyles = {
     highlight: 'text-yellow-300',
     gradientFrom: 'from-belle-primary/90',
     gradientVia: 'via-belle-primary/90',
-    buttonBg: 'bg-white/20 hover:bg-white/30',
-    buttonText: 'text-white',
   },
   jalapeno: {
     bg: 'bg-heat-jalapeno/90',
@@ -53,8 +62,6 @@ const variantStyles = {
     highlight: 'text-white',
     gradientFrom: 'from-heat-jalapeno/90',
     gradientVia: 'via-heat-jalapeno/90',
-    buttonBg: 'bg-pepper-black/20 hover:bg-pepper-black/30',
-    buttonText: 'text-pepper-black',
   },
   bell: {
     bg: 'bg-heat-bell/90',
@@ -62,8 +69,6 @@ const variantStyles = {
     highlight: 'text-white',
     gradientFrom: 'from-heat-bell/90',
     gradientVia: 'via-heat-bell/90',
-    buttonBg: 'bg-pepper-black/20 hover:bg-pepper-black/30',
-    buttonText: 'text-pepper-black',
   },
   poblano: {
     bg: 'bg-heat-poblano/90',
@@ -71,8 +76,6 @@ const variantStyles = {
     highlight: 'text-white',
     gradientFrom: 'from-heat-poblano/90',
     gradientVia: 'via-heat-poblano/90',
-    buttonBg: 'bg-pepper-black/20 hover:bg-pepper-black/30',
-    buttonText: 'text-pepper-black',
   },
 }
 
@@ -87,14 +90,17 @@ export function Marquee({
   showControls = true, // Default true for WCAG 2.2.2 compliance
 }: MarqueeProps) {
   const prefersReducedMotion = useReducedMotion()
-  const [isPaused, setIsPaused] = useState(prefersReducedMotion)
+  // null until the viewer presses the button; until then a reduced-motion
+  // viewer starts paused
+  const [userPaused, setUserPaused] = useState<boolean | null>(null)
+  const isPaused = userPaused ?? prefersReducedMotion
   const styles = variantStyles[variant]
 
   // Duplicate items enough times to ensure seamless loop
   const duplicatedItems = [...items, ...items, ...items, ...items]
 
   const togglePause = () => {
-    setIsPaused(!isPaused)
+    setUserPaused(!isPaused)
   }
 
   return (
@@ -106,9 +112,9 @@ export function Marquee({
       )}
       style={{
         transform: `rotate(${rotation}deg)`,
-        marginLeft: '-5%',
-        marginRight: '-5%',
-        width: '110%',
+        marginLeft: `-${OVERHANG_PCT}%`,
+        marginRight: `-${OVERHANG_PCT}%`,
+        width: `${100 + 2 * OVERHANG_PCT}%`,
       }}
       role="region"
       aria-label="Announcement banner"
@@ -171,22 +177,25 @@ export function Marquee({
           type="button"
           onClick={togglePause}
           className={cn(
-            // This box is 110% width with -5%/-5% margins (see the wrapping div's
-            // inline style below), so its own right edge sits ~5% of viewport
-            // width beyond the visible edge. `right-4` (16px) doesn't clear that
-            // 5% on narrow screens (~19.5px at 390px wide), so the button's own
-            // right edge fell past the viewport edge and got clipped. `right-[7%]`
-            // scales with the same unit the overflow is defined in.
-            'absolute right-[7%] sm:right-4 top-1/2 -translate-y-1/2 z-20',
+            'absolute top-1/2 z-20',
             'w-8 h-8 rounded-full flex items-center justify-center',
             'transition-all duration-200 cursor-pointer',
-            styles.buttonBg,
-            styles.buttonText,
-            'focus:outline-none focus:ring-2 focus:ring-pepper-black/50 focus:ring-offset-1'
+            // Opaque on every tape color: a see-through disc let the scrolling
+            // text run under the icon, and on the pink tape the icon measured
+            // 2.5:1 against its disc (below the 3:1 a control needs).
+            'bg-pepper-black text-white hover:bg-pepper-charcoal',
+            // Two-tone ring (white gap, black ring) instead of the site-wide
+            // jalapeno ring, which measures 1.1-1.5:1 against the tape colors.
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-pepper-black focus-visible:ring-offset-2 focus-visible:ring-offset-white'
           )}
+          // The label names the action and changes with it, so no aria-pressed:
+          // a toggle's label must stay fixed when its state changes.
           aria-label={isPaused ? 'Play announcement' : 'Pause announcement'}
-          aria-pressed={isPaused}
           style={{
+            // 0.75rem inside the container's visible edge at every width. The
+            // tape's own right edge sits OVERHANG_PCT past that edge, so a plain
+            // `right-4` put this button off-screen from 640 px up.
+            right: `calc(${OVERHANG_OF_TAPE_PCT}% + 0.75rem)`,
             // Adjust for rotation
             transform: `translateY(-50%) rotate(${-rotation}deg)`,
           }}
@@ -247,17 +256,18 @@ export function NextEventMarquee({ className }: { className?: string }) {
   // A cancelled event is never "next up" — it is not happening, so the tape must
   // skip past it to whatever genuinely is (or to the off-season fallback).
   const next = seasonEvents.find((e) => e.date >= today && !e.cancelled)
+  const nextSlug = next?.slug
   const [isLive, setIsLive] = useState(false)
 
   useEffect(() => {
-    if (!next) return
-    fetch(`/api/rhq/summary?slug=${encodeURIComponent(next.slug)}`)
+    if (!nextSlug) return
+    fetch(`/api/rhq/summary?slug=${encodeURIComponent(nextSlug)}`)
       .then((r) => r.json())
       .then((data) => {
         if (data?.is_live === true) setIsLive(true)
       })
       .catch(() => {/* fall back to date logic */})
-  }, [next?.slug])
+  }, [nextSlug])
 
   if (!next) {
     // Off-season fallback
