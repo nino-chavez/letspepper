@@ -153,7 +153,7 @@ export default function PrivacyPage() {
                   <ul className="list-disc pl-6 space-y-2">
                     <li><strong className="text-zinc-300">Payment Processing:</strong> Secure payment through Stripe or similar providers</li>
                     <li><strong className="text-zinc-300">Email:</strong> Event communications and announcements</li>
-                    <li><strong className="text-zinc-300">Photo Hosting:</strong> SmugMug for gallery hosting</li>
+                    <li><strong className="text-zinc-300">Photo Hosting:</strong> Cloudflare Images for gallery hosting</li>
                     <li><strong className="text-zinc-300">Cloudflare Web Analytics:</strong> Privacy-respecting real-user monitoring with no tracking cookies or PII collection</li>
                     <li><strong className="text-zinc-300">Rally HQ:</strong> Community engagement leaderboard powered by a pseudonymous persistent fan token (tied to your browser device ID and optional nickname). This is optional—engagement works without entering a nickname. You can request deletion of your fan-token data anytime.</li>
                     <li><strong className="text-zinc-300">Social Media:</strong> Instagram, TikTok, YouTube for content distribution</li>
