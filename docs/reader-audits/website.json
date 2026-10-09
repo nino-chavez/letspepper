@@ -1,12 +1,21 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T18:08:39.437Z",
+  "reviewedAt": "2026-10-09T18:37:15.045Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code) + browse-tool, for Nino Chavez",
-  "method": "Only website source change since the previous receipt (ff90361): aria-expanded on the phone menu's Community button in Header.tsx; no copy changed. Walked on this branch's Cloudflare preview (f28d548f.letspepper.pages.dev, cf3c6e4), logged-out browser at 800 px, the menu-button layout used below 1024 px: opened the menu, toggled Community; aria-expanded read false, then true with all six community links visible, then false; no horizontal overflow. Earlier receipt walks (#75) cover the rest of the site.",
-  "sourceDigest": "sha256:cd3d06a4aeff9e1b42fd815f8b4f801999e376e83a1ff331a96df8c03f158f32",
-  "sourceFiles": 98,
+  "method": "This receipt first brings src/lib under review (reader-contract.json now lists it). Walked branch previews 833c3e3a (34e1b54) and ce632cf4 (c6c5098), and production letspepper.com for the Rally HQ states previews cannot show (previews have no RALLY_HQ_API_KEY), in a logged-out browser. Event pages: read all three in full on the preview and both finished ones on production (Final face, champion, standings, brackets). Verified the Bell Pepper perk now reads 'Full gallery access at letspepper.com/gallery'; no sign-up button on finished or cancelled events; no countdown or champion pick after the event date; ?phase=pre still forces the pre face. Correction: the 2026-10-09 receipt for #75 listed flavors/bell-pepper-open after only a banned-term scan and gallery-link check; this walk read it in full and found the Sign Up button fixed here. Community pages whose copy is in src/lib (quiz, bingo, predictions, awards, rankings, hot-takes): load, banned and stale term scan, season-claim read. Known and unchanged, noted for an owner decision: /predictions targets Bell Pepper Open 2026 (picks closed); /rankings last refreshed 2026-06-08 and omits the Jalapeño Open 2026; /awards still runs the 2025 season vote; /hot-takes shows a visitor's take predicting the Poblano Open field (database content, not repo copy).",
+  "sourceDigest": "sha256:be649c788d6f90d840bce753332667b49f0c1a05b977073cce71b25317a37424",
+  "sourceFiles": 121,
   "scope": [
-    "header phone/tablet menu, Community toggle"
+    "flavors/bell-pepper-open",
+    "flavors/jalapeno-open",
+    "flavors/poblano-open",
+    "quiz",
+    "bingo",
+    "predictions",
+    "awards",
+    "rankings",
+    "hot-takes",
+    "src/lib baseline"
   ]
 }
