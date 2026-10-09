@@ -329,16 +329,15 @@ src/
 ### Flickday Media Connection
 
 This site is part of the Flickday Media ecosystem:
-- Gallery links to SmugMug/Flickday photography
+- Gallery at `/gallery`, served from the photography site's shared library (Supabase + Cloudflare Images)
 - Consistent dark aesthetic with Flickday Media
 - Shared heat color system
 
 ### Future Enhancements
 
 1. **Tournament Registration:** Add Supabase for signups
-2. **Dynamic Gallery:** Pull from SmugMug API
-3. **Event Calendar:** Tournament schedule component
-4. **Player Profiles:** Optional player directory
+2. **Event Calendar:** Tournament schedule component
+3. **Player Profiles:** Optional player directory
 
 ---
 
