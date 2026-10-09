@@ -145,7 +145,7 @@ Cloudflare Pages' GitHub connection is the only deploy path. It replaced a GitHu
 - **A merge to `main`** builds and deploys production. The build command lives in the Pages project settings: `pnpm install --frozen-lockfile && pnpm dlx @cloudflare/next-on-pages@1`. A failed build leaves the previous deploy live.
 - **`.github/workflows/pr-checks.yml`** runs on every PR and must pass to merge. It checks that the lockfile matches `package.json`, that every mascot derivative `src/` references exists, and that the website's reader review is current.
 
-The reader check fails with `manual-review-stale` when a PR changes files under `src/app` or `src/components`. Walk the changed pages on the branch preview against [`reader-contract.json`](reader-contract.json), then record the review on the branch and commit `docs/reader-audits/website.json` with the change:
+The reader check compares the branch's `src/app` and `src/components` with the source recorded in the last review, `docs/reader-audits/website.json`. It fails with `manual-review-stale` whenever they differ, whichever PR made the change. Walk the changed pages on the branch preview against [`reader-contract.json`](reader-contract.json). Then record the review on the branch and commit the receipt with the change:
 
 ```bash
 node tools/lib/encounter-audit.mjs --root=. --record-manual=website \

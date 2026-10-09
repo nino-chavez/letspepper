@@ -40,7 +40,8 @@ jobs:
         run: node scripts/site/derive-mascot-images.mjs --check
 
       - name: Reader clarity contract
-        # Fails when website copy changed since the last recorded review. Walk
+        # Fails when src/app or src/components differs from the source the last
+        # recorded review covered (docs/reader-audits/website.json). Walk
         # the branch's Cloudflare preview, then record a new receipt (see
         # CLAUDE.md, "Deploys").
         run: pnpm reader:check:website
