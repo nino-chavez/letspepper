@@ -27,7 +27,7 @@ const config: Config = {
           glow: '#ec4899',
         },
       },
-      // next/font registers each face under a generated name (__Bebas_Neue_…)
+      // next/font registers each face under a generated name (__bebasNeue_…)
       // and exposes it through these variables (src/app/layout.tsx). Naming
       // the literal family here matched nothing, so headings drew Impact and
       // body text the system face.

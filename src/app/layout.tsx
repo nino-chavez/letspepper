@@ -1,25 +1,34 @@
 import type { Metadata, Viewport } from 'next'
-import { Bebas_Neue, Inter, Space_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
 import Script from 'next/script'
 import './globals.css'
 import { TodayProvider } from '@/lib/today'
 
-const bebasNeue = Bebas_Neue({
+// Fonts are local files (latin, from Fontsource 5.3.0, OFL texts beside them),
+// not next/font/google. next/font names each face from a hash of the CSS it
+// downloads at build time, so when Google's CSS changed, Cloudflare's restored
+// build cache kept the old names in the server HTML while the CSS got new ones,
+// and every font variable resolved to nothing (2026-10-11). Local files keep
+// the names fixed by what is in this repo.
+const bebasNeue = localFont({
+  src: './fonts/bebas-neue-latin-400-normal.woff2',
   weight: '400',
-  subsets: ['latin'],
   variable: '--font-display',
   display: 'swap',
 })
 
-const inter = Inter({
-  subsets: ['latin'],
+const inter = localFont({
+  src: './fonts/inter-latin-wght-normal.woff2',
+  weight: '100 900',
   variable: '--font-body',
   display: 'swap',
 })
 
-const spaceMono = Space_Mono({
-  weight: ['400', '700'],
-  subsets: ['latin'],
+const spaceMono = localFont({
+  src: [
+    { path: './fonts/space-mono-latin-400-normal.woff2', weight: '400' },
+    { path: './fonts/space-mono-latin-700-normal.woff2', weight: '700' },
+  ],
   variable: '--font-accent',
   display: 'swap',
 })
