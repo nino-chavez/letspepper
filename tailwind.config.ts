@@ -27,10 +27,14 @@ const config: Config = {
           glow: '#ec4899',
         },
       },
+      // next/font registers each face under a generated name (__bebasNeue_…)
+      // and exposes it through these variables (src/app/layout.tsx). Naming
+      // the literal family here matched nothing, so headings drew Impact and
+      // body text the system face.
       fontFamily: {
-        display: ['Bebas Neue', 'Impact', 'sans-serif'],
-        body: ['Inter', 'system-ui', 'sans-serif'],
-        accent: ['Space Mono', 'JetBrains Mono', 'monospace'],
+        display: ['var(--font-display)', 'Impact', 'sans-serif'],
+        body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+        accent: ['var(--font-accent)', 'JetBrains Mono', 'monospace'],
       },
       fontSize: {
         // Ceiling lowered from 10rem 2026-07-27. At 10rem/15vw the h1 rendered

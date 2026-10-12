@@ -1,20 +1,14 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-09T20:16:59.570Z",
-  "reviewedBy": "Claude Opus 5.5 (Claude Code) + Playwright fake clock, for Nino Chavez",
-  "method": "No visible copy changed; the fingerprint moved with new code strings (the date provider and the champion API's 403 message). Walked this branch's previews d13ee80f (4c5ec70) and bf191e85 (2cbd976) with Playwright's fake clock. / /about /rankings /standings /predictions at a visitor date of 2026-05-01: 0 hydration errors (production showed 34, React #425) and the header settles on Sign Up; at today's date: 0 errors, Registration Closed. New Year (2027-01-02) on /: 0 errors, footer 2027 (production 6 errors). Open tab across the Jalapeño Open first serve on /predictions: submit and 45 options before, locked and 0 enabled options 90 s later. Open tab across midnight UTC after the Jalapeño Open on /: Sign Up to Registration Closed. POST /api/champion for jalapeno-open-2026 returns 403 'Champion picks are closed for this event'.",
+  "reviewedAt": "2026-10-12T01:23:18.714Z",
+  "reviewedBy": "Claude Opus 5.5 (Claude Code), for Nino Chavez",
+  "method": "No visible copy changed; the fingerprint moved with the next/font arguments in layout.tsx and the new font files. Walked preview 4512eb58 (b2fd9a2): / at 1440x823 and at 375 wide (no sideways scroll, hero sets GRASSROOTS. / PLAYER-OWNED. / BUILT TO / COMPETE. on four lines), and /about at 1440. Headings measure Bebas Neue, body Inter, nav and accents Space Mono; the html __variable_ classes match the served CSS. Production showed Impact headings and system-face body text. Headlines now set lighter and narrower than the Impact visitors saw.",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:1838aa9320d680d504a5b8a7cfd2622ad59fdacbcc31684e324eebdcc2e38cd2",
-  "sourceFiles": 117,
+  "sourceDigest": "sha256:3e204bea2d0482ba81299d2013c990fdcb42b2501e740e8d4655c32bc30fa3e0",
+  "sourceFiles": 120,
   "scope": [
-    "header",
-    "home hero and tape",
-    "series label",
-    "about",
-    "standings",
-    "predictions",
-    "footer year",
-    "champion pick lock"
+    "home",
+    "about"
   ]
 }
