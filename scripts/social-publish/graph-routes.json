@@ -22,6 +22,19 @@
         "CAROUSEL",
         "STORIES"
       ]
+    },
+    "skin-abrasions": {
+      "reason": "Nino, 2026-10-13, in chat: \"let's use all of them. schedule them out starting with a set to go out right now\". Asked which route the campaign should use, he chose \"Owned scheduler (Recommended)\": this Graph publisher, the same route as the June Bell Pepper reels, approved for this campaign only. Campaign: 2 carousels, 3 Reels and 4 Stories from nino.chavez.photo featuring Skin Abrasions and Hevamech; carousels and Reels invite @skinabrasions and @hevamech5 as Collab co-authors, Stories carry user_tags mentions of both. Source drafts: ~/Workspace/create/campaigns/skin-abrasions.",
+      "approved": "2026-10-13",
+      "accounts": [
+        "ninophoto"
+      ],
+      "expires": "2026-11-15",
+      "media_types": [
+        "CAROUSEL",
+        "REELS",
+        "STORIES"
+      ]
     }
   }
 }
