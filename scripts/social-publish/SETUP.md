@@ -135,6 +135,12 @@ curl -s "https://graph.facebook.com/v25.0/me/accounts?fields=name,id,instagram_b
 ```
 Paste each `instagram_business_account.id` into the matching `ig_user_id` in `accounts.json` (and `page_id`).
 
+### 630 partner Instagram account
+
+The scheduled Worker uses `IG_630_ACCESS_TOKEN` for account `630`, from `op://Developer Secrets/Meta 630 Publisher/credential`. It fails before any Graph request when that binding is absent. Owned accounts continue using `IG_ACCESS_TOKEN`. The 630 grant has no verified Facebook publishing permission; 630 queue items therefore use `channels: ["instagram"]`, while Facebook uses Business Suite. Engagement sweeps exclude this partner account.
+
+Reels with `cover_file` must have `cover_url` before scheduling. The Worker sends that exact URL; without a custom cover it honors an explicit `thumb_offset` before its legacy random-frame fallback. `DEPLOY.md` owns deployment and verification. The 630 publishing procedure owns its default API route and content approval.
+
 ### Facebook Page destination state
 
 Facebook publishing is opt-in per queue item:

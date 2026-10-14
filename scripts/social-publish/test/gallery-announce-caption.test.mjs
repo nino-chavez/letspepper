@@ -98,6 +98,9 @@ function sandbox() {
   mkdirSync(join(root, 'tools', 'lib'), { recursive: true })
   mkdirSync(join(root, 'scripts', 'social-publish', 'queue'), { recursive: true })
   cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
+  cpSync(join(REPO, 'tools', 'lib', 'invoked-directly.mjs'), join(root, 'tools', 'lib', 'invoked-directly.mjs'))
+  cpSync(join(REPO, 'tools', 'lib', 'copy-segments.mjs'), join(root, 'tools', 'lib', 'copy-segments.mjs'))
+  cpSync(join(REPO, 'scripts', 'social-publish', 'vary-captions.mjs'), join(root, 'scripts', 'social-publish', 'vary-captions.mjs'))
   cpSync(join(REPO, 'reader-contract.json'), join(root, 'reader-contract.json'))
   return { root, cleanup: () => rmSync(root, { recursive: true, force: true }) }
 }

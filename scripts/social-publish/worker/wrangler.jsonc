@@ -54,7 +54,7 @@
     // seed-kv.mjs --event gallery-announce --append --put has not been run, so
     // this Worker's KV holds no "gallery-announce" key at all. loadQueue() returns
     // null for a missing key and both postDuePending/resumeIfBuilding just skip it.
-    "ACTIVE_EVENTS": "skin-abrasions,gallery-announce,cutting-board-announce,poblano-2026-cancellation",
+    "ACTIVE_EVENTS": "630-practice-education-20261013,skin-abrasions,gallery-announce,cutting-board-announce,poblano-2026-cancellation",
     // UTC posting slots — the daily cap for LEGACY (no-scheduledAt) items only.
     // The cancellation item carries no scheduledAt, so it IS gated by these hours
     // once an operator flips it to pending: 17 = noon CDT, 22 = 5p CDT.
@@ -78,6 +78,8 @@
   // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, FB_ACCESS_TOKEN,
   // TRIGGER_KEY. Meta exposes Instagram content and Facebook Page management
   // as separate app use cases, so keep their System User tokens isolated.
+  // Partner Instagram credential: IG_630_ACCESS_TOKEN (Meta 630 Publisher).
+  // This grant does not enable Facebook publishing or engagement sweeps for 630.
   // Optional dedicated Page-token overrides:
   // FB_LETSPEPPER_ACCESS_TOKEN, FB_FLICKDAY_ACCESS_TOKEN,
   // FB_NINOPHOTO_ACCESS_TOKEN.

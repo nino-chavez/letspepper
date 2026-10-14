@@ -21,6 +21,14 @@ The one owner of deploy facts for this repo. README.md, CLAUDE.md and AGENTS.md 
   pnpm dlx wrangler pages deploy .vercel/output/static --project-name=letspepper --branch=main
   ```
 
+## Social scheduler
+
+The site and scheduler deploy separately. `.github/workflows/deploy-social-worker.yml` tests and deploys `letspepper-reels-worker` after relevant changes merge to `main`. It uses the existing `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` GitHub secrets; absent credentials skip with a notice. Platform build connections could not be verified with the account-ops token, so this test-gated workflow owns scheduler deployment.
+
+`scripts/social-publish/worker/wrangler.jsonc` owns the hourly cron, queue binding and campaign priority. Publisher credentials remain Worker secrets. Approved queues reach production through `scripts/social-publish/seed-kv.mjs`; deploying code does not seed a queue. Verify the deployment run, remote Worker bindings and cron, then `/status` with the existing trigger credential. Never call `/run` to verify a schedule: it can publish due content.
+
+For 630, `IG_630_ACCESS_TOKEN` comes from `Meta 630 Publisher` in 1Password. Missing that binding fails before any Graph call. It cannot fall back to the owned-account credential. This Instagram grant does not enable Facebook publishing or engagement sweeps for 630.
+
 ## Database
 - Supabase (URL in `wrangler.toml` `[vars]`: `https://skywzpcekhntecegyjoj.supabase.co`)
 - **Migrations**: none in repo — schema managed elsewhere or via dashboard. TODO confirm.
