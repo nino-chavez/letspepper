@@ -238,6 +238,7 @@ export function refusal({ event, items = [], missing = [], stale = [], changed =
       : null,
     "Posts to Nino's accounts go out by hand unless he has approved the Graph API for them:",
     '  a Collab, or a Story with a link/sticker              → native Instagram when direct access is available',
+    '  630 approved content                                → Graph by default; capability fallback per 630 META-PUBLISHING.md',
     '  partner-only access                                 → Meta Business Suite or explicitly approved Graph; no phone detour',
     '  a Story mention                                     → supported as user_tags on an approved Graph route',
     '  an ordinary Instagram + Facebook Page crosspost       → Meta Business Suite',

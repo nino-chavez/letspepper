@@ -492,3 +492,69 @@ test('a saved container whose status check is throttled goes terminal, never reb
   assert.equal(item.status, 'error')
   assert.match(item.error, /request limit/)
 })
+
+function partnerReel({ coverFile = true, coverUrl = true } = {}) {
+  const q = queueWithItem()
+  q.meta.route.accounts = ['630']
+  q.items = [{
+    id: '630-coaching', account: '630', channels: ['instagram'],
+    media_type: 'REELS', video_url: 'https://cdn.example.test/coaching.mp4',
+    caption: 'Find your contact point.\n\n@nick_maruyama',
+    collaborators: ['nick_maruyama'], scheduledAt: '2000-01-01T15:00:00Z',
+    ...(coverFile ? { cover_file: '/approved/cover.jpg' } : {}),
+    ...(coverUrl ? { cover_url: 'https://cdn.example.test/approved-cover.jpg' } : {}),
+    thumb_offset: 1200, status: 'pending',
+  }]
+  return q
+}
+
+function partnerGraphFetch(requests) {
+  return async (input, init = {}) => {
+    const url = new URL(String(input))
+    const body = init.body instanceof URLSearchParams ? init.body : url.searchParams
+    requests.push({ path: url.pathname, params: Object.fromEntries(body) })
+    assert.equal(body.get('access_token'), 'partner-token')
+    if (url.pathname.endsWith('/17841411569230130/media')) return Response.json({ id: 'partner-container' })
+    if (url.pathname.endsWith('/partner-container')) return Response.json({ status_code: 'FINISHED' })
+    if (url.pathname.endsWith('/17841411569230130/media_publish')) return Response.json({ id: 'partner-media' })
+    if (url.pathname.endsWith('/partner-media')) return Response.json({ permalink: 'https://instagram.example.test/p/coaching' })
+    throw new Error(`Unexpected partner request: ${url.pathname}`)
+  }
+}
+
+test('630 Reel uses its partner credential, approved cover and Nick collaborator', async () => {
+  const requests = []
+  const q = await runQueue(partnerReel(), partnerGraphFetch(requests), { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(q.items[0].status, 'posted')
+  assert.equal(q.items[0].ig_media_id, 'partner-media')
+  const create = requests.find(r => r.path.endsWith('/17841411569230130/media'))
+  assert.equal(create.params.cover_url, 'https://cdn.example.test/approved-cover.jpg')
+  assert.equal(create.params.thumb_offset, undefined)
+  assert.deepEqual(JSON.parse(create.params.collaborators), ['nick_maruyama'])
+  assert.equal(create.params.caption, q.items[0].caption)
+})
+
+test('630 missing partner credential fails before Graph instead of using the owned token', async () => {
+  let calls = 0
+  const q = await runQueue(partnerReel(), async () => { calls++; throw new Error('must not call Graph') })
+  assert.equal(calls, 0)
+  assert.equal(q.items[0].status, 'error')
+  assert.match(q.items[0].error, /missing IG_630_ACCESS_TOKEN/)
+})
+
+test('630 requested but unhosted cover fails instead of choosing a random frame', async () => {
+  let calls = 0
+  const q = await runQueue(partnerReel({ coverUrl: false }), async () => { calls++; throw new Error('must not call Graph') }, { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(calls, 0)
+  assert.equal(q.items[0].status, 'error')
+  assert.match(q.items[0].error, /cover has not been uploaded/)
+})
+
+test('explicit Reel frame offset is preserved when no custom cover is requested', async () => {
+  const requests = []
+  const q = await runQueue(partnerReel({ coverFile: false, coverUrl: false }), partnerGraphFetch(requests), { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(q.items[0].status, 'posted')
+  const create = requests.find(r => r.path.endsWith('/17841411569230130/media'))
+  assert.equal(create.params.thumb_offset, '1200')
+  assert.equal(create.params.cover_url, undefined)
+})

@@ -135,6 +135,14 @@ const ACCOUNTS = {
     page_id: '739564079232058',
     fb_token_binding: 'FB_NINOPHOTO_ACCESS_TOKEN',
   },
+  '630': {
+    handle: '630volleyball',
+    ig_user_id: '17841411569230130',
+    ig_token_binding: 'IG_630_ACCESS_TOKEN',
+    // Partner Instagram grant only. Facebook stays on Business Suite until
+    // its own Page publishing grant is verified; never use an owned token.
+    sweep: false,
+  },
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -281,10 +289,12 @@ async function buildContainer(token, ig, it, budget, persist) {
     }
   }
   if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted creating IG reels container')
-  const thumb_offset = String(500 + Math.floor(Math.random() * 5500)) // random cover frame
+  if (it.cover_file && !it.cover_url) throw new Error('requested Reel cover has not been uploaded')
+  const cover = it.cover_url ? { cover_url: it.cover_url }
+    : { thumb_offset: String(it.thumb_offset ?? (500 + Math.floor(Math.random() * 5500))) }
   const { id } = await api(token, `${ig}/media`, {
     media_type: 'REELS', video_url: it.video_url, caption: it.caption,
-    share_to_feed: 'true', thumb_offset, ...tagParams(it),
+    share_to_feed: 'true', ...cover, ...tagParams(it),
   })
   return id
 }
@@ -394,8 +404,10 @@ async function publishInstagramItem(env, ev, q, item, budget) {
     item.status = 'error'; item.error = `unknown account ${item.account}`
     await persistQueue(env, ev, q); return { error: item.error }
   }
-  const token = env.IG_ACCESS_TOKEN
+  const tokenBinding = acct.ig_token_binding || 'IG_ACCESS_TOKEN'
+  const token = env[tokenBinding]
   try {
+    if (!token) throw new Error(`missing ${tokenBinding} for ${item.account}`)
     let containerId = item.ig_container_id
     if (!containerId) {
       containerId = await buildContainer(token, acct.ig_user_id, item, budget, () => persistQueue(env, ev, q))
@@ -903,6 +915,7 @@ async function sweepAccount(env, acct) {
 async function sweep(env) {
   const all = []
   for (const [key, acct] of Object.entries(ACCOUNTS)) {
+    if (acct.sweep === false) continue
     try { all.push(...await sweepAccount(env, acct)) }
     catch (e) { console.error(`sweep ${key} failed`, e); all.push({ account: acct.handle, error: String(e?.message || e) }) }
   }

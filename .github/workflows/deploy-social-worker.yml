@@ -1,0 +1,57 @@
+name: Deploy social scheduler
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/social-publish/worker/**'
+      - 'scripts/social-publish/*.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/deploy-social-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: social-scheduler-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check deployment credentials
+        id: credentials
+        shell: bash
+        run: |
+          if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Social scheduler deployment skipped: Cloudflare credentials are absent."
+          fi
+      - uses: actions/checkout@v7
+        if: steps.credentials.outputs.ready == 'true'
+      - uses: pnpm/action-setup@v6
+        if: steps.credentials.outputs.ready == 'true'
+      - uses: actions/setup-node@v7
+        if: steps.credentials.outputs.ready == 'true'
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install dependencies
+        if: steps.credentials.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Verify publisher and scheduler
+        if: steps.credentials.outputs.ready == 'true'
+        run: |
+          pnpm test:social
+          pnpm social:worker:test
+      - name: Deploy scheduler
+        if: steps.credentials.outputs.ready == 'true'
+        run: pnpm exec wrangler deploy --config scripts/social-publish/worker/wrangler.jsonc
