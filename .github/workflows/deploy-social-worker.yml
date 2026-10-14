@@ -47,6 +47,12 @@ jobs:
       - name: Install dependencies
         if: steps.credentials.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
+      - name: Install publisher test runtime
+        if: steps.credentials.outputs.ready == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+          pnpm exec playwright install --with-deps chromium
       - name: Verify publisher and scheduler
         if: steps.credentials.outputs.ready == 'true'
         run: |
