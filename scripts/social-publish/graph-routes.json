@@ -46,6 +46,17 @@
       "media_types": [
         "REELS"
       ]
+    },
+    "630-block-coaching-20261022": {
+      "reason": "Nino, October 15, 2026, after reviewing the exact Keep it alive coaching export: \"this is better. let's schedule the coaching piece after october 21\". The 630 default route is the owned API scheduler. This scheduled release contains only keep-it-alive-coaching-review-v1.mp4 (SHA-256 400bbb837f03bb877504e32479c19eaaafc38edba7a460cec0daf33f5bcce172), the encoded KEEP IT ALIVE cover, and caption 'Go up off the block. Give your team time to get the ball.' with @nick_maruyama as a caption mention. No Collab invitations, Stories, additional edits or Facebook. Planned slot October 22, 2026 at 7 p.m. America/Chicago. Footage permission was separately confirmed by Nino for 630 social accounts. Source: ~/Workspace/create/campaigns/practice-10-14-evergreen/release/coaching-manifest.json.",
+      "approved": "2026-10-15",
+      "accounts": [
+        "630"
+      ],
+      "expires": "2026-10-24",
+      "media_types": [
+        "REELS"
+      ]
     }
   }
 }
