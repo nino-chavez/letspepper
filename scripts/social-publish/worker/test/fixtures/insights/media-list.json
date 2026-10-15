@@ -1,0 +1,54 @@
+{
+  "data": [
+    {
+      "id": "90000000000000002",
+      "timestamp": "2026-10-16T00:00:33+0000",
+      "media_type": "CAROUSEL_ALBUM",
+      "media_product_type": "FEED",
+      "permalink": "https://www.instagram.com/p/EXAMPLE3/",
+      "caption": "Caption text replaced in this fixture; the real response carries the post caption here.",
+      "like_count": 29,
+      "comments_count": 0
+    },
+    {
+      "id": "90000000000000004",
+      "timestamp": "2026-10-15T17:01:11+0000",
+      "media_type": "VIDEO",
+      "media_product_type": "REELS",
+      "permalink": "https://www.instagram.com/p/EXAMPLE4/",
+      "caption": "Caption text replaced in this fixture; the real response carries the post caption here.",
+      "like_count": 103,
+      "comments_count": 0
+    },
+    {
+      "id": "90000000000000003",
+      "timestamp": "2026-10-15T00:00:08+0000",
+      "media_type": "CAROUSEL_ALBUM",
+      "media_product_type": "FEED",
+      "permalink": "https://www.instagram.com/p/EXAMPLE4/",
+      "caption": "Caption text replaced in this fixture; the real response carries the post caption here.",
+      "like_count": 177,
+      "comments_count": 0
+    },
+    {
+      "id": "90000000000000005",
+      "timestamp": "2026-10-14T17:00:54+0000",
+      "media_type": "VIDEO",
+      "media_product_type": "REELS",
+      "permalink": "https://www.instagram.com/p/EXAMPLE5/",
+      "caption": "Caption text replaced in this fixture; the real response carries the post caption here.",
+      "like_count": 251,
+      "comments_count": 288
+    },
+    {
+      "id": "90000000000000006",
+      "timestamp": "2026-10-14T00:01:21+0000",
+      "media_type": "VIDEO",
+      "media_product_type": "REELS",
+      "permalink": "https://www.instagram.com/p/EXAMPLE6/",
+      "caption": "Caption text replaced in this fixture; the real response carries the post caption here.",
+      "like_count": 325,
+      "comments_count": 0
+    }
+  ]
+}

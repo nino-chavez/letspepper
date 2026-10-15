@@ -24,9 +24,24 @@
   // ONE due item. Items carrying scheduledAt fire at their planned time
   // (scheduledAt gates them, NOT ALLOWED_HOURS_UTC). This worker replaced the
   // local launchd drip (com.letspepper.reels, disabled at cutover) as the sole poster.
-  "triggers": { "crons": ["0 * * * *"] },
+  //
+  // Daily cron (added 2026-10-15): "30 14 * * *" runs ONLY the read-only Instagram
+  // insights job (src/insights.js, INSIGHTS.md). scheduled() branches on the cron
+  // string, so this tick never publishes. The string must equal INSIGHTS_CRON in
+  // src/insights.js; worker/test/insights.test.mjs fails if the two drift.
+  "triggers": { "crons": ["0 * * * *", "30 14 * * *"] },
   "kv_namespaces": [
     { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
+  ],
+  // Insights history (INSIGHTS.md). Created 2026-10-15 with `wrangler d1 create
+  // social-insights`. The deploy workflow applies ../migrations before every deploy.
+  "d1_databases": [
+    {
+      "binding": "INSIGHTS_DB",
+      "database_name": "social-insights",
+      "database_id": "c192b5be-8142-4695-a37f-e92eeb0a12a0",
+      "migrations_dir": "migrations"
+    }
   ],
   "vars": {
     // event slugs in PRIORITY order — newest/highest-priority FIRST. Each slot
