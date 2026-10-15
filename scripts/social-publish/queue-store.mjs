@@ -23,8 +23,9 @@
  *   is the failure this exists to prevent.
  * - write a temporary file and rename it over the original, so no reader sees half a file.
  *
- * The lock is held for the read-merge-write only, never across a network call. A lock left by a
- * process that has exited, or older than LOCK_STALE_MS, is taken over.
+ * The lock is held for the read-merge-write only, never across a network call. A lock whose process
+ * has exited is taken over by one waiter at a time; a lock whose process is still running is waited
+ * on, then reported, never stolen.
  */
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -74,39 +75,69 @@ export function merge3(base, ours, theirs) {
   return ours // both changed the same value: the run saving now wins, as a plain write would
 }
 
-function lockPid(lock) {
-  try { return JSON.parse(readFileSync(lock, 'utf8')).pid } catch { return null }
+const readLock = (lock) => { try { return JSON.parse(readFileSync(lock, 'utf8')) } catch { return null } }
+
+// A holder whose process is running is never preempted, however old its lock: it may be a laptop
+// that slept mid-write, and waiting (then failing with a clear error) is safe where stealing is not.
+// A lock with no readable holder, cut off while being written, is judged by age.
+function holderGone(info, lock) {
+  if (Number.isInteger(info?.pid)) {
+    try { process.kill(info.pid, 0); return false } catch (e) { return e.code === 'ESRCH' }
+  }
+  try { return Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS } catch { return false }
 }
 
-function isStale(lock) {
+// Judging a lock dead and deleting it are two steps, so two waiters can judge the same dead lock;
+// if the slower one then deleted it, it would delete the lock the faster one had just taken, and
+// both would write (second review of this change). Only the waiter holding the takeover guard may
+// delete, and only after re-reading that the lock is still the dead one it judged.
+function takeOverDeadLock(lock, judged) {
+  sleep(Number(process.env.QUEUE_STORE_TAKEOVER_DELAY_MS || 0)) // test seam: widens the window the guard closes
+  const guard = `${lock}.takeover`
   try {
-    if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) return true
-  } catch { return false } // gone already; the next attempt takes it
-  const pid = lockPid(lock)
-  if (!Number.isInteger(pid)) return false
-  try { process.kill(pid, 0); return false } catch (e) { return e.code === 'ESRCH' }
+    closeSync(openSync(guard, 'wx'))
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e
+    // Another waiter is taking over. A guard can outlive its holder only if that process died inside
+    // this few-statement section; clear one that old so the queue cannot stay locked for good.
+    try { if (Date.now() - statSync(guard).mtimeMs > LOCK_STALE_MS) unlinkSync(guard) } catch { /* gone already */ }
+    return
+  }
+  try {
+    const now = readLock(lock)
+    if (now?.token === judged?.token && holderGone(now, lock)) unlinkSync(lock)
+  } catch { /* the lock went away meanwhile; the next attempt takes it */ } finally {
+    try { unlinkSync(guard) } catch { /* already cleared */ }
+  }
 }
 
 export function withQueueLock(path, fn) {
   const lock = `${path}.lock`
   mkdirSync(dirname(path), { recursive: true })
+  const mine = { pid: process.pid, token: `${process.pid}-${process.hrtime.bigint()}-${Math.random().toString(36).slice(2)}`, at: new Date().toISOString() }
   const start = Date.now()
   for (;;) {
     try {
       const fd = openSync(lock, 'wx')
-      writeSync(fd, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }))
+      writeSync(fd, JSON.stringify(mine))
       closeSync(fd)
       break
     } catch (e) {
       if (e.code !== 'EEXIST') throw e
-      if (isStale(lock)) { try { unlinkSync(lock) } catch { /* another waiter took it over first */ } continue }
+      const held = readLock(lock)
+      if (holderGone(held, lock)) { takeOverDeadLock(lock, held); sleep(5); continue }
       if (Date.now() - start > LOCK_WAIT_MS) {
-        throw new Error(`queue-store: ${lock} has been held for over ${LOCK_WAIT_MS / 1000} s by pid ${lockPid(lock) ?? 'unknown'}; nothing was written. Check that process, then retry.`)
+        throw new Error(`queue-store: ${lock} has been held for over ${LOCK_WAIT_MS / 1000} s by pid ${held?.pid ?? 'unknown'}, which is still running; nothing was written. Check that process, then retry.`)
       }
       sleep(25)
     }
   }
-  try { return fn() } finally { try { unlinkSync(lock) } catch { /* already released */ } }
+  try {
+    return fn()
+  } finally {
+    // Release only our own lock: never one another run took after ours was judged dead.
+    if (readLock(lock)?.token === mine.token) { try { unlinkSync(lock) } catch { /* already gone */ } }
+  }
 }
 
 const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : undefined)

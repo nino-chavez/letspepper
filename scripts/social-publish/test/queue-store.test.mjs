@@ -76,6 +76,38 @@ test('withQueueLock: a lock left by a process that has exited is taken over', ()
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
+// From the second review: a crashed run leaves a lock, several runs wait on it, and two of them
+// judge it dead at once. If one deletes the lock the other has just taken, both write and an
+// append is lost. Here a "crasher" keeps leaving dead locks behind while six writers append, and
+// QUEUE_STORE_TAKEOVER_DELAY_MS widens the gap between judging a lock dead and acting on it.
+// Every append must survive. The previous lock lost 12 and 22 of 150 in two runs of this test.
+test('dead locks left by crashed runs: concurrent writers taking them over lose no appends', async () => {
+  const dir = scratch()
+  try {
+    const p = join(dir, 'adhoc.json')
+    writeFileSync(p, JSON.stringify({ event: 'adhoc', items: [] }))
+    const deadPid = 2 ** 22 + 4242
+    const until = Date.now() + 4000
+    const crasher = spawn(process.execPath, ['--input-type=module', '-e', `
+      import { openSync, writeSync, closeSync } from 'node:fs'
+      const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+      while (Date.now() < ${until}) {
+        try { const fd = openSync(${JSON.stringify(`${p}.lock`)}, 'wx'); writeSync(fd, JSON.stringify({ pid: ${deadPid}, token: 'crashed-' + Date.now(), at: new Date().toISOString() })); closeSync(fd) } catch {}
+        sleep(1)
+      }
+    `], { stdio: 'inherit' })
+    const writers = Array.from({ length: 6 }, (_, w) => spawn(process.execPath, ['--input-type=module', '-e', `
+      import { updateQueueFile } from ${JSON.stringify(STORE)}
+      for (let i = 0; i < 25; i++) updateQueueFile(${JSON.stringify(p)}, undefined, (q) => { q.items.push({ id: 'w${w}-' + i }) })
+    `], { stdio: 'inherit', env: { ...process.env, QUEUE_STORE_TAKEOVER_DELAY_MS: '15' } }))
+    const codes = await Promise.all([crasher, ...writers].map((c) => new Promise((resolve) => c.on('exit', resolve))))
+    assert.deepEqual(codes, Array(7).fill(0))
+    const ids = read(p).items.map((it) => it.id)
+    assert.equal(new Set(ids).size, ids.length, 'no entry written twice')
+    assert.equal(ids.length, 150, `expected 150 appends, found ${ids.length}`)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
 // The race from the review of this change, in two real processes: a slow publisher holds its copy
 // of adhoc.json while Meta processes a video, and another session appends and publishes meanwhile.
 test('two processes: the slow publisher saving last does not erase the other session\'s post', async () => {
