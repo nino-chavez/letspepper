@@ -53,6 +53,7 @@ function sandbox() {
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
   cpSync(join(SOCIAL, 'veto-announce.mjs'), join(social, 'veto-announce.mjs'))
+  for (const f of ['queue-dir.mjs', 'queue-store.mjs']) cpSync(join(SOCIAL, f), join(social, f)) // imported by veto-announce.mjs
   cpSync(join(SOCIAL, 'notify.mjs'), join(social, 'notify.mjs'))
   cpSync(join(SOCIAL, 'gallery-announce-caption.mjs'), join(social, 'gallery-announce-caption.mjs'))
   cpSync(join(SOCIAL, 'rotation-result.mjs'), join(social, 'rotation-result.mjs')) // imported by gallery-announce-caption.mjs

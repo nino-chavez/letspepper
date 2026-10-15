@@ -21,13 +21,15 @@
  * (wrangler must be authed: `npx wrangler login`, or CLOUDFLARE_API_TOKEN set).
  * The bucket must have public access enabled — see SETUP.md.
  *
- * `--queue <path>` overrides the default `queue/<event>.json` next to this
- * script, for a queue that lives in another checkout of this repo.
+ * `--queue <path>` overrides the default `queue/<event>.json` in the shared
+ * queue folder, which queue-dir.mjs resolves to the main checkout's even when
+ * this runs from a linked worktree.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { join, dirname, basename, extname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, basename, extname } from 'node:path'
+import { queueDir } from './queue-dir.mjs'
+import { openQueueFile } from './queue-store.mjs'
 
 const CONTENT_TYPES = {
   '.mp4': 'video/mp4',
@@ -42,7 +44,6 @@ const kindOf = (file) => {
   return { contentType: ct, urlField: ct.startsWith('video/') ? 'video_url' : 'image_url' }
 }
 
-const HERE = dirname(fileURLToPath(import.meta.url))
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((a, t, i, arr) => {
     if (t.startsWith('--')) {
@@ -62,9 +63,11 @@ if (!event || !bucket || !publicBase) {
 
 const queuePath = args.queue && args.queue !== true
   ? args.queue
-  : join(HERE, 'queue', `${event}.json`)
+  : join(queueDir(), `${event}.json`)
 if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath} (run build-queue first)`); process.exit(1) }
-const q = JSON.parse(readFileSync(queuePath, 'utf8'))
+// Held across uploads, so each save merges into what other runs wrote meanwhile (queue-store.mjs).
+const store = openQueueFile(queuePath)
+const q = store.data
 
 // A carousel is pending until every child has a URL; a single item until its own
 // field is set. Counting only `file` silently skipped carousels entirely.
@@ -111,7 +114,7 @@ for (const it of q.items) {
       it.cover_url = put(it.cover_file).url
       console.log(`✓ ${it.id} cover → ${it.cover_url}`)
     }
-    writeFileSync(queuePath, JSON.stringify(q, null, 2)) // persist after each
+    store.save() // persist after each
   } catch (e) {
     failures++
     console.error(`✗ ${it.id}: ${e.message}`)

@@ -40,11 +40,13 @@
  *   --dry-run            resolve, rank and report; upload nothing.
  *   --resume             skip frames already recorded as uploaded in the ledger.
  */
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs'
+import { writeFileSync, readFileSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
+import { queueDir } from './queue-dir.mjs'
+import { openQueueFile } from './queue-store.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = 'https://graph.facebook.com/v25.0'
@@ -215,11 +217,11 @@ console.log(`Album ${albumKey}: ${photos.length} photos → ${picks.length} sele
   (minScore != null ? `, min-score ${minScore}` : ''))
 if (!picks.length) { console.error('Nothing selected.'); process.exit(1) }
 
-const ledgerPath = join(HERE, 'queue', `fb-album-${albumKey}.json`)
+const ledgerPath = join(queueDir(), `fb-album-${albumKey}.json`)
 mkdirSync(dirname(ledgerPath), { recursive: true })
-const ledger = existsSync(ledgerPath)
-  ? JSON.parse(readFileSync(ledgerPath, 'utf8'))
-  : { album_key: albumKey, account: accountSlug, page_id: account.page_id, fb_album_id: null, uploaded: {}, errors: {} }
+// Held across photo uploads, so each save merges into what other runs wrote meanwhile (queue-store.mjs).
+const ledgerStore = openQueueFile(ledgerPath, { album_key: albumKey, account: accountSlug, page_id: account.page_id, fb_album_id: null, uploaded: {}, errors: {} })
+const ledger = ledgerStore.data
 
 const pending = args.resume ? picks.filter((p) => !ledger.uploaded[p.image_key]) : picks
 
@@ -262,7 +264,7 @@ for (let i = 0; i < pending.length; i++) {
     console.log(`FAILED — ${e?.message || e}`)
   }
   // Save every photo: a rate-limit stop mid-run must stay resumable.
-  writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))
+  ledgerStore.save()
   await new Promise((r) => setTimeout(r, 400))
 }
 

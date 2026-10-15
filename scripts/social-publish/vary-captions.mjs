@@ -8,11 +8,11 @@
  * The current Instagram limit is five hashtags, so this generator always emits
  * five specific tags and avoids broad tags that do not describe grass triples.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { queueDir } from './queue-dir.mjs'
+import { updateQueueFile } from './queue-store.mjs'
 
-const HERE = dirname(fileURLToPath(import.meta.url))
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, t, i, arr) => {
   if (t.startsWith('--')) { const n = arr[i + 1]; a.push([t.slice(2), n === undefined || n.startsWith('--') ? true : n]) }
   return a
@@ -47,17 +47,17 @@ const caption = (i) =>
   `${HOOKS[i % HOOKS.length]}\n\nBell Pepper Open 2026 · grass triples · Aurora, IL\n` +
   `${CTAS[(i * 2) % CTAS.length]}\n\n${CREDIT}\n\n${TAGS}`
 
-const p = join(HERE, 'queue', `${event}.json`)
+const p = join(queueDir(), `${event}.json`)
 if (!existsSync(p)) { console.error(`No queue: ${p}`); process.exit(1) }
-const q = JSON.parse(readFileSync(p, 'utf8'))
 let n = 0
-q.items.forEach((it, i) => {
-  if (it.status === 'pending' && it.copy_status !== 'approved') {
-    it.caption = caption(i)
-    n++
-  }
+const q = updateQueueFile(p, undefined, (fresh) => {
+  fresh.items.forEach((it, i) => {
+    if (it.status === 'pending' && it.copy_status !== 'approved') {
+      it.caption = caption(i)
+      n++
+    }
+  })
 })
-writeFileSync(p, JSON.stringify(q, null, 2))
 console.log(`Refreshed ${n} pending captions (posted items untouched).`)
 const sample = q.items.find((it) => it.status === 'pending')
 if (sample) console.log('--- sample ---\n' + sample.caption)
