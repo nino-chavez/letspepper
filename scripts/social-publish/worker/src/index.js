@@ -1,7 +1,11 @@
 /**
  * letspepper-reels-worker — cloud cron drip for owned Instagram and Facebook Pages.
  *
- * Hourly cron. GLOBAL cadence with EVENT PRIORITY:
+ * Two crons (wrangler.jsonc). The daily INSIGHTS_CRON runs only the read-only Instagram
+ * insights job in ./insights.js (../../INSIGHTS.md). Every other tick is the hourly
+ * publisher below, followed by the engagement sweep when SWEEP_ENABLED (../../SWEEP.md).
+ *
+ * Hourly publisher. GLOBAL cadence with EVENT PRIORITY:
  *   - At most ONE fresh campaign item per allowed slot → ALLOWED_HOURS_UTC sets
  *     the daily cap (default 2 slots = 2/day total, ACROSS all events — not per
  *     event). A single item may publish to both Instagram and its paired
@@ -20,11 +24,18 @@
  * Bindings/secrets (wrangler.jsonc):
  *   QUEUE (KV)         one key per event slug → queue JSON ({meta,items[]})
  *   IG_ACCESS_TOKEN    Instagram-publishing System User token (secret)
+ *   IG_630_ACCESS_TOKEN  630's partner Page token, named by ACCOUNTS['630'].ig_token_binding;
+ *                      publishes 630's Instagram and, with instagram_manage_insights, feeds
+ *                      the insights job (secret). Renewal: the 630 repo's
+ *                      docs/internal/ops/META-PUBLISHING.md.
+ *   INSIGHTS_DB (D1)   social-insights database, written only by the insights job; schema in
+ *                      ../migrations (applied by the deploy workflow before each deploy)
  *   FB_ACCESS_TOKEN    Page-publishing System User token with
  *                      pages_manage_posts (secret). An asset-specific override
  *                      can be supplied via each account's optional
  *                      FB_*_ACCESS_TOKEN binding.
- *   TRIGGER_KEY        guards /run, /run?force=1, /status (secret)
+ *   TRIGGER_KEY        guards /run, /run?force=1, /status, /sweep, /inbox,
+ *                      /insights/run and /insights/status (secret)
  *   REVIEW_KEY         guards GET /review and POST /review/cancel ONLY — a separate secret
  *                      from TRIGGER_KEY, which /review can never reach (secret, added
  *                      2026-09-26 — see SETUP.md "/review"). Absent means every /review*
@@ -39,6 +50,9 @@
  *                      confirmed Paid — see SETUP.md "Cloudflare plan").
  *   ACTIVE_EVENTS      comma-separated slugs, HIGHEST PRIORITY (newest) FIRST (var)
  *   ALLOWED_HOURS_UTC  comma-separated UTC hours = daily slots/cap (var)
+ *   SWEEP_ENABLED, SWEEP_LOOKBACK_DAYS, SWEEP_AUTOREPLY, REGISTRATION_URL,
+ *   NOTIFY_WEBHOOK_URL the engagement sweep's switches, reply link and digest webhook
+ *                      (vars/secret — see SWEEP.md)
  *
  * gallery-announce carousel budget (2026-09-26): a CAROUSEL crosspost can need up to
  * ~43 Graph subrequests in one tick (10 IG children + 1 parent + polls/retries, 10
@@ -79,6 +93,7 @@ import {
 } from '../../notify.mjs'
 import { veto } from '../../veto-shape.mjs'
 import { shortAlbumName } from '../../gallery-announce-caption.mjs'
+import { INSIGHTS_CRON, runInsights, insightsStatus } from './insights.js'
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
@@ -142,6 +157,9 @@ const ACCOUNTS = {
     // Partner Instagram grant only. Facebook stays on Business Suite until
     // its own Page publishing grant is verified; never use an owned token.
     sweep: false,
+    // Daily read-only insights into INSIGHTS_DB (src/insights.js). Needs
+    // instagram_manage_insights on IG_630_ACCESS_TOKEN.
+    insights: true,
   },
 }
 
@@ -1124,7 +1142,15 @@ ${secondaryHtml}
 }
 
 export default {
-  async scheduled(_controller, env, ctx) {
+  async scheduled(controller, env, ctx) {
+    // Two crons share this Worker (wrangler.jsonc). The daily insights cron runs ONLY the
+    // read-only insights job; every other tick is the hourly publisher. Branching on the
+    // cron string is what keeps the daily tick from publishing a second time.
+    if (controller.cron === INSIGHTS_CRON) {
+      ctx.waitUntil(runInsights(env, { accounts: ACCOUNTS, graph: GRAPH, trigger: 'cron' })
+        .catch((e) => console.error('insights failed', e)))
+      return
+    }
     ctx.waitUntil((async () => {
       await run(env) // post step first — unchanged
       if (env.SWEEP_ENABLED === '1') {
@@ -1135,6 +1161,23 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url)
     const authed = url.searchParams.get('key') && url.searchParams.get('key') === env.TRIGGER_KEY
+    if (url.pathname === '/insights/run') {
+      if (!authed) return new Response('forbidden', { status: 403 })
+      const p = url.searchParams
+      try {
+        return Response.json(await runInsights(env, {
+          accounts: ACCOUNTS, graph: GRAPH, trigger: 'manual',
+          only: p.get('account'), from: p.get('from'), to: p.get('to'),
+        }))
+      } catch (e) {
+        if (e instanceof RangeError) return new Response(e.message, { status: 400 })
+        throw e
+      }
+    }
+    if (url.pathname === '/insights/status') {
+      if (!authed) return new Response('forbidden', { status: 403 })
+      return Response.json(await insightsStatus(env, { accounts: ACCOUNTS }))
+    }
     if (url.pathname === '/run') {
       if (!authed) return new Response('forbidden', { status: 403 })
       return Response.json(await run(env, url.searchParams.get('force') === '1'))
