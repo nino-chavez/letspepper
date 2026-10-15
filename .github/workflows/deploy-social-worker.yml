@@ -1,4 +1,9 @@
-name: Deploy social scheduler
+name: Social scheduler
+
+# Tests the social publisher and its Worker on every pull request that touches them,
+# and tests then deploys letspepper-reels-worker when such a change lands on main.
+# Deploy steps run only on main (push or a manual run) and only when the Cloudflare
+# credentials exist; a pull request never deploys.
 
 on:
   push:
@@ -6,6 +11,14 @@ on:
     paths:
       - 'scripts/social-publish/worker/**'
       - 'scripts/social-publish/*.mjs'
+      - 'scripts/social-publish/test/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/deploy-social-worker.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/social-publish/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/deploy-social-worker.yml'
@@ -15,49 +28,53 @@ permissions:
   contents: read
 
 concurrency:
-  group: social-scheduler-deploy
+  # Deploys queue behind each other and are never cancelled; each pull request has
+  # its own group, so a test run never waits on a deploy.
+  group: social-scheduler-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  scheduler:
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - name: Check deployment credentials
-        id: credentials
+      - name: Decide whether this run deploys
+        id: deploy
         shell: bash
         run: |
-          if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" ]]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Social scheduler deployment skipped: Cloudflare credentials are absent."
           fi
       - uses: actions/checkout@v7
-        if: steps.credentials.outputs.ready == 'true'
       - uses: pnpm/action-setup@v6
-        if: steps.credentials.outputs.ready == 'true'
       - uses: actions/setup-node@v7
-        if: steps.credentials.outputs.ready == 'true'
         with:
           node-version: '22'
           cache: 'pnpm'
       - name: Install dependencies
-        if: steps.credentials.outputs.ready == 'true'
         run: pnpm install --frozen-lockfile
       - name: Install publisher test runtime
-        if: steps.credentials.outputs.ready == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y zsh
           pnpm exec playwright install --with-deps chromium
       - name: Verify publisher and scheduler
-        if: steps.credentials.outputs.ready == 'true'
         run: |
           pnpm test:social
           pnpm social:worker:test
+      # wrangler deploy does not apply D1 migrations. Apply them first so a deploy never
+      # runs code against tables that do not exist yet; outside a terminal, wrangler
+      # confirms the apply by itself. Needs D1 edit on CLOUDFLARE_API_TOKEN.
+      - name: Apply insights database migrations
+        if: steps.deploy.outputs.ready == 'true'
+        run: pnpm exec wrangler d1 migrations apply INSIGHTS_DB --remote --config scripts/social-publish/worker/wrangler.jsonc
       - name: Deploy scheduler
-        if: steps.credentials.outputs.ready == 'true'
+        if: steps.deploy.outputs.ready == 'true'
         run: pnpm exec wrangler deploy --config scripts/social-publish/worker/wrangler.jsonc
