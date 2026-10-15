@@ -55,7 +55,7 @@
  * Meta's IG User /media reference documents collaborators, cover_url and Story
  * user_tags (rechecked 2026-10-02). Never silently drop a requested field.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -65,7 +65,8 @@ import { holdBlock, linkedItemBlock } from './hold-shape.mjs'
 import { collabBlock } from './collab-shape.mjs'
 import { tagParams, userTagsParams } from './tag-params.mjs'
 import { carouselChildParams, carouselParentParams } from './carousel-container-params.mjs'
-import { QUEUE_DIR, QUEUE_CHECKOUT } from './queue-dir.mjs'
+import { queueDir, queueCheckout } from './queue-dir.mjs'
+import { openQueueFile } from './queue-store.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -91,10 +92,13 @@ const TOKEN = process.env.IG_ACCESS_TOKEN
 if (!event) { console.error('Required: --event <slug>'); process.exit(1) }
 
 const registry = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
-const queuePath = join(QUEUE_DIR, `${event}.json`)
+const queuePath = join(queueDir(), `${event}.json`)
 if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath}`); process.exit(1) }
-const q = JSON.parse(readFileSync(queuePath, 'utf8'))
-const save = () => writeFileSync(queuePath, JSON.stringify(q, null, 2))
+// Held across Graph calls that can take minutes, so save() merges into what other runs wrote
+// meanwhile instead of overwriting it (queue-store.mjs).
+const store = openQueueFile(queuePath)
+const q = store.data
+const save = () => store.save()
 
 function igIdFor(item) {
   const slug = accountOverride || item.account
@@ -153,7 +157,7 @@ if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN for the selected acc
 // Refuse to publish when the current caption queue breaks its reader contract.
 // This runs before the first Graph API call and audits only JSON caption fields.
 execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
-  `--root=${QUEUE_CHECKOUT}`, '--surface=social publishing queue', '--strict'],
+  `--root=${queueCheckout()}`, '--surface=social publishing queue', '--strict'],
   { stdio: 'inherit' })
 
 // Past every pre-flight check: now the one-off receipt goes on the ledger, before

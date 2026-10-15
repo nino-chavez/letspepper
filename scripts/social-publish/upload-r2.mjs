@@ -25,10 +25,11 @@
  * queue folder, which queue-dir.mjs resolves to the main checkout's even when
  * this runs from a linked worktree.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, basename, extname } from 'node:path'
-import { QUEUE_DIR } from './queue-dir.mjs'
+import { queueDir } from './queue-dir.mjs'
+import { openQueueFile } from './queue-store.mjs'
 
 const CONTENT_TYPES = {
   '.mp4': 'video/mp4',
@@ -62,9 +63,11 @@ if (!event || !bucket || !publicBase) {
 
 const queuePath = args.queue && args.queue !== true
   ? args.queue
-  : join(QUEUE_DIR, `${event}.json`)
+  : join(queueDir(), `${event}.json`)
 if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath} (run build-queue first)`); process.exit(1) }
-const q = JSON.parse(readFileSync(queuePath, 'utf8'))
+// Held across uploads, so each save merges into what other runs wrote meanwhile (queue-store.mjs).
+const store = openQueueFile(queuePath)
+const q = store.data
 
 // A carousel is pending until every child has a URL; a single item until its own
 // field is set. Counting only `file` silently skipped carousels entirely.
@@ -111,7 +114,7 @@ for (const it of q.items) {
       it.cover_url = put(it.cover_file).url
       console.log(`✓ ${it.id} cover → ${it.cover_url}`)
     }
-    writeFileSync(queuePath, JSON.stringify(q, null, 2)) // persist after each
+    store.save() // persist after each
   } catch (e) {
     failures++
     console.error(`✗ ${it.id}: ${e.message}`)

@@ -15,13 +15,14 @@
  * guard as every other `--put`. This script tells the operator to run it
  * rather than hand-editing KV.
  */
-import { readFileSync, writeFileSync, existsSync, realpathSync } from 'node:fs'
+import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { notify, vetoedNotification } from './notify.mjs'
 import { shortAlbumName } from './gallery-announce-caption.mjs'
-import { QUEUE_DIR } from './queue-dir.mjs'
+import { queueDir } from './queue-dir.mjs'
+import { updateQueueFile } from './queue-store.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
@@ -72,7 +73,7 @@ async function main() {
   const reason = typeof args.reason === 'string' ? args.reason : null
   const dryRun = !!args['dry-run']
 
-  const queuePath = join(QUEUE_DIR, `${EVENT}.json`)
+  const queuePath = join(queueDir(), `${EVENT}.json`)
   if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath} — nothing to veto.`); process.exit(1) }
   const queue = JSON.parse(readFileSync(queuePath, 'utf8'))
 
@@ -90,7 +91,8 @@ async function main() {
   console.log(`${dryRun ? '[dry-run] would veto' : 'Vetoing'}: ${result.vetoed.join(', ')}${reason ? ` — "${reason}"` : ''}`)
   if (dryRun) return
 
-  writeFileSync(queuePath, JSON.stringify(result.queue, null, 2))
+  // Veto against the file as it is now, under the lock, in case another run changed it since the read.
+  updateQueueFile(queuePath, undefined, (fresh) => vetoAlbum(fresh, albumKey, reason).queue)
   console.log(`Wrote ${queuePath}.`)
   console.log('This is LOCAL only. If this item was already seeded to the Worker (seed-kv.mjs --put), it is still live in KV')
   console.log('and neither --append nor a plain re-seed touches an item KV already has. Kill it there too, through the same')

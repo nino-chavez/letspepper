@@ -33,14 +33,15 @@
  *                        approved Graph route: --graph-route "<Nino's words>" or the
  *                        event listed in graph-routes.json — see route-gate.mjs).
  */
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
 import { r2PutPhoto } from './gallery-photo-source.mjs'
-import { QUEUE_DIR } from './queue-dir.mjs'
+import { queueDir } from './queue-dir.mjs'
+import { writeQueueFile } from './queue-store.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const IG_CAROUSEL_MAX = 10
@@ -206,9 +207,8 @@ const item = {
   posted_at: null,
   error: null,
 }
-const queuePath = join(QUEUE_DIR, `${event}.json`)
-mkdirSync(dirname(queuePath), { recursive: true })
-writeFileSync(queuePath, JSON.stringify({ event, items: [item] }, null, 2))
+const queuePath = join(queueDir(), `${event}.json`)
+writeQueueFile(queuePath, { event, items: [item] })
 console.log(`\nWrote ${queuePath}`)
 
 // 6. Contact sheet for a quick eyeball before posting (best-effort).

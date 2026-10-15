@@ -11,9 +11,10 @@
  * scheduledAt, and writes queue/<event>.json. Idempotent: re-running merges
  * onto an existing queue, preserving status/ids/video_url of done items.
  */
-import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, basename } from 'node:path'
-import { QUEUE_DIR } from './queue-dir.mjs'
+import { queueDir } from './queue-dir.mjs'
+import { updateQueueFile } from './queue-store.mjs'
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((a, t, i, arr) => {
@@ -57,36 +58,37 @@ function scheduleFor(i) {
   return d.toISOString()
 }
 
-const outDir = QUEUE_DIR
-mkdirSync(outDir, { recursive: true })
-const outPath = join(outDir, `${event}.json`)
-const prev = existsSync(outPath) ? JSON.parse(readFileSync(outPath, 'utf8')) : { event, items: [] }
-const prevById = Object.fromEntries(prev.items.map((it) => [it.id, it]))
+const outPath = join(queueDir(), `${event}.json`)
 
-const items = files.map((file, i) => {
-  const id = basename(file, '.mp4')
-  const old = prevById[id]
-  // preserve anything already uploaded/posted; only (re)seed new entries
-  if (old && old.status !== 'pending') return old
-  return {
-    id,
-    account, // slug into accounts.json — which IG account this posts to
-    media_type: 'REELS', // REELS | IMAGE | CAROUSEL
-    file: join(dir, file),
-    caption: captions[file] ?? old?.caption ?? DEFAULT_CAPTION,
-    video_url: old?.video_url ?? null,
-    user_tags: old?.user_tags ?? [], // ["flickday.media", ...] tag owned accounts
-    collaborators: old?.collaborators ?? [], // ["flickday.media"] Collab co-author invite
-    scheduledAt: old?.scheduledAt ?? scheduleFor(i),
-    status: 'pending', // pending → uploaded → posted | error
-    ig_container_id: null,
-    ig_media_id: null,
-    posted_at: null,
-    error: null,
-  }
-})
-
-writeFileSync(outPath, JSON.stringify({ event, items }, null, 2))
+// Rebuilt from the file as it is now, under the lock, so a publisher's status written meanwhile
+// is the "old" this keeps (queue-store.mjs).
+const rebuild = (prev) => {
+  const prevById = Object.fromEntries(prev.items.map((it) => [it.id, it]))
+  const items = files.map((file, i) => {
+    const id = basename(file, '.mp4')
+    const old = prevById[id]
+    // preserve anything already uploaded/posted; only (re)seed new entries
+    if (old && old.status !== 'pending') return old
+    return {
+      id,
+      account, // slug into accounts.json — which IG account this posts to
+      media_type: 'REELS', // REELS | IMAGE | CAROUSEL
+      file: join(dir, file),
+      caption: captions[file] ?? old?.caption ?? DEFAULT_CAPTION,
+      video_url: old?.video_url ?? null,
+      user_tags: old?.user_tags ?? [], // ["flickday.media", ...] tag owned accounts
+      collaborators: old?.collaborators ?? [], // ["flickday.media"] Collab co-author invite
+      scheduledAt: old?.scheduledAt ?? scheduleFor(i),
+      status: 'pending', // pending → uploaded → posted | error
+      ig_container_id: null,
+      ig_media_id: null,
+      posted_at: null,
+      error: null,
+    }
+  })
+  return { event, items }
+}
+const { items } = updateQueueFile(outPath, { event, items: [] }, rebuild)
 const pending = items.filter((i) => i.status === 'pending').length
 console.log(`Wrote ${outPath}`)
 console.log(`  ${items.length} reels · ${pending} pending · ${perDay}/day at ${hours.join(':00, ')}:00`)

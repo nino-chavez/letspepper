@@ -37,12 +37,13 @@
  * --dry-run prints the composed item and exits — nothing persisted, uploaded,
  * or posted.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join, dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
-import { QUEUE_DIR, QUEUE_CHECKOUT } from './queue-dir.mjs'
+import { queueDir, queueCheckout } from './queue-dir.mjs'
+import { updateQueueFile } from './queue-store.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'adhoc'
@@ -91,7 +92,7 @@ if (altText && media_type !== 'IMAGE') {
 }
 if (story && caption) console.warn('Note: the caption will not appear on a Story; render its text into the media.')
 
-const queuePath = join(QUEUE_DIR, `${EVENT}.json`)
+const queuePath = join(queueDir(), `${EVENT}.json`)
 const q = existsSync(queuePath)
   ? JSON.parse(readFileSync(queuePath, 'utf8'))
   : { event: EVENT, items: [], meta: { note: 'Ad-hoc one-shot posts published by post-now.mjs' } }
@@ -129,16 +130,20 @@ if (dryRun) {
   process.exit(0)
 }
 
-q.items.push(item)
-mkdirSync(dirname(queuePath), { recursive: true })
-writeFileSync(queuePath, JSON.stringify(q, null, 2))
+// Another session may have appended since the read above; take the id again under the lock so two
+// posts in the same minute never share one ledger entry.
+updateQueueFile(queuePath, q, (fresh) => {
+  for (let n = 2; fresh.items.some((it) => it.id === item.id); n++) item.id = `adhoc-${stamp}-${n}`
+  id = item.id
+  fresh.items.push(item)
+})
 console.log(`Queued ${id} [${media_type}] → @${registry[account].handle}\n`)
 
 // Copy is part of the publish payload. Gate the rendered queue before any
 // upload or Graph API mutation; a local queue write is recoverable, a live post
 // is not. The contract limits JSON inspection to caption fields.
 execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
-  `--root=${QUEUE_CHECKOUT}`, '--surface=social publishing queue', '--strict'],
+  `--root=${queueCheckout()}`, '--surface=social publishing queue', '--strict'],
   { stdio: 'inherit' })
 
 execFileSync('node', [join(HERE, 'upload-r2.mjs'),

@@ -1,7 +1,7 @@
 /**
  * Where the publisher's queues live — the one owner of that answer.
  *
- *   import { QUEUE_DIR, QUEUE_CHECKOUT } from './queue-dir.mjs'
+ *   import { queueDir, queueCheckout } from './queue-dir.mjs'
  *
  * queue/ holds the ad hoc ledger (adhoc.json), every campaign queue, and the prepared-container and
  * route-receipt state a timed-out publish is reconciled from. It is gitignored, so it exists only in
@@ -16,8 +16,11 @@
  *   otherwise, rather than writing a ledger that disappears);
  * - not a git checkout (a copied bundle, a test sandbox) → the folder beside the scripts.
  *
- * QUEUE_CHECKOUT is that checkout's root: the copy audit (`tools/lib/encounter-audit.mjs
+ * queueCheckout() is that checkout's root: the copy audit (`tools/lib/encounter-audit.mjs
  * --surface="social publishing queue"`) runs against it, so it reads the same queue that publishes.
+ *
+ * Several worktrees can now write the same files at once, so every write goes through
+ * queue-store.mjs, which locks, re-reads and merges instead of saving a stale copy.
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, realpathSync } from 'node:fs'
@@ -64,6 +67,10 @@ export function resolveQueueLocation(scriptDir = HERE) {
   return besideScripts(mainScriptDir)
 }
 
-const { queueDir, checkoutRoot } = resolveQueueLocation()
-export const QUEUE_DIR = queueDir
-export const QUEUE_CHECKOUT = checkoutRoot
+// Resolved on first use, not at import: modules that also export pure helpers (seed-kv,
+// build-gallery-announce, veto-announce) are imported by tests that never touch a queue, and a
+// git lookup or a refusal must not break those imports.
+let location
+const here = () => (location ??= resolveQueueLocation())
+export const queueDir = () => here().queueDir
+export const queueCheckout = () => here().checkoutRoot

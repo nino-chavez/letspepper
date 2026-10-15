@@ -13,9 +13,10 @@
  * live queue and keeps its old URLs; --replace is refused on a running campaign
  * until the local file carries the posted state the Worker recorded.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { join, basename } from 'node:path'
-import { QUEUE_DIR } from './queue-dir.mjs'
+import { queueDir } from './queue-dir.mjs'
+import { updateQueueFile } from './queue-store.mjs'
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, t, i, arr) => {
   if (t.startsWith('--')) { const n = arr[i + 1]; a.push([t.slice(2), n === undefined || n.startsWith('--') ? true : n]) }
@@ -26,22 +27,22 @@ const mapPath = args.map || '/tmp/stream-map.json'
 if (!event) { console.error('Required: --event <slug> [--map <stream-map.json>]'); process.exit(1) }
 if (!existsSync(mapPath)) { console.error(`No map: ${mapPath}`); process.exit(1) }
 
-const queuePath = join(QUEUE_DIR, `${event}.json`)
+const queuePath = join(queueDir(), `${event}.json`)
 if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath}`); process.exit(1) }
 
 const map = JSON.parse(readFileSync(mapPath, 'utf8'))
-const q = JSON.parse(readFileSync(queuePath, 'utf8'))
 let linked = 0, missing = []
-for (const it of q.items) {
-  const fname = basename(it.file || '')
-  const entry = map[fname]
-  if (!entry?.download_url) { missing.push(it.id); continue }
-  it.video_url = entry.download_url
-  it.cf_stream_id = entry.cf_stream_id
-  it.thumbnail = entry.thumbnail
-  linked++
-}
-writeFileSync(queuePath, JSON.stringify(q, null, 2))
+const q = updateQueueFile(queuePath, undefined, (fresh) => {
+  for (const it of fresh.items) {
+    const fname = basename(it.file || '')
+    const entry = map[fname]
+    if (!entry?.download_url) { missing.push(it.id); continue }
+    it.video_url = entry.download_url
+    it.cf_stream_id = entry.cf_stream_id
+    it.thumbnail = entry.thumbnail
+    linked++
+  }
+})
 console.log(`Relinked ${linked}/${q.items.length} items to Stream download URLs.`)
 if (missing.length) console.log(`No map entry for ${missing.length}: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '…' : ''}`)
 console.log(`Next: node scripts/social-publish/seed-kv.mjs --event ${event} --replace --put (a plain seed keeps the live queue's old URLs)`)

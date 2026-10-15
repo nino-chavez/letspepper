@@ -74,7 +74,7 @@
  * "STORIES" in a "media_types" array, which it does not yet — Nino has not approved Stories for
  * this campaign (see SETUP.md).
  */
-import { writeFileSync, mkdirSync, readFileSync, existsSync, realpathSync } from 'node:fs'
+import { writeFileSync, mkdirSync, realpathSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
@@ -89,7 +89,8 @@ import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUr
 import { loadRoutes, standingEntry } from './route-gate.mjs'
 import { companionStoryText, companionStoryHtml, companionStoryItem, renderCompanionStoryImage } from './companion-story.mjs'
 import { cfLarge as cfLargeSource, galleryPhotoSource, r2PutPhoto } from './gallery-photo-source.mjs'
-import { QUEUE_DIR } from './queue-dir.mjs'
+import { queueDir } from './queue-dir.mjs'
+import { updateQueueFile, writeQueueFile } from './queue-store.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
@@ -356,9 +357,8 @@ async function refreshCaption(args, albumKey, seriesArg) {
     caption: buildGalleryAnnounceCaption({ ...captionArgs, channel: 'instagram' }),
     facebook_caption: buildGalleryAnnounceCaption({ ...captionArgs, channel: 'facebook' }),
   }
-  const captionPath = join(QUEUE_DIR, `${id}.captions.json`)
-  mkdirSync(dirname(captionPath), { recursive: true })
-  writeFileSync(captionPath, `${JSON.stringify(captions, null, 2)}\n`)
+  const captionPath = join(queueDir(), `${id}.captions.json`)
+  writeQueueFile(captionPath, captions)
   console.log(`Instagram caption of ${id} changes from:\n${item.caption}\n\nto:\n${captions.caption}\n`)
   console.log(`Facebook caption of ${id} changes from:\n${item.facebook_caption ?? item.caption}\n\nto:\n${captions.facebook_caption}\n`)
   console.log(`Wrote ${captionPath}. Next: seed-kv.mjs --event ${EVENT} --recaption ${id} --caption-file ${captionPath} --put`)
@@ -566,16 +566,18 @@ export async function main(argv = process.argv.slice(2)) {
     return { manifest, outPath, item, story: { item: storyItem, imagePath: storyLocalPath } }
   }
 
-  const queuePath = join(QUEUE_DIR, `${EVENT}.json`)
-  const existing = existsSync(queuePath) ? JSON.parse(readFileSync(queuePath, 'utf8')) : { event: EVENT, items: [] }
-  let queue = existing
-  for (const it of [item, storyItem]) {
-    const result = appendGalleryAnnounceItem(queue, it)
-    if (result.refused) { console.error(`REFUSED — ${result.refused}`); process.exitCode = 1; return { refused: result.refused } }
-    queue = result.queue
-  }
-  mkdirSync(dirname(queuePath), { recursive: true })
-  writeFileSync(queuePath, JSON.stringify(queue, null, 2))
+  const queuePath = join(queueDir(), `${EVENT}.json`)
+  let refused = null
+  const queue = updateQueueFile(queuePath, { event: EVENT, items: [] }, (existing) => {
+    let next = existing
+    for (const it of [item, storyItem]) {
+      const result = appendGalleryAnnounceItem(next, it)
+      if (result.refused) { refused = result.refused; return existing }
+      next = result.queue
+    }
+    return next
+  })
+  if (refused) { console.error(`REFUSED — ${refused}`); process.exitCode = 1; return { refused } }
   console.log(`Appended ${item.id} and ${storyItem.id} to ${queuePath} (${queue.items.length} items total). Held until ${holdUntil}.`)
   const hasRoute = !!standingEntry(EVENT, loadRoutes())
   console.log(nextStepMessage(hasRoute))

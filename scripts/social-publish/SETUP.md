@@ -7,6 +7,7 @@ Fully controlled, no third-party SaaS. Multi-account scheduled publishing over I
 ```
 accounts.json            registry: account slug → ig_user_id (+ handle, page_id)
 queue-dir.mjs            where queue/ lives: the main checkout's, even from a linked worktree
+queue-store.mjs          every queue write: locked, re-read and merged, so concurrent runs keep each other's items
 build-queue.mjs          folder of media → queue/<event>.json (per-account, scheduled)
 build-album-carousel.mjs gallery album → R2-hosted CAROUSEL queue/<event>.json
 build-gallery-announce.mjs  standing campaign: one album → held CAROUSEL, APPENDED to queue/gallery-announce.json
@@ -33,6 +34,7 @@ worker/src/index.js      scheduled Instagram + Facebook Page publisher; also ser
 
 ## Architecture
 - **Queues live in the main checkout.** `queue/` is gitignored, so each checkout has its own copy. It holds the ad hoc ledger (`queue/adhoc.json`), every campaign queue, and the prepared-container and route-receipt state a timed-out publish is reconciled from. Every script finds it through `queue-dir.mjs`. From a linked worktree (`.worktrees/<branch>`), that is the main checkout's `scripts/social-publish/queue/`, and the pre-publish copy audit reads it there too. A worktree whose main checkout lacks this folder is refused rather than given a ledger that disappears with it. Before this, a 630 Story published from a worktree on 2026-10-15 was recorded only in that worktree's copy.
+- **Concurrent runs keep each other's items.** Because every worktree shares those files, every write goes through `queue-store.mjs`, under a lock held only for the read and write. A quick edit re-reads the file and changes it in one step. `post-reels`, `upload-r2` and `build-fb-album` hold their copy across Meta and upload calls, so they merge on save: what that run changed wins, and anything it did not touch, including an item another session appended meanwhile, is kept. A plain `writeFileSync` of a queue file would erase that item; a test fails if a script writes one directly.
 - **Owned accounts:** Almost Flickday (`id 4033438730307424`) owns `nino.chavez.photo`, `letspepper.open` and `flickday.media`. **Partner accounts are separate:** `630volleyball` remains owned by 630 Volleyball and uses its own Facebook User OAuth token through `accounts.json.token_ref`. An account registry entry does not grant access.
 - **Two Meta apps, two isolated System Users, separate tokens.** Meta exposes the Instagram-content and Page-management use cases separately in the current app flow. `Lets Pepper Publisher` owns the Instagram credential; the employee-level `Pepper Page Publisher` owns the Facebook Page credential. This keeps a Page-token rotation from revoking the working Instagram token. Validate granted scopes and asset tasks live before enabling a destination. Use Meta's current 60-day System User token option and refresh it before expiry.
 - Host is **`graph.facebook.com`** (Business path) — each account addressed by its numeric `ig_user_id`. (`graph.instagram.com` is the single-account Instagram-Login path; not used here.)
