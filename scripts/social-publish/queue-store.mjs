@@ -23,15 +23,16 @@
  *   is the failure this exists to prevent.
  * - write a temporary file and rename it over the original, so no reader sees half a file.
  *
- * The lock is held for the read-merge-write only, never across a network call. A lock whose process
- * has exited is taken over by one waiter at a time; a lock whose process is still running is waited
- * on, then reported, never stolen.
+ * The lock is held for the read-merge-write only, never across a network call. A dead lock (its
+ * process has exited, or it is older than any real holder could make it) is taken over by one waiter
+ * at a time; a live one is waited on, then reported, never stolen.
  */
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 const LOCK_WAIT_MS = 30_000
 const LOCK_STALE_MS = 60_000
+const LOCK_ABANDONED_MS = 10 * 60_000
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -75,68 +76,81 @@ export function merge3(base, ours, theirs) {
   return ours // both changed the same value: the run saving now wins, as a plain write would
 }
 
-const readLock = (lock) => { try { return JSON.parse(readFileSync(lock, 'utf8')) } catch { return null } }
+const readHolder = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')) } catch { return null } }
+const newHolder = () => ({ pid: process.pid, token: `${process.pid}-${process.hrtime.bigint()}-${Math.random().toString(36).slice(2)}`, at: new Date().toISOString() })
 
-// A holder whose process is running is never preempted, however old its lock: it may be a laptop
-// that slept mid-write, and waiting (then failing with a clear error) is safe where stealing is not.
-// A lock with no readable holder, cut off while being written, is judged by age.
-function holderGone(info, lock) {
-  if (Number.isInteger(info?.pid)) {
-    try { process.kill(info.pid, 0); return false } catch (e) { return e.code === 'ESRCH' }
+// Create `file` only if absent, recording who holds it. True when this process now holds it.
+function claim(file, holder) {
+  try {
+    const fd = openSync(file, 'wx')
+    writeSync(fd, JSON.stringify(holder))
+    closeSync(fd)
+    return true
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e
+    return false
   }
-  try { return Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS } catch { return false }
+}
+
+// Delete `file` only while it still records `token`: never one that another process took after
+// this one looked. The re-read and the delete are adjacent statements; the guard below is what
+// keeps two processes from reaching them for the same lock.
+function removeIfStill(file, token) {
+  if (readHolder(file)?.token !== token) return
+  try { unlinkSync(file) } catch { /* already gone */ }
+}
+
+// Dead: its process has exited; or its file is older than LOCK_ABANDONED_MS, which no real holder
+// reaches (the lock covers a read and a write, never a network call) and which also covers a pid
+// that macOS has since given to an unrelated process; or it has no readable holder and is older
+// than LOCK_STALE_MS (cut off while being written). A waiter on the same Mac cannot run while that
+// Mac sleeps, so a holder suspended mid-write is never judged dead by the cutoff while it matters.
+function holderGone(info, file) {
+  let age
+  try { age = Date.now() - statSync(file).mtimeMs } catch { return false } // gone already; the next attempt takes it
+  if (age > LOCK_ABANDONED_MS) return true
+  if (!Number.isInteger(info?.pid)) return age > LOCK_STALE_MS
+  try { process.kill(info.pid, 0); return false } catch (e) { return e.code === 'ESRCH' }
 }
 
 // Judging a lock dead and deleting it are two steps, so two waiters can judge the same dead lock;
 // if the slower one then deleted it, it would delete the lock the faster one had just taken, and
 // both would write (second review of this change). Only the waiter holding the takeover guard may
-// delete, and only after re-reading that the lock is still the dead one it judged.
+// delete, and only while the lock still records the token it judged dead. The guard follows the
+// same rules: a guard whose holder died is cleared by token, never by a bare age check.
 function takeOverDeadLock(lock, judged) {
   sleep(Number(process.env.QUEUE_STORE_TAKEOVER_DELAY_MS || 0)) // test seam: widens the window the guard closes
   const guard = `${lock}.takeover`
-  try {
-    closeSync(openSync(guard, 'wx'))
-  } catch (e) {
-    if (e.code !== 'EEXIST') throw e
-    // Another waiter is taking over. A guard can outlive its holder only if that process died inside
-    // this few-statement section; clear one that old so the queue cannot stay locked for good.
-    try { if (Date.now() - statSync(guard).mtimeMs > LOCK_STALE_MS) unlinkSync(guard) } catch { /* gone already */ }
+  const me = newHolder()
+  if (!claim(guard, me)) {
+    const other = readHolder(guard)
+    if (holderGone(other, guard)) removeIfStill(guard, other?.token)
     return
   }
   try {
-    const now = readLock(lock)
-    if (now?.token === judged?.token && holderGone(now, lock)) unlinkSync(lock)
-  } catch { /* the lock went away meanwhile; the next attempt takes it */ } finally {
-    try { unlinkSync(guard) } catch { /* already cleared */ }
+    if (readHolder(lock)?.token === judged?.token && holderGone(judged, lock)) removeIfStill(lock, judged?.token)
+  } finally {
+    removeIfStill(guard, me.token)
   }
 }
 
 export function withQueueLock(path, fn) {
   const lock = `${path}.lock`
   mkdirSync(dirname(path), { recursive: true })
-  const mine = { pid: process.pid, token: `${process.pid}-${process.hrtime.bigint()}-${Math.random().toString(36).slice(2)}`, at: new Date().toISOString() }
+  const mine = newHolder()
   const start = Date.now()
-  for (;;) {
-    try {
-      const fd = openSync(lock, 'wx')
-      writeSync(fd, JSON.stringify(mine))
-      closeSync(fd)
-      break
-    } catch (e) {
-      if (e.code !== 'EEXIST') throw e
-      const held = readLock(lock)
-      if (holderGone(held, lock)) { takeOverDeadLock(lock, held); sleep(5); continue }
-      if (Date.now() - start > LOCK_WAIT_MS) {
-        throw new Error(`queue-store: ${lock} has been held for over ${LOCK_WAIT_MS / 1000} s by pid ${held?.pid ?? 'unknown'}, which is still running; nothing was written. Check that process, then retry.`)
-      }
-      sleep(25)
+  while (!claim(lock, mine)) {
+    const held = readHolder(lock)
+    if (holderGone(held, lock)) { takeOverDeadLock(lock, held); sleep(5); continue }
+    if (Date.now() - start > LOCK_WAIT_MS) {
+      throw new Error(`queue-store: ${lock} has been held for over ${LOCK_WAIT_MS / 1000} s by pid ${held?.pid ?? 'unknown'}, which is still running; nothing was written. Check that process, then retry.`)
     }
+    sleep(25)
   }
   try {
     return fn()
   } finally {
-    // Release only our own lock: never one another run took after ours was judged dead.
-    if (readLock(lock)?.token === mine.token) { try { unlinkSync(lock) } catch { /* already gone */ } }
+    removeIfStill(lock, mine.token) // release only our own lock
   }
 }
 

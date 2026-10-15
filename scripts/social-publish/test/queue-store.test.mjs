@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -72,6 +72,36 @@ test('withQueueLock: a lock left by a process that has exited is taken over', ()
     const p = join(dir, 'q.json')
     writeFileSync(`${p}.lock`, JSON.stringify({ pid: 2 ** 22 + 12345, at: new Date().toISOString() }))
     assert.equal(withQueueLock(p, () => 'ran'), 'ran')
+    assert.equal(existsSync(`${p}.lock`), false)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// From the third review: after a crash, macOS can hand the lock's pid to an unrelated process.
+// The lock must not then look held forever; no real holder keeps it for minutes.
+test('withQueueLock: an old lock whose pid now belongs to another process is taken over', () => {
+  const dir = scratch()
+  try {
+    const p = join(dir, 'q.json')
+    writeFileSync(`${p}.lock`, JSON.stringify({ pid: process.pid, token: 'crashed-run', at: new Date(Date.now() - 11 * 60_000).toISOString() }))
+    const old = new Date(Date.now() - 11 * 60_000)
+    utimesSync(`${p}.lock`, old, old)
+    const started = Date.now()
+    assert.equal(withQueueLock(p, () => 'ran'), 'ran')
+    assert.ok(Date.now() - started < 5_000, 'taken over at once, not after the 30 s wait')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('withQueueLock: a takeover guard left by a crashed waiter does not block the takeover', () => {
+  const dir = scratch()
+  try {
+    const p = join(dir, 'q.json')
+    const dead = JSON.stringify({ pid: 2 ** 22 + 777, token: 'crashed', at: new Date().toISOString() })
+    writeFileSync(`${p}.lock`, dead)
+    writeFileSync(`${p}.lock.takeover`, dead)
+    const started = Date.now()
+    assert.equal(withQueueLock(p, () => 'ran'), 'ran')
+    assert.ok(Date.now() - started < 5_000, 'the dead guard is cleared at once, not after an age timeout')
+    assert.equal(existsSync(`${p}.lock.takeover`), false)
     assert.equal(existsSync(`${p}.lock`), false)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
