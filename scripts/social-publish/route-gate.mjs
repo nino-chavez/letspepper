@@ -228,7 +228,7 @@ export function refusal({ event, items = [], missing = [], stale = [], changed =
       ? `"${event}" has a standing route, but not for this run: it names the accounts it covers and may carry an expiry, and --account cannot point an approved campaign somewhere else. Read its entry in graph-routes.json.\n`
       : null,
     why === 'media_type'
-      ? `"${event}" has a standing route, but it does not cover ${[...new Set(items.map((it) => it.media_type || 'REELS'))].filter((t) => t !== 'CAROUSEL' && t !== 'REELS' && t !== 'IMAGE').join(', ') || 'this media type'}: a route with no "media_types" field covers every type except STORIES. Nino has to approve Stories for this campaign — add "media_types": [..., "STORIES"] to its graph-routes.json entry.\n`
+      ? `"${event}" has a standing route, but it does not cover ${[...new Set(items.map((it) => it.media_type || 'REELS'))].join(', ') || 'this media type'}. Read its media_types approval in graph-routes.json. With strict_media_types: true, only listed types are covered. Legacy routes cover non-Story formats; Nino has to approve Stories before adding that type. Do not widen an approved Reel-only route for another format.\n`
       : null,
     stale.length
       ? `${list(stale)}: the route receipt is older than ${RECEIPT_TTL_HOURS}h. Approval for an ad hoc post means "now" — ask again before publishing it.\n`
