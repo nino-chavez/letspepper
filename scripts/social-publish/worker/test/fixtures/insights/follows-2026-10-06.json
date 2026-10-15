@@ -1,0 +1,34 @@
+{
+  "data": [
+    {
+      "id": "17841411569230130/insights/follows_and_unfollows/day",
+      "name": "follows_and_unfollows",
+      "period": "day",
+      "title": "Follows and unfollows",
+      "description": "The number of accounts that followed you and the number of accounts that unfollowed you or left Instagram in the selected time period.",
+      "total_value": {
+        "breakdowns": [
+          {
+            "dimension_keys": [
+              "follow_type"
+            ],
+            "results": [
+              {
+                "dimension_values": [
+                  "FOLLOWER"
+                ],
+                "value": 6
+              },
+              {
+                "dimension_values": [
+                  "NON_FOLLOWER"
+                ],
+                "value": 6
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
