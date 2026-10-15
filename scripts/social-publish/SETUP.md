@@ -74,6 +74,8 @@ pnpm social:worker:test   # every file in worker/test/: every Worker refusal see
 
 ---
 
+New routes limited to explicit media types can set `strict_media_types: true` beside a nonempty `media_types` array. Both the local gate and scheduled Worker then refuse every type outside that list. `seed-kv.mjs` carries the switch into production. Existing routes without the switch retain their historical non-Story behavior; Stories still require explicit opt-in.
+
 ## One-time setup
 
 ### Phase 0 — account foundation (Business Manager UI; do these yourself)
