@@ -1,0 +1,88 @@
+{
+  "data": [
+    {
+      "id": "17968912968186616/insights/views/lifetime",
+      "name": "views",
+      "period": "lifetime",
+      "title": "Views",
+      "description": "The number of times your post was played or displayed.",
+      "values": [
+        {
+          "value": 3069
+        }
+      ]
+    },
+    {
+      "id": "17968912968186616/insights/reach/lifetime",
+      "name": "reach",
+      "period": "lifetime",
+      "title": "Accounts reached",
+      "description": "The number of unique accounts that have seen this carousel container, at least once. Reach is different from impressions, which may include multiple views of your carousel container by the same accounts. This metric is estimated.",
+      "values": [
+        {
+          "value": 1063
+        }
+      ]
+    },
+    {
+      "id": "17968912968186616/insights/saved/lifetime",
+      "name": "saved",
+      "period": "lifetime",
+      "title": "Saved",
+      "description": "The number of saves of your post.",
+      "values": [
+        {
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "17968912968186616/insights/shares/lifetime",
+      "name": "shares",
+      "period": "lifetime",
+      "title": "Shares",
+      "description": "The number of shares of your post.",
+      "values": [
+        {
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "17968912968186616/insights/likes/lifetime",
+      "name": "likes",
+      "period": "lifetime",
+      "title": "Likes",
+      "description": "The number of likes on your post.",
+      "values": [
+        {
+          "value": 60
+        }
+      ]
+    },
+    {
+      "id": "17968912968186616/insights/comments/lifetime",
+      "name": "comments",
+      "period": "lifetime",
+      "title": "Comments",
+      "description": "The number of comments on your post.",
+      "values": [
+        {
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "17968912968186616/insights/total_interactions/lifetime",
+      "name": "total_interactions",
+      "period": "lifetime",
+      "title": "Post interactions",
+      "description": "The number of likes, saves, comments and shares on your post minus the number of unlikes, unsaves and deleted comments.",
+      "values": [
+        {
+          "value": 61
+        }
+      ]
+    }
+  ]
+}

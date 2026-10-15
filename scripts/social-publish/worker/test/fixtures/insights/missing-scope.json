@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "(#10) Application does not have permission for this action",
+    "code": 10,
+    "type": "OAuthException"
+  }
+}
