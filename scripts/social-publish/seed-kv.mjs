@@ -59,7 +59,7 @@ export function seedPayload(queue, event, routes, now = new Date()) {
   const accounts = [...new Set((queue.items || []).map((it) => it.account))]
   const unlisted = accounts.filter((a) => !entryCovers(entry, [a], now))
   if (unlisted.length) return { refused: `the graph-routes.json entry for "${event}" does not list ${unlisted.map((a) => `"${a}"`).join(', ')}.` }
-  const { reason, approved, accounts: approvedAccounts, expires, media_types: mediaTypes } = entry
+  const { reason, approved, accounts: approvedAccounts, expires, media_types: mediaTypes, strict_media_types: strictMediaTypes } = entry
   // media_types (2026-09-26, gallery-announce companion Story) has to be copied through same
   // as expires — worker/src/index.js's routeRefusal() reads it off q.meta.route, not off
   // graph-routes.json (which the Worker cannot read at all). Dropping it here would mean
@@ -69,6 +69,7 @@ export function seedPayload(queue, event, routes, now = new Date()) {
     reason, approved, accounts: [...approvedAccounts],
     ...(expires === undefined ? {} : { expires }),
     ...(mediaTypes === undefined ? {} : { media_types: [...mediaTypes] }),
+    ...(strictMediaTypes === undefined ? {} : { strict_media_types: strictMediaTypes }),
   }
   return { payload: { ...queue, meta: { ...queue.meta, route } } }
 }

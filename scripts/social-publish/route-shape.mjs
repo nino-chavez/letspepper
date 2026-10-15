@@ -19,7 +19,9 @@ export function standingEntry(event, routes) {
   const ok = !!entry && typeof entry === 'object' && filled(entry.reason) && isDate(entry.approved) &&
     Array.isArray(entry.accounts) && entry.accounts.length > 0 && entry.accounts.every(filled) &&
     (entry.expires === undefined || isDate(entry.expires)) &&
-    (entry.media_types === undefined || (Array.isArray(entry.media_types) && entry.media_types.every(filled)))
+    (entry.media_types === undefined || (Array.isArray(entry.media_types) && entry.media_types.every(filled))) &&
+    (entry.strict_media_types === undefined || typeof entry.strict_media_types === 'boolean') &&
+    (entry.strict_media_types !== true || (Array.isArray(entry.media_types) && entry.media_types.length > 0))
   return ok ? entry : null
 }
 
@@ -38,8 +40,13 @@ export const STORIES = 'STORIES'
  * Stories). Only STORIES needs an explicit, listed opt-in: `"media_types": ["CAROUSEL",
  * "STORIES"]` on the entry. This is what the companion-Story feature's route gate enforces —
  * see companion-story.mjs's header and route-gate.mjs's `checkRoute()`.
+ * A new route may opt into a full allowlist with strict_media_types: true. That
+ * requires a nonempty media_types list and covers only those types; older routes
+ * without the switch retain the existing non-Story behavior.
  */
 export function coversMediaType(entry, mediaType) {
+  if (entry?.strict_media_types === true)
+    return Array.isArray(entry.media_types) && entry.media_types.includes(mediaType)
   if (mediaType !== STORIES) return true
   return !!entry && Array.isArray(entry.media_types) && entry.media_types.includes(STORIES)
 }

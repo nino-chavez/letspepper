@@ -206,3 +206,31 @@ test('an ordinary item with no linked_item_id is completely unaffected by this g
   })
   assert.equal(queue.items[0].status, 'posted')
 })
+
+test('strict Reel approval refuses IMAGE and CAROUSEL before any Graph call', async () => {
+  for (const media_type of ['IMAGE', 'CAROUSEL']) {
+    const calls = []
+    const item = storyItem({ id: 'unapproved-type', media_type, linked_item_id: undefined,
+      ...(media_type === 'CAROUSEL' ? { children: [1, 2].map(n => ({ media_type: 'IMAGE', image_url: 'https://cdn.example.test/' + n + '.jpg' })) } : {}) })
+    const route = { ...ROUTE_NO_STORIES, media_types: ['REELS'], strict_media_types: true }
+    const q = await runQueue(queueOf(item, route), async input => { calls.push(String(input)); throw new Error('unapproved media reached Graph') })
+    assert.deepEqual(calls, [], media_type)
+    assert.equal(q.items[0].status, 'error')
+    assert.match(q.items[0].route_error, new RegExp('does not cover ' + media_type))
+  }
+})
+
+test('strict Reel approval still publishes the reviewed media type', async () => {
+  const item = storyItem({ id: 'approved-reel', media_type: 'REELS', linked_item_id: undefined, video_url: 'https://cdn.example.test/reel.mp4', user_tags: [], collaborators: [] })
+  const route = { ...ROUTE_NO_STORIES, media_types: ['REELS'], strict_media_types: true }
+  const calls = []
+  const q = await runQueue(queueOf(item, route), async (input, init = {}) => {
+    const url = new URL(String(input)); const method = init.method || 'GET'; calls.push(url.pathname)
+    if (method === 'POST' && url.pathname.endsWith('/17841401886738878/media')) return Response.json({ id: 'strict-reel-container' })
+    if (method === 'GET' && url.pathname.endsWith('/strict-reel-container')) return Response.json({ status_code: 'FINISHED' })
+    if (method === 'POST' && url.pathname.endsWith('/media_publish')) return Response.json({ id: 'strict-reel-media' })
+    throw new Error('Unexpected Graph request: ' + method + ' ' + url.pathname)
+  })
+  assert.equal(q.items[0].status, 'posted')
+  assert.ok(calls.some(path => path.endsWith('/media_publish')))
+})

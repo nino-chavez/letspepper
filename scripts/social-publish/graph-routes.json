@@ -7,7 +7,8 @@
     "Entry shape: \"<event-slug>\": { \"reason\": \"why this campaign runs through the API\", \"approved\": \"YYYY-MM-DD\", \"accounts\": [\"letspepper\"], \"expires\": \"YYYY-MM-DD (optional)\", \"media_types\": [\"CAROUSEL\", \"STORIES\"] (optional) }. `accounts` are accounts.json slugs and are enforced, including against --account; an entry missing any required field approves nothing.",
     "`media_types` (added 2026-09-26, for the gallery-announce companion Story): an entry with NO media_types field covers every media type except STORIES — unchanged for every route approved before this field existed. STORIES needs an explicit, listed opt-in. route-shape.mjs's coversMediaType() enforces this, in both route-gate.mjs (local) and worker/src/index.js (scheduled).",
     "The scheduled Worker (worker/src/index.js) cannot read this file. It checks `meta.route` in its KV queue, which seed-kv.mjs copies from the entry here and refuses to write without one. A hand-written `meta.route` in KV passes the Worker too, so this file, not KV, is the approval.",
-    "Starts empty on purpose (2026-09-21): no campaign was publishing from this machine, and the local queue copies held more than 80 overdue pending items that a stray run would have started posting."
+    "Starts empty on purpose (2026-09-21): no campaign was publishing from this machine, and the local queue copies held more than 80 overdue pending items that a stray run would have started posting.",
+    "strict_media_types: true opts a new route into treating media_types as a complete allowlist. A nonempty list is required. Without that switch, the historical field only gates STORIES and legacy non-Story approval is unchanged. This switch is copied to production by seed-kv.mjs and enforced by the shared route-shape.mjs in both publishers."
   ],
   "events": {
     "gallery-announce": {
@@ -46,6 +47,18 @@
       "media_types": [
         "REELS"
       ]
+    },
+    "630-block-coaching-20261022": {
+      "reason": "Nino, October 15, 2026, after reviewing the exact Keep it alive coaching export: \"this is better. let's schedule the coaching piece after october 21\". The 630 default route is the owned API scheduler. This scheduled release contains only keep-it-alive-coaching-review-v1.mp4 (SHA-256 400bbb837f03bb877504e32479c19eaaafc38edba7a460cec0daf33f5bcce172), the encoded KEEP IT ALIVE cover, and caption 'Go up off the block. Give your team time to get the ball.' with @nick_maruyama as a caption mention. No Collab invitations, Stories, additional edits or Facebook. Planned slot October 22, 2026 at 7 p.m. America/Chicago. Footage permission was separately confirmed by Nino for 630 social accounts. Source: ~/Workspace/create/campaigns/practice-10-14-evergreen/release/coaching-manifest.json.",
+      "approved": "2026-10-15",
+      "accounts": [
+        "630"
+      ],
+      "expires": "2026-10-24",
+      "media_types": [
+        "REELS"
+      ],
+      "strict_media_types": true
     }
   }
 }
