@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { lostState } from '../seed-kv.mjs'
+import { lostState, seedPayload } from '../seed-kv.mjs'
 
 // Shaped like the live Re7kho item after it posted: array publish-state fields included.
 const posted = () => ({
@@ -25,4 +25,12 @@ test('lostState: still refuses a local copy that drops or changes recorded publi
 test('lostState: items the Worker has not started on are not guarded', () => {
   const held = { id: 'x', status: 'held', facebook_status: 'held' }
   assert.deepEqual(lostState({ items: [held] }, { items: [{ ...held, caption: 'changed' }] }), [])
+})
+
+test('seedPayload carries the explicit strict media scope to the Worker route', () => {
+  const event = 'reviewed-coaching-test'
+  const entry = { reason: 'approved one Reel', approved: '2026-10-15', accounts: ['630'], media_types: ['REELS'], strict_media_types: true }
+  const result = seedPayload({ event, items: [{ id: 'reel', account: '630', media_type: 'REELS', status: 'draft' }] }, event, { events: { [event]: entry } })
+  assert.equal(result.payload.meta.route.strict_media_types, true)
+  assert.deepEqual(result.payload.meta.route.media_types, ['REELS'])
 })

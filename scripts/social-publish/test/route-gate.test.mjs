@@ -751,3 +751,30 @@ test('every entry in the tracked approval list is a complete approval, naming re
     }
   }
 })
+
+// Narrow media-type enforcement is opt-in; legacy standing routes keep their contract.
+test('strict media scope covers the approved Reel and refuses other types', () => {
+  const entry = { reason: 'approved coaching Reel', approved: '2026-10-15', accounts: ['630'], media_types: ['REELS'], strict_media_types: true }
+  assert.equal(coversMediaType(entry, 'REELS'), true)
+  for (const type of ['IMAGE', 'CAROUSEL', 'STORIES', undefined])
+    assert.equal(coversMediaType(entry, type), false, String(type))
+  for (const type of ['IMAGE', 'CAROUSEL']) {
+    const verdict = checkRoute({ event: EVENT, items: [{ id: 'other', account: '630', media_type: type }], routes: { events: { [EVENT]: entry } } })
+    assert.equal(verdict.ok, false, type)
+    assert.equal(verdict.why, 'media_type', type)
+  }
+})
+
+test('strict media scope requires a nonempty explicit list and a boolean switch', () => {
+  const base = { reason: 'r', approved: '2026-10-15', accounts: ['630'], strict_media_types: true }
+  for (const entry of [base, { ...base, media_types: [] }, { ...base, media_types: ['REELS'], strict_media_types: 'true' }])
+    assert.equal(standingEntry(EVENT, { events: { [EVENT]: entry } }), null)
+  assert.ok(standingEntry(EVENT, { events: { [EVENT]: { ...base, media_types: ['REELS'] } } }))
+})
+
+test('legacy media lists keep their existing non-Story behavior without the strict switch', () => {
+  const entry = { media_types: ['REELS'] }
+  assert.equal(coversMediaType(entry, 'IMAGE'), true)
+  assert.equal(coversMediaType(entry, 'CAROUSEL'), true)
+  assert.equal(coversMediaType(entry, 'STORIES'), false)
+})
