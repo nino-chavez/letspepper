@@ -21,8 +21,9 @@
  *   - follows_and_unfollows is stored under Meta's own breakdown names:
  *     follows_and_unfollows:FOLLOWER is follows and :NON_FOLLOWER is unfollows (checked
  *     against Business Suite's Audience > Trends for four days on 2026-10-15; INSIGHTS.md).
- *   - Every run writes one sync_runs row per account. The phone alert fires only when an
- *     account's state differs from its previous run's, so a standing problem notifies once.
+ *   - Every run writes one sync_runs row per account. Only scheduled runs alert: the phone
+ *     alert fires when an account's state differs from its previous scheduled run's, so a
+ *     standing problem notifies once. A manual run returns its result to the caller instead.
  *   - A Graph error never carries the request URL into a stored detail or a log line;
  *     the URL holds the access token.
  */
@@ -33,12 +34,16 @@ export const INSIGHTS_CRON = '30 14 * * *' // 9:30 a.m. CDT, 8:30 a.m. CST
 export const REPORT_TIME_ZONE = 'America/Los_Angeles'
 export const LOOKBACK_DAYS = 7
 export const MEDIA_WINDOW_DAYS = 14
-export const MAX_RANGE_DAYS = 60
-// External subrequests one run may spend on Graph reads. A daily run needs about 37
-// (1 profile + 2 per day + 1 media list + 1 per recent post); the phone alert is not
-// charged against it. Kept under the Workers Free cap of 50 per invocation, the same
-// caution the publisher's SUBREQUEST_BUDGET takes.
+// External subrequests one run may spend on Graph reads; the phone alert is not charged
+// against it. Kept under the Workers Free cap of 50 per invocation, the same caution the
+// publisher's SUBREQUEST_BUDGET takes: the account's plan could not be read from the API
+// (2026-10-15). A daily run spends 1 profile + 2 per day + 1 media list + 1 per recent
+// post, about 27 for 630's ~11 posts a fortnight; more than 29 posts in the window
+// makes the run partial rather than overrun the cap.
 export const RUN_BUDGET = 45
+// A range run reads days only, two requests each after the profile, so one run covers
+// what the budget allows. A longer backfill is several calls (INSIGHTS.md).
+export const MAX_RANGE_DAYS = Math.floor((RUN_BUDGET - 1) / 2)
 const MEDIA_PAGE_SIZE = 50
 
 export const DAY_METRICS = [
@@ -240,7 +245,7 @@ INSERT INTO sync_runs (account, trigger, started_at, finished_at, state, first_d
   days_complete, days_failed, day_values_written, media_read, detail)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`
 
-const PREVIOUS_STATE = 'SELECT state FROM sync_runs WHERE account = ?1 ORDER BY id DESC LIMIT 1'
+const PREVIOUS_CRON_STATE = "SELECT state FROM sync_runs WHERE account = ?1 AND trigger = 'cron' ORDER BY id DESC LIMIT 1"
 
 /**
  * Read one account and return what to write, without writing it. `days` are the
@@ -333,31 +338,33 @@ export function runState(read) {
   return { state, detail: details.length ? details.join('; ').slice(0, 2000) : null }
 }
 
+// No ntfy tags: the app renders a tag that matches an emoji short code as an emoji, and
+// shows the rest as an extra line to read (notify.mjs, "Header shapes").
 const ALERTS = {
   ok: (handle, prev) => ({
     title: `${handle} insights are recording again`,
     message: `The daily Instagram insights read for ${handle} worked. The previous run was "${prev}".`,
-    priority: 'default', tags: ['white_check_mark'],
+    priority: 'default',
   }),
   partial: (handle, _prev, detail) => ({
     title: `${handle} insights: some reads failed`,
     message: `The daily Instagram insights read for ${handle} saved part of its data. ${detail ?? ''}`.trim(),
-    priority: 'default', tags: ['warning'],
+    priority: 'default',
   }),
   missing_scope: (handle) => ({
     title: `${handle} insights: token lacks permission`,
     message: `The saved token for ${handle} cannot read Instagram insights. Follower counts are still recorded. Renew the token with instagram_manage_insights (630 repo: docs/internal/ops/META-PUBLISHING.md).`,
-    priority: 'high', tags: ['key'],
+    priority: 'high',
   }),
   token_invalid: (handle) => ({
     title: `${handle} insights: token expired or revoked`,
     message: `Meta rejected the saved token for ${handle}, so nothing was recorded. Renew it (630 repo: docs/internal/ops/META-PUBLISHING.md).`,
-    priority: 'high', tags: ['key'],
+    priority: 'high',
   }),
   error: (handle, _prev, detail) => ({
     title: `${handle} insights: the daily read failed`,
     message: `Nothing new was recorded for ${handle}. ${detail ?? ''}`.trim(),
-    priority: 'high', tags: ['warning'],
+    priority: 'high',
   }),
 }
 
@@ -409,7 +416,7 @@ async function collectAccount(env, { account, acct, graph, trigger, now, today, 
   const { state, detail } = runState(read)
   const finishedAt = new Date().toISOString()
   const db = env.INSIGHTS_DB
-  const previous = (await db.prepare(PREVIOUS_STATE).bind(account).first())?.state ?? null
+  const previous = trigger === 'cron' ? ((await db.prepare(PREVIOUS_CRON_STATE).bind(account).first())?.state ?? null) : null
 
   const statements = []
   if (read.snapshot) {
@@ -424,7 +431,7 @@ async function collectAccount(env, { account, acct, graph, trigger, now, today, 
   ))
   await db.batch(statements)
 
-  const alert = alertFor({ handle: acct.handle, previous, state, detail })
+  const alert = trigger === 'cron' ? alertFor({ handle: acct.handle, previous, state, detail }) : null
   let alerted = null
   if (alert) alerted = await notify({ topic: env.NTFY_TOPIC, ...alert, fetchImpl })
   return {

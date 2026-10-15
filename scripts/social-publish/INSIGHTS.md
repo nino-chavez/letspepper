@@ -97,12 +97,16 @@ It also shows the latest follower count and which days each source covers.
 `GET /insights/run?key=<TRIGGER_KEY>` runs the daily read now.
 
 `GET /insights/run?key=<TRIGGER_KEY>&from=YYYY-MM-DD&to=YYYY-MM-DD` reads a range of past
-days and skips posts. Optional `&account=630` limits it to one account. A range covers at
-most 60 days and must end before today in Los Angeles.
+days and skips posts. Optional `&account=630` limits it to one account. A range must end
+before today in Los Angeles and covers at most 22 days. Backfill a longer period in
+22-day pieces.
 
-One run spends at most 45 Graph requests, which covers about 22 days of a range. A range
-that runs out says `stopped at the 45-request run budget`. Run it again from the day after
-that account's `throughDay` in the response.
+One run spends at most 45 Graph requests, which keeps it under the Workers Free plan's
+cap of 50. A daily run spends about 27 for 630. If more than 29 posts fall in the 14-day
+window, the run saves what it read and reports `stopped at the 45-request run budget`.
+
+A run started by hand returns its result to the caller. It never sends a phone alert and
+never changes what the next scheduled run alerts about.
 
 ## Alerts
 
@@ -116,8 +120,9 @@ Every run records one of these states per account in `sync_runs`:
 | `token_invalid` | Meta rejected the token as expired or revoked |
 | `error` | Nothing new was saved; `detail` says why |
 
-A phone alert goes to `NTFY_TOPIC` only when an account's state differs from its previous
-run's. A problem that lasts several days alerts once, and its recovery alerts once.
+A scheduled run sends a phone alert to `NTFY_TOPIC` only when an account's state differs
+from its previous scheduled run's. A problem that lasts several days alerts once, and its
+recovery alerts once. A clean first run sends nothing.
 
 ## The token
 

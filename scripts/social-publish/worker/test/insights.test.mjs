@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 import worker from '../src/index.js'
 import {
-  INSIGHTS_CRON, RUN_BUDGET, DAY_METRICS, FOLLOW_METRIC, MEDIA_METRICS,
+  INSIGHTS_CRON, RUN_BUDGET, MAX_RANGE_DAYS, DAY_METRICS, FOLLOW_METRIC, MEDIA_METRICS,
   reportDay, dayWindow, lookbackDays, readInsights, classify, GraphError, alertFor,
   runInsights, insightsStatus,
 } from '../src/insights.js'
@@ -271,24 +271,44 @@ test('a later reading revises a value, and an empty reading never erases one', a
   assert.equal(reach().value, 120)
 })
 
-test('a backfill range stops at the run budget and says where it stopped', async () => {
+test('the longest allowed range fits one run budget', async () => {
+  assert.equal(MAX_RANGE_DAYS, 22)
   const db = fakeD1()
   const stub = graphStub('granted')
-  const { accounts: [run] } = await collect(envWith(db), stub.fetchImpl, { from: '2026-09-01', to: '2026-10-14', trigger: 'manual' })
+  const { accounts: [run] } = await collect(envWith(db), stub.fetchImpl, { from: '2026-09-01', to: '2026-09-22', trigger: 'manual' })
+  assert.equal(run.state, 'ok')
+  assert.equal(run.daysComplete, 22)
+  assert.equal(run.throughDay, '2026-09-22')
+  assert.equal(graphCalls(stub.calls).length, 1 + 2 * MAX_RANGE_DAYS)
+  assert.ok(graphCalls(stub.calls).length <= RUN_BUDGET)
+  assert.equal(run.mediaRead, 0, 'a range run reads days only')
+})
+
+test('a daily run with more posts than the budget allows stops, saves what it read, and says why', async () => {
+  const db = fakeD1()
+  const posts = Array.from({ length: 35 }, (_, i) => ({
+    id: `9${String(i).padStart(4, '0')}`, timestamp: new Date(NOW.getTime() - (i + 1) * 3600000).toISOString().replace('.000Z', '+0000'),
+    media_type: 'VIDEO', media_product_type: 'REELS', permalink: null, like_count: i, comments_count: 0,
+  }))
+  const stub = graphStub((url) => {
+    if (url.pathname.endsWith(`${IG}/media`)) return json({ data: posts })
+    return graphStub('granted').fetchImpl(url.toString())
+  })
+  const { accounts: [run] } = await collect(envWith(db), stub.fetchImpl)
   assert.equal(run.state, 'partial')
   assert.match(run.detail, new RegExp(`${RUN_BUDGET}-request run budget`))
+  assert.equal(run.daysComplete, 7)
   assert.equal(graphCalls(stub.calls).length, RUN_BUDGET)
-  assert.equal(run.daysComplete, (RUN_BUDGET - 1) / 2)
-  assert.equal(run.mediaRead, 0, 'a range run reads days only')
-  assert.equal(run.throughDay, '2026-09-22')
-  assert.equal(db.rows('SELECT MAX(day) AS d FROM account_metric_days')[0].d, '2026-09-22')
+  // Every listed post keeps its like and comment counts; insights stop at the budget.
+  assert.equal(db.rows("SELECT COUNT(DISTINCT media_id) AS n FROM media_metric_snapshots WHERE metric = 'like_count'")[0].n, 35)
+  assert.equal(db.rows("SELECT COUNT(DISTINCT media_id) AS n FROM media_metric_snapshots WHERE metric = 'views'")[0].n, RUN_BUDGET - 16)
 })
 
 test('ranges are checked before any request', async () => {
   const db = fakeD1()
   const stub = graphStub('granted')
   await assert.rejects(collect(envWith(db), stub.fetchImpl, { from: '2026-10-10', to: '2026-10-16' }), /before today/)
-  await assert.rejects(collect(envWith(db), stub.fetchImpl, { from: '2026-07-01', to: '2026-10-14' }), /at most 60 days/)
+  await assert.rejects(collect(envWith(db), stub.fetchImpl, { from: '2026-09-01', to: '2026-09-23' }), /at most 22 days/)
   await assert.rejects(collect(envWith(db), stub.fetchImpl, { from: '2026-10-10' }), /YYYY-MM-DD/)
   await assert.rejects(collect(envWith(db), stub.fetchImpl, { from: '2026-02-30', to: '2026-03-01' }), /YYYY-MM-DD/)
   await assert.rejects(collect(envWith(db), stub.fetchImpl, { only: 'other' }), /does not collect insights/)
@@ -314,6 +334,23 @@ test('a network failure never stores the request URL, which carries the token', 
   assert.doesNotMatch(stored, /access_token|test-token|graph\.facebook\.com/)
 })
 
+test('only scheduled runs alert, and a manual run never shifts the alert state', async () => {
+  const db = fakeD1()
+  const cron1 = graphStub('missing_scope')
+  await collect(envWith(db), cron1.fetchImpl)
+  assert.equal(ntfyCalls(cron1.calls).length, 1)
+
+  const manual = graphStub('granted')
+  const { accounts: [byHand] } = await collect(envWith(db), manual.fetchImpl, { trigger: 'manual' })
+  assert.equal(byHand.state, 'ok')
+  assert.equal(byHand.alerted, null)
+  assert.equal(ntfyCalls(manual.calls).length, 0)
+
+  const cron2 = graphStub('missing_scope')
+  await collect(envWith(db), cron2.fetchImpl)
+  assert.equal(ntfyCalls(cron2.calls).length, 0, 'the previous scheduled run had the same state')
+})
+
 test('alerts fire on a change of state only', () => {
   assert.equal(alertFor({ handle: 'a', previous: null, state: 'ok' }), null)
   assert.equal(alertFor({ handle: 'a', previous: 'ok', state: 'ok' }), null)
@@ -334,6 +371,7 @@ test('/insights routes need the trigger key and report freshness', async () => {
     assert.equal((await call('/insights/run?key=trigger&from=2026-10-01&to=2099-01-01')).status, 400)
     const ran = await (await call('/insights/run?key=trigger')).json()
     assert.equal(ran.accounts[0].state, 'missing_scope')
+    assert.equal(ran.accounts[0].alerted, null, 'a manual run reports to its caller, not the phone')
     const status = await (await call('/insights/status?key=trigger')).json()
     assert.equal(status['630'].lastRun.state, 'missing_scope')
     assert.equal(status['630'].lastRun.trigger, 'manual')
