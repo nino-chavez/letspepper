@@ -42,6 +42,7 @@ import { loadRoutes, REFUSED } from './route-gate.mjs'
 import { standingEntry, inDate, entryCovers } from './route-shape.mjs'
 import { recaption, reassign } from './held-item-shape.mjs'
 import { decideCollab } from './collab-shape.mjs'
+import { QUEUE_DIR } from './queue-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WRANGLER_CONFIG = join(HERE, 'worker', 'wrangler.jsonc')
@@ -254,7 +255,7 @@ function main() {
     // appends locally), this is how a NEW item reaches KV without --replace's all-or-
     // nothing choice: every existing live item, including its publish state, is kept
     // exactly as the Worker wrote it; only ids the live queue does not have yet are added.
-    const local = existsSync(join(HERE, 'queue', `${event}.json`)) ? JSON.parse(readFileSync(join(HERE, 'queue', `${event}.json`), 'utf8')) : { items: [] }
+    const local = existsSync(join(QUEUE_DIR, `${event}.json`)) ? JSON.parse(readFileSync(join(QUEUE_DIR, `${event}.json`), 'utf8')) : { items: [] }
     const r = appendPayload(live || { items: [] }, local)
     queue = r.queue
     addedIds = r.added
@@ -262,7 +263,7 @@ function main() {
   } else if (live && !argv.includes('--replace')) {
     queue = live // restamp only: the Worker's items stay exactly as it recorded them
   } else {
-    const queuePath = join(HERE, 'queue', `${event}.json`)
+    const queuePath = join(QUEUE_DIR, `${event}.json`)
     if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath}`); process.exit(1) }
     queue = JSON.parse(readFileSync(queuePath, 'utf8'))
     const lost = live ? lostState(live, queue) : []
@@ -272,8 +273,8 @@ function main() {
   const verdict = seedPayload(queue, event, routes)
   if (verdict.refused) refuse(`${verdict.refused} The Worker publishes only a queue whose route Nino approved in graph-routes.json. Load the \`meta-publish\` skill.`)
 
-  mkdirSync(join(HERE, 'queue'), { recursive: true })
-  const outPath = join(HERE, 'queue', `${event}.kv.json`)
+  mkdirSync(QUEUE_DIR, { recursive: true })
+  const outPath = join(QUEUE_DIR, `${event}.kv.json`)
   writeFileSync(outPath, JSON.stringify(verdict.payload, null, 2))
   const source = collabId ? `live queue, recorded Collab choice for ${collabId}`
     : reassignId ? `live queue, reassigned ${reassignId} to ${reassignAccount}`

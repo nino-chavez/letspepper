@@ -29,7 +29,8 @@
  * for a precise position instead of the CLI flag's flat username list.
  *
  * Composes the existing pipeline rather than reimplementing it: appends the
- * item to queue/adhoc.json (the permanent ad-hoc ledger), hosts the media on
+ * item to queue/adhoc.json (the permanent ad-hoc ledger, kept in the main
+ * checkout even from a linked worktree; see queue-dir.mjs), hosts the media on
  * the flickday-social R2 bucket via upload-r2.mjs (override with --bucket /
  * --public-base), then publishes exactly this item via post-reels.mjs --id.
  * Token: IG_ACCESS_TOKEN if set, else read from 1Password at runtime.
@@ -41,6 +42,7 @@ import { execFileSync } from 'node:child_process'
 import { join, dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
+import { QUEUE_DIR, QUEUE_CHECKOUT } from './queue-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'adhoc'
@@ -89,7 +91,7 @@ if (altText && media_type !== 'IMAGE') {
 }
 if (story && caption) console.warn('Note: the caption will not appear on a Story; render its text into the media.')
 
-const queuePath = join(HERE, 'queue', `${EVENT}.json`)
+const queuePath = join(QUEUE_DIR, `${EVENT}.json`)
 const q = existsSync(queuePath)
   ? JSON.parse(readFileSync(queuePath, 'utf8'))
   : { event: EVENT, items: [], meta: { note: 'Ad-hoc one-shot posts published by post-now.mjs' } }
@@ -136,7 +138,7 @@ console.log(`Queued ${id} [${media_type}] → @${registry[account].handle}\n`)
 // upload or Graph API mutation; a local queue write is recoverable, a live post
 // is not. The contract limits JSON inspection to caption fields.
 execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
-  `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
+  `--root=${QUEUE_CHECKOUT}`, '--surface=social publishing queue', '--strict'],
   { stdio: 'inherit' })
 
 execFileSync('node', [join(HERE, 'upload-r2.mjs'),

@@ -9,10 +9,9 @@
  * five specific tags and avoids broad tags that do not describe grass triples.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { QUEUE_DIR } from './queue-dir.mjs'
 
-const HERE = dirname(fileURLToPath(import.meta.url))
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, t, i, arr) => {
   if (t.startsWith('--')) { const n = arr[i + 1]; a.push([t.slice(2), n === undefined || n.startsWith('--') ? true : n]) }
   return a
@@ -47,7 +46,7 @@ const caption = (i) =>
   `${HOOKS[i % HOOKS.length]}\n\nBell Pepper Open 2026 · grass triples · Aurora, IL\n` +
   `${CTAS[(i * 2) % CTAS.length]}\n\n${CREDIT}\n\n${TAGS}`
 
-const p = join(HERE, 'queue', `${event}.json`)
+const p = join(QUEUE_DIR, `${event}.json`)
 if (!existsSync(p)) { console.error(`No queue: ${p}`); process.exit(1) }
 const q = JSON.parse(readFileSync(p, 'utf8'))
 let n = 0

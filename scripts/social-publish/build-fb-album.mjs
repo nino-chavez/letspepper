@@ -45,6 +45,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
+import { QUEUE_DIR } from './queue-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = 'https://graph.facebook.com/v25.0'
@@ -215,7 +216,7 @@ console.log(`Album ${albumKey}: ${photos.length} photos → ${picks.length} sele
   (minScore != null ? `, min-score ${minScore}` : ''))
 if (!picks.length) { console.error('Nothing selected.'); process.exit(1) }
 
-const ledgerPath = join(HERE, 'queue', `fb-album-${albumKey}.json`)
+const ledgerPath = join(QUEUE_DIR, `fb-album-${albumKey}.json`)
 mkdirSync(dirname(ledgerPath), { recursive: true })
 const ledger = existsSync(ledgerPath)
   ? JSON.parse(readFileSync(ledgerPath, 'utf8'))

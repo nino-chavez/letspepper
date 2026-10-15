@@ -40,6 +40,7 @@ import { tmpdir } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
 import { r2PutPhoto } from './gallery-photo-source.mjs'
+import { QUEUE_DIR } from './queue-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const IG_CAROUSEL_MAX = 10
@@ -205,7 +206,7 @@ const item = {
   posted_at: null,
   error: null,
 }
-const queuePath = join(HERE, 'queue', `${event}.json`)
+const queuePath = join(QUEUE_DIR, `${event}.json`)
 mkdirSync(dirname(queuePath), { recursive: true })
 writeFileSync(queuePath, JSON.stringify({ event, items: [item] }, null, 2))
 console.log(`\nWrote ${queuePath}`)

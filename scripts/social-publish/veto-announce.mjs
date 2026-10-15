@@ -21,6 +21,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { notify, vetoedNotification } from './notify.mjs'
 import { shortAlbumName } from './gallery-announce-caption.mjs'
+import { QUEUE_DIR } from './queue-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
@@ -71,7 +72,7 @@ async function main() {
   const reason = typeof args.reason === 'string' ? args.reason : null
   const dryRun = !!args['dry-run']
 
-  const queuePath = join(HERE, 'queue', `${EVENT}.json`)
+  const queuePath = join(QUEUE_DIR, `${EVENT}.json`)
   if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath} — nothing to veto.`); process.exit(1) }
   const queue = JSON.parse(readFileSync(queuePath, 'utf8'))
 

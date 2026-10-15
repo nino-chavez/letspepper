@@ -14,10 +14,9 @@
  * until the local file carries the posted state the Worker recorded.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { join, dirname, basename } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, basename } from 'node:path'
+import { QUEUE_DIR } from './queue-dir.mjs'
 
-const HERE = dirname(fileURLToPath(import.meta.url))
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, t, i, arr) => {
   if (t.startsWith('--')) { const n = arr[i + 1]; a.push([t.slice(2), n === undefined || n.startsWith('--') ? true : n]) }
   return a
@@ -27,7 +26,7 @@ const mapPath = args.map || '/tmp/stream-map.json'
 if (!event) { console.error('Required: --event <slug> [--map <stream-map.json>]'); process.exit(1) }
 if (!existsSync(mapPath)) { console.error(`No map: ${mapPath}`); process.exit(1) }
 
-const queuePath = join(HERE, 'queue', `${event}.json`)
+const queuePath = join(QUEUE_DIR, `${event}.json`)
 if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath}`); process.exit(1) }
 
 const map = JSON.parse(readFileSync(mapPath, 'utf8'))

@@ -89,6 +89,7 @@ import { notify, heldNotification, nextAllowedSlot, reviewUrlFor, reviewCancelUr
 import { loadRoutes, standingEntry } from './route-gate.mjs'
 import { companionStoryText, companionStoryHtml, companionStoryItem, renderCompanionStoryImage } from './companion-story.mjs'
 import { cfLarge as cfLargeSource, galleryPhotoSource, r2PutPhoto } from './gallery-photo-source.mjs'
+import { QUEUE_DIR } from './queue-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'gallery-announce'
@@ -355,7 +356,7 @@ async function refreshCaption(args, albumKey, seriesArg) {
     caption: buildGalleryAnnounceCaption({ ...captionArgs, channel: 'instagram' }),
     facebook_caption: buildGalleryAnnounceCaption({ ...captionArgs, channel: 'facebook' }),
   }
-  const captionPath = join(HERE, 'queue', `${id}.captions.json`)
+  const captionPath = join(QUEUE_DIR, `${id}.captions.json`)
   mkdirSync(dirname(captionPath), { recursive: true })
   writeFileSync(captionPath, `${JSON.stringify(captions, null, 2)}\n`)
   console.log(`Instagram caption of ${id} changes from:\n${item.caption}\n\nto:\n${captions.caption}\n`)
@@ -565,7 +566,7 @@ export async function main(argv = process.argv.slice(2)) {
     return { manifest, outPath, item, story: { item: storyItem, imagePath: storyLocalPath } }
   }
 
-  const queuePath = join(HERE, 'queue', `${EVENT}.json`)
+  const queuePath = join(QUEUE_DIR, `${EVENT}.json`)
   const existing = existsSync(queuePath) ? JSON.parse(readFileSync(queuePath, 'utf8')) : { event: EVENT, items: [] }
   let queue = existing
   for (const it of [item, storyItem]) {

@@ -12,10 +12,9 @@
  * onto an existing queue, preserving status/ids/video_url of done items.
  */
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
-import { join, dirname, basename } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, basename } from 'node:path'
+import { QUEUE_DIR } from './queue-dir.mjs'
 
-const HERE = dirname(fileURLToPath(import.meta.url))
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((a, t, i, arr) => {
     if (t.startsWith('--')) {
@@ -58,7 +57,7 @@ function scheduleFor(i) {
   return d.toISOString()
 }
 
-const outDir = join(HERE, 'queue')
+const outDir = QUEUE_DIR
 mkdirSync(outDir, { recursive: true })
 const outPath = join(outDir, `${event}.json`)
 const prev = existsSync(outPath) ? JSON.parse(readFileSync(outPath, 'utf8')) : { event, items: [] }

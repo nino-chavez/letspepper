@@ -65,6 +65,7 @@ import { holdBlock, linkedItemBlock } from './hold-shape.mjs'
 import { collabBlock } from './collab-shape.mjs'
 import { tagParams, userTagsParams } from './tag-params.mjs'
 import { carouselChildParams, carouselParentParams } from './carousel-container-params.mjs'
+import { QUEUE_DIR, QUEUE_CHECKOUT } from './queue-dir.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -90,7 +91,7 @@ const TOKEN = process.env.IG_ACCESS_TOKEN
 if (!event) { console.error('Required: --event <slug>'); process.exit(1) }
 
 const registry = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
-const queuePath = join(HERE, 'queue', `${event}.json`)
+const queuePath = join(QUEUE_DIR, `${event}.json`)
 if (!existsSync(queuePath)) { console.error(`No queue: ${queuePath}`); process.exit(1) }
 const q = JSON.parse(readFileSync(queuePath, 'utf8'))
 const save = () => writeFileSync(queuePath, JSON.stringify(q, null, 2))
@@ -152,7 +153,7 @@ if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN for the selected acc
 // Refuse to publish when the current caption queue breaks its reader contract.
 // This runs before the first Graph API call and audits only JSON caption fields.
 execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mjs'),
-  `--root=${join(HERE, '..', '..')}`, '--surface=social publishing queue', '--strict'],
+  `--root=${QUEUE_CHECKOUT}`, '--surface=social publishing queue', '--strict'],
   { stdio: 'inherit' })
 
 // Past every pre-flight check: now the one-off receipt goes on the ledger, before
