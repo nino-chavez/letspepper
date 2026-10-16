@@ -87,6 +87,7 @@ test('published snapshot allowlist never includes identities or raw rows', () =>
   assert.equal(props.trigger,'cron')
   assert.equal(props.current_reserved,0)
   assert.doesNotMatch(JSON.stringify(props),/private@|userId|rows|registrationId/)
+  assert.match(registrations.registrationInsightQuery(),/formatDateTime\(max\(timestamp\), '%Y-%m-%d %H:%i:%S', 'UTC'\)/)
   assert.match(registrations.registrationInsightQuery(),/36 HOUR/)
   assert.match(registrations.registrationInsightQuery(),/period_start =/)
   assert.match(registrations.registrationInsightQuery(),/Missing data does not mean zero/)

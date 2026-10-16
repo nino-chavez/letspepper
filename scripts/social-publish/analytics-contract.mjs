@@ -251,7 +251,7 @@ FROM (
     argMax(properties.answer, timestamp) AS answer,
     argMax(properties.context, timestamp) AS context,
     argMax(properties.next_step, timestamp) AS next_step,
-    argMax(properties.as_of, timestamp) AS as_of,
+    formatDateTime(max(timestamp), '%Y-%m-%d %H:%i:%S', 'UTC') AS as_of,
     snapshots > 0 AND status = 'verified'
       AND period_start = toString(toDate(${midnight} - INTERVAL 7 DAY))
       AND period_end = toString(toDate(${midnight} - INTERVAL 1 DAY))
