@@ -253,10 +253,13 @@ function answers(data) {
   const out = []
   if (s.lately) {
     const base = `<strong>Lately (${e(range(s.lately.start, s.lately.end))}):</strong> a typical day reached <strong>${number(s.lately.typical)}</strong> accounts`
-    out.push(s.lately.ratio ? `${base}, ${times(s.lately.ratio)} the week before.` : `${base}. No earlier week is recorded to compare with.`)
+    const compare = s.lately.before == null ? '. No earlier week is recorded to compare with.'
+      : Number.isFinite(s.lately.ratio) ? `, ${times(s.lately.ratio)} the week before.`
+        : '. The week before reached none.'
+    out.push(`${base}${compare}`)
   }
   if (Number.isFinite(s.typical)) {
-    const compare = s.ratio ? `, ${times(s.ratio)} the ${e(String(data.window.days.length))} days before` : ''
+    const compare = Number.isFinite(s.ratio) ? `, ${times(s.ratio)} the ${e(String(data.window.days.length))} days before` : ''
     const busiest = s.busiest ? ` Busiest day: ${e(dayLabel(s.busiest.day))}, ${number(s.busiest.reach)}.` : ''
     out.push(`<strong>${e(periodPhrase(data))}:</strong> a typical day reached <strong>${number(s.typical)}</strong>${compare}.${busiest}`)
   }
