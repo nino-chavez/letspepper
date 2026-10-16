@@ -117,8 +117,22 @@ test('a period ends at the newest complete day and compares only with a fully co
   const all = await loadDashboard(seeded(), { period: 'all', now: NOW })
   assert.equal(all.window.start, '2026-09-01')
   assert.equal(all.series.length, 45)
-  const unknown = await loadDashboard(seeded(), { period: 'forever', now: NOW })
-  assert.equal(unknown.period, '30')
+  for (const odd of ['forever', 'toString', 'constructor', '__proto__']) {
+    const fallback = await loadDashboard(seeded(), { period: odd, now: NOW })
+    assert.equal(fallback.period, '30', `${odd} falls back to 30 days`)
+  }
+})
+
+test('a week with no reach still counts as recorded, and a zero never reads as missing', async () => {
+  const db = seeded()
+  db.sqlite.prepare("UPDATE account_metric_days SET value = 0 WHERE metric = 'reach' AND day BETWEEN '2026-09-30' AND '2026-10-06'").run()
+  const data = await loadDashboard(db, { period: '7', now: NOW })
+  assert.equal(data.summary.lately.before, 0)
+  assert.equal(data.summary.lately.ratio, null)
+  assert.match(dashboardPage(data, { nonce: 'n' }), /The week before reached none\./)
+  const viaRoute = await worker.fetch(new Request('https://dash.example.test/?period=toString', { headers: { cookie: (await sessionCookie(PASSPHRASE)).split(';')[0] } }),
+    { INSIGHTS_DB: seeded(), DASHBOARD_PASSPHRASE: PASSPHRASE })
+  assert.equal(viaRoute.status, 200, 'an inherited name as the period does not crash the page')
 })
 
 test('follows add up by Monday-to-Sunday week and a missing day is flagged', () => {

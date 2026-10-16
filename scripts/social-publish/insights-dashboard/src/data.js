@@ -122,7 +122,7 @@ const metaTime = (value) => Date.parse(String(value).replace(/\+0000$/, 'Z'))
  * sections) rather than show a zero.
  */
 export async function loadDashboard(db, { period = DEFAULT_PERIOD, now = new Date() } = {}) {
-  if (!(period in PERIODS)) period = DEFAULT_PERIOD
+  if (!Object.hasOwn(PERIODS, period)) period = DEFAULT_PERIOD
   const today = reportDay(now)
   const bounds = await db.prepare(QUERIES.bounds).bind(ACCOUNT, today).first()
   const window = periodWindow(period, bounds)
@@ -194,8 +194,8 @@ export async function loadDashboard(db, { period = DEFAULT_PERIOD, now = new Dat
     weeks: weeklyFollows(window.days, values),
     summary: {
       typical, previousTypical, comparable, busiest,
-      ratio: comparable && previousTypical ? typical / previousTypical : null,
-      lately: lately ? { ...lately, ratio: lately.before ? lately.typical / lately.before : null } : null,
+      ratio: comparable && previousTypical > 0 ? typical / previousTypical : null,
+      lately: lately ? { ...lately, ratio: lately.before > 0 ? lately.typical / lately.before : null } : null,
       follows, unfollows, net: follows - unfollows,
       topPost: posts.find((p) => Number.isFinite(p.metrics.views)) ?? null,
     },
