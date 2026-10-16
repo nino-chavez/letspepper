@@ -10,6 +10,7 @@ export const IG_ID = '17841411569230130'
 const ASSET = '569987303404898', BUSINESS = '315859855990883'
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const validDay=d=>DAY.test(d)&&Number.isFinite(Date.parse(d+'T12:00:00Z'))&&new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d
+const isISO=t=>typeof t==='string'&&Number.isFinite(Date.parse(t))&&new Date(t).toISOString()===t
 const clean = s => String(s).replaceAll('\u200b', '')
 const count = s => /^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(String(s)) ? Number(String(s).replaceAll(',', '')) : null
 const dateLabel = day => new Date(day+'T12:00:00Z').toLocaleDateString('en-US',{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'})
@@ -27,7 +28,7 @@ export function sourceRange(capture, { audience = false } = {}) {
   const text = clean(capture.text)
   if (!text.includes('\nInstagram\n') || !text.includes(dateLabel(range.start)) || !text.includes(dateLabel(range.end))) throw Error('Rendered Instagram platform/date range not verified')
   if (audience && (!text.includes('Followers breakdown') || u.searchParams.get('audience_tab') !== 'trends')) throw Error('Audience Trends not selected')
-  if (!Number.isFinite(Date.parse(capture.captured_at))) throw Error('Missing capture timestamp')
+  if (!isISO(capture.captured_at)) throw Error('Missing capture timestamp')
   return range
 }
 export function dailySeries(capture) {
@@ -63,6 +64,7 @@ export function postSnapshot(capture, previous=[]) {
   const u=new URL(capture.url)
   if(u.origin!=='https://business.facebook.com'||u.searchParams.get('asset_id')!==ASSET||u.searchParams.get('business_id')!==BUSINESS)throw Error('Wrong content account')
   const range=JSON.parse(decodeURIComponent(u.searchParams.get('time_range')))
+  if(!validDay(range.start)||!validDay(range.end)||range.start>range.end||!isISO(capture.captured_at))throw Error('Invalid snapshot range or timestamp')
   if(capture.sort!=='descending'||capture.filter!=='Instagram Feed'||!clean(capture.text).includes(dateLabel(range.start))||!clean(capture.text).includes(dateLabel(range.end)))throw Error('Post filter, dates or sort not verified')
   const rows=capture.rows.slice(0,12)
   if(rows.length!==12 || rows.some((r,i)=>count(r.cells[2])===null || (r.index!=null&&Number(r.index)!==i)))throw Error('Expected top twelve displayed posts with numeric views')
@@ -88,10 +90,13 @@ export function postSnapshot(capture, previous=[]) {
   return {start:range.start,end:range.end,scope:'top 12 lifetime performance; not a complete inventory',observed_at:capture.captured_at,posts}
 }
 export function validateReport(report) {
-  if(report.version!==1||report.account!==ACCOUNT||report.instagram_id!==IG_ID||!validDay(report.through_day)||!Number.isFinite(Date.parse(report.captured_at)))throw Error('Invalid report identity/date')
+  if(report.version!==1||report.account!==ACCOUNT||report.instagram_id!==IG_ID||!validDay(report.through_day)||!isISO(report.captured_at))throw Error('Invalid report identity/date')
   const keys=new Set(), metrics=new Set(['views_including_facebook_crossposts','reach','content_interactions','link_clicks','profile_visits','follows','unfollows'])
-  for(const r of report.daily){const key=r.day+'/'+r.metric;if(keys.has(key)||!metrics.has(r.metric)||!Number.isFinite(Date.parse(r.observed_at))||!validDay(r.day)||r.day>report.through_day||!Number.isInteger(r.value)||r.value<0)throw Error('Invalid or duplicate daily value');keys.add(key)}
-  for(const p of report.periods){if(!validDay(p.start)||!validDay(p.end)||p.start>p.end||p.end>report.through_day||p.days!==Math.round((Date.parse(p.end)-Date.parse(p.start))/86400000)+1)throw Error('Invalid period dates');for(const v of Object.values(p.metrics))if(v!==null&&(!Number.isFinite(v)||v<0))throw Error('Invalid period metric')}
+  for(const r of report.daily){const key=r.day+'/'+r.metric;if(keys.has(key)||!metrics.has(r.metric)||!isISO(r.observed_at)||!validDay(r.day)||r.day>report.through_day||!Number.isInteger(r.value)||r.value<0)throw Error('Invalid or duplicate daily value');keys.add(key)}
+  const periodMetrics=['instagram_views','facebook_crosspost_views','unique_reach','content_interactions','profile_visits','link_clicks','follows','unfollows']
+  for(const p of report.periods){if(Object.keys(p.metrics).sort().join()!==periodMetrics.sort().join())throw Error('Invalid period metric names');if(!validDay(p.start)||!validDay(p.end)||p.start>p.end||p.end>report.through_day||p.days!==Math.round((Date.parse(p.end)-Date.parse(p.start))/86400000)+1)throw Error('Invalid period dates');for(const v of Object.values(p.metrics))if(v!==null&&(!Number.isFinite(v)||v<0))throw Error('Invalid period metric')}
+  if(!validDay(report.snapshot.start)||!validDay(report.snapshot.end)||report.snapshot.start>report.snapshot.end||report.snapshot.end>report.through_day||!isISO(report.snapshot.observed_at))throw Error('Invalid snapshot dates')
+  for(const p of report.snapshot.posts)if(!validDay(p.published_day)||p.published_day<report.snapshot.start||p.published_day>report.snapshot.end||!isISO(p.observed_at))throw Error('Invalid post date')
   if(report.snapshot.posts.length!==12||new Set(report.snapshot.posts.map(p=>p.identity_key)).size!==12)throw Error('Invalid post snapshot')
   return report
 }

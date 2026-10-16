@@ -79,7 +79,7 @@ SELECT ${sqlString(account)}, j.value ->> 'day', j.value ->> 'metric', j.value -
 FROM json_each(${sqlString(JSON.stringify(rows))}) AS j WHERE true
 ON CONFLICT (account, day, metric, source) DO UPDATE SET
   value = excluded.value, last_observed_at = excluded.last_observed_at
-WHERE excluded.last_observed_at >= account_metric_days.last_observed_at;
+WHERE julianday(excluded.last_observed_at) >= julianday(account_metric_days.last_observed_at);
 `
 }
 

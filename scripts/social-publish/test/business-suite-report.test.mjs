@@ -6,8 +6,8 @@ import { reportSql, validateReport, sourceRange, dailySeries, postSnapshot, IG_I
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8')
 // All numbers, captions and links in these tests are invented.
 const url='https://business.facebook.com/latest/insights/results?'+new URLSearchParams({business_id:'315859855990883',asset_id:'569987303404898',platform:'Instagram',time_range:encodeURIComponent(JSON.stringify({start:'2026-10-01',end:'2026-10-02'}))})
-const capture=()=>({url,captured_at:'2026-10-03T14:00:00Z',text:'\nInstagram\nOct 1, 2026 – Oct 2, 2026',tables:Array.from({length:6},()=> '\t1790838000\t1790924400\nPrimary\t10\t0')})
-const report=()=>({version:1,account:'630',instagram_id:IG_ID,captured_at:'2026-10-03T14:00:00Z',through_day:'2026-10-02',daily:[{day:'2026-10-01',metric:'reach',value:10,observed_at:'2026-10-03T14:00:00Z'}],periods:[{start:'2026-10-01',end:'2026-10-02',days:2,reach_rounded:false,metrics:{unique_reach:11}}],snapshot:{posts:Array.from({length:12},(_,i)=>({identity_key:'invented-'+i}))}})
+const capture=()=>({url,captured_at:'2026-10-03T14:00:00.000Z',text:'\nInstagram\nOct 1, 2026 – Oct 2, 2026',tables:Array.from({length:6},()=> '\t1790838000\t1790924400\nPrimary\t10\t0')})
+const report=()=>({version:1,account:'630',instagram_id:IG_ID,captured_at:'2026-10-03T14:00:00.000Z',through_day:'2026-10-02',daily:[{day:'2026-10-01',metric:'reach',value:10,observed_at:'2026-10-03T14:00:00.000Z'}],periods:[{start:'2026-10-01',end:'2026-10-02',days:2,reach_rounded:false,metrics:{unique_reach:11,instagram_views:20,facebook_crosspost_views:0,content_interactions:3,profile_visits:2,link_clicks:1,follows:1,unfollows:0}}],snapshot:{start:'2026-10-01',end:'2026-10-02',observed_at:'2026-10-03T14:00:00.000Z',posts:Array.from({length:12},(_,i)=>({identity_key:'invented-'+i,published_day:'2026-10-01',observed_at:'2026-10-03T14:00:00.000Z'}))}})
 test('chart parsing keeps observed zero and verifies rendered dates/platform and asset',()=>{
  assert.equal(dailySeries(capture()).length,12)
  assert.equal(dailySeries(capture())[1].value,0)
@@ -23,10 +23,10 @@ test('real SQLite schema imports rerun safely, preserve API rows and reject olde
  db.exec("INSERT INTO account_metric_days VALUES ('630','2026-10-01','reach',8,'graph_api','t','t')")
  const r=report();db.exec(reportSql(r));db.exec(reportSql(r))
  assert.equal(db.prepare('SELECT COUNT(*) n FROM business_suite_reports').get().n,1)
- r.captured_at='2026-10-04T14:00:00Z';r.daily[0].value=12;r.daily[0].observed_at=r.captured_at;db.exec(reportSql(r))
+ r.captured_at='2026-10-04T14:00:00.000Z';r.daily[0].value=12;r.daily[0].observed_at=r.captured_at;db.exec(reportSql(r))
  db.exec(reportSql(report()))
  assert.equal(db.prepare("SELECT value FROM account_metric_days WHERE source='business_suite'").get().value,12)
- r.captured_at='2026-10-05T14:00:00Z';r.daily=[];db.exec(reportSql(r))
+ r.captured_at='2026-10-05T14:00:00.000Z';r.daily=[];db.exec(reportSql(r))
  assert.equal(db.prepare("SELECT value FROM account_metric_days WHERE source='business_suite'").get().value,12)
  assert.equal(db.prepare("SELECT value FROM account_metric_days WHERE source='graph_api'").get().value,8)
  assert.equal(JSON.parse(db.prepare('SELECT report_json FROM business_suite_reports ORDER BY captured_at DESC LIMIT 1').get().report_json).periods[0].metrics.unique_reach,11)
@@ -45,8 +45,12 @@ test('a missing ranked views cell fails rather than promoting the thirteenth pos
 
 test('retained post metrics keep their earlier reading time',()=>{
  const c={...capture(),filter:'Instagram Feed',sort:'descending',rows:Array.from({length:12},(_,i)=>({cells:[`Caption ${i}\nReel\n630volleyball`,'Thu Oct 1, 12:00pm',String(100-i),'10','--','3','2','1','4','0','--','--','--','--','2s']}))}
- const old=postSnapshot(c);c.captured_at='2026-10-04T14:00:00Z';c.rows[0].cells[8]='--';const fresh=postSnapshot(c,old.posts)
+ const old=postSnapshot(c);c.captured_at='2026-10-04T14:00:00.000Z';c.rows[0].cells[8]='--';const fresh=postSnapshot(c,old.posts)
  assert.equal(fresh.posts[0].metrics.shares,4)
  assert.equal(fresh.posts[0].metric_observed_at.shares,old.observed_at)
  assert.deepEqual(fresh.posts[0].retained_metrics,['shares'])
+})
+
+test('report rejects noncanonical timestamps, invalid snapshot dates and alien period metrics',()=>{
+ for(const change of [r=>r.daily[0].observed_at='9/30/2026',r=>r.captured_at='2026-10-03T14:00:00Z',r=>r.snapshot.start='2026-02-30',r=>r.periods[0].metrics={wrong_metric:1}]){const r=report();change(r);assert.throws(()=>validateReport(r))}
 })
