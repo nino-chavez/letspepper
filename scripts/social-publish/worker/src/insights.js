@@ -14,6 +14,9 @@
  * Every hour (STORIES_CRON) and on demand (/insights/stories) it also reads each live
  * Story's totals, because Story insights disappear 24 hours after posting; the last
  * reading before a Story expires is its near-final result.
+ * On demand only (/insights/posts?since=YYYY-MM-DD), it reads every post published since a
+ * day: caption and lifetime totals, paging back through the post list. Posts already read
+ * that Los Angeles day are skipped, so a call that hits the run budget is simply repeated.
  * Steps 2 to 4 and the Stories read need instagram_manage_insights on the account's token.
  *
  * Rules the code keeps:
@@ -54,6 +57,10 @@ export const GRAPH_TIMEOUT_MS = 20_000
 // what the budget allows. A longer backfill is several calls (INSIGHTS.md).
 export const MAX_RANGE_DAYS = Math.floor((RUN_BUDGET - 1) / 2)
 const MEDIA_PAGE_SIZE = 50
+// Pages of MEDIA_PAGE_SIZE one post backfill call may list (about seven months of 630 posts).
+export const POST_HISTORY_PAGES = 4
+const MEDIA_FIELDS = 'id,timestamp,media_type,media_product_type,permalink,caption,like_count,comments_count'
+const READ_TODAY = "SELECT DISTINCT media_id FROM media_metric_snapshots WHERE day = ?1 AND metric = 'reach'"
 
 export const DAY_METRICS = [
   'reach', 'views', 'total_interactions', 'likes', 'comments', 'saves', 'shares',
@@ -320,7 +327,11 @@ const PREVIOUS_STORIES_STATE = `SELECT state FROM sync_runs WHERE account = ?1 A
  * online by hour, and the profile's recent posts.
  */
 export function emptyRead(days = []) {
-  return { snapshot: null, dayValues: [], audience: [], online: [], media: [], mediaValues: [], daysComplete: [], daysFailed: [...days], failures: [], stoppedAtBudget: false }
+  return {
+    snapshot: null, dayValues: [], audience: [], online: [], media: [], mediaValues: [],
+    daysComplete: [], daysFailed: [...days], failures: [], stoppedAtBudget: false,
+    postsListed: null, postsRead: 0, postsRemaining: null,
+  }
 }
 
 export async function readAccount({ get, igUserId, days, includeMedia, now }) {
@@ -375,40 +386,87 @@ export async function readAccount({ get, igUserId, days, includeMedia, now }) {
       if (classify(e) !== 'error') insightsBlocked = true
     }
   }
-  let listed
-  try {
-    listed = await get(`${igUserId}/media`, {
-      fields: 'id,timestamp,media_type,media_product_type,permalink,caption,like_count,comments_count',
-      limit: String(MEDIA_PAGE_SIZE),
-    })
-  } catch (e) {
-    if (e instanceof BudgetExhausted) { out.stoppedAtBudget = true; return out }
-    fail('media list', e)
-    return out
-  }
   const cutoff = now.getTime() - MEDIA_WINDOW_DAYS * 86400000
-  const items = (listed.data ?? []).filter((m) => m?.id && m.timestamp && Date.parse(m.timestamp) >= cutoff)
-  if (items.length === (listed.data ?? []).length && items.length === MEDIA_PAGE_SIZE) {
+  const listed = await listPosts({ get, igUserId, sinceMs: cutoff, pages: 1, out, fail })
+  if (!listed) return out
+  if (!listed.complete) {
     out.failures.push({ step: 'media list', state: 'partial', detail: `more than ${MEDIA_PAGE_SIZE} posts in ${MEDIA_WINDOW_DAYS} days; older ones were not read` })
   }
-  for (const m of items) {
+  recordPosts(listed.posts, out)
+  if (!insightsBlocked) await readPostInsights({ get, posts: listed.posts, out, fail })
+  return out
+}
+
+/**
+ * List posts newest first, paging back until one is older than `sinceMs`. Returns
+ * { posts, complete } with complete=false when `pages` ran out first, or null when the
+ * listing failed (the failure is already recorded on `out`).
+ */
+async function listPosts({ get, igUserId, sinceMs, pages, out, fail }) {
+  const posts = []
+  let after = null
+  try {
+    for (let page = 0; page < pages; page += 1) {
+      const listed = await get(`${igUserId}/media`, { fields: MEDIA_FIELDS, limit: String(MEDIA_PAGE_SIZE), ...(after ? { after } : {}) })
+      for (const m of listed.data ?? []) {
+        if (!m?.id || !m.timestamp) continue
+        if (Date.parse(m.timestamp) < sinceMs) return { posts, complete: true }
+        posts.push(m)
+      }
+      after = listed.paging?.cursors?.after
+      if (!listed.paging?.next || !after) return { posts, complete: true }
+    }
+    return { posts, complete: false }
+  } catch (e) {
+    if (e instanceof BudgetExhausted) out.stoppedAtBudget = true
+    else fail('media list', e)
+    return null
+  }
+}
+
+/** A post's row, caption, and the like and comment counts that need no insights permission. */
+function recordPosts(posts, out) {
+  for (const m of posts) {
     out.media.push({ id: m.id, timestamp: m.timestamp, media_type: m.media_type, media_product_type: m.media_product_type, permalink: m.permalink ?? null, caption: m.caption ?? null })
     if (Number.isFinite(m.like_count)) out.mediaValues.push({ media_id: m.id, metric: 'like_count', value: m.like_count })
     if (Number.isFinite(m.comments_count)) out.mediaValues.push({ media_id: m.id, metric: 'comments_count', value: m.comments_count })
   }
-  if (insightsBlocked) return out
-  for (const m of items) {
+}
+
+/** Lifetime insights for each post, in order, until the budget or a token problem stops it. */
+async function readPostInsights({ get, posts, out, fail }) {
+  for (const m of posts) {
     const metrics = mediaMetricsFor(m)
     if (!metrics) continue
     try {
       const values = readInsights(await get(`${m.id}/insights`, { metric: metrics.join(',') }))
       for (const v of values) out.mediaValues.push({ media_id: m.id, metric: v.metric, value: v.value })
+      out.postsRead += 1
     } catch (e) {
       if (e instanceof BudgetExhausted) { out.stoppedAtBudget = true; break }
       fail(`media ${m.id}`, e)
       if (classify(e) !== 'error') break
     }
   }
+}
+
+/**
+ * Every post published since `since` (a Los Angeles day): its row, caption and lifetime
+ * totals. Posts in `alreadyRead` were read earlier the same day and are not read again.
+ */
+export async function readPostHistory({ get, igUserId, since, alreadyRead = new Set() }) {
+  const out = emptyRead()
+  const fail = (step, err) => out.failures.push({ step, state: classify(err), detail: err.message })
+  const listed = await listPosts({ get, igUserId, sinceMs: reportMidnight(since) * 1000, pages: POST_HISTORY_PAGES, out, fail })
+  if (!listed) return out
+  if (!listed.complete) {
+    out.failures.push({ step: 'media list', state: 'partial', detail: `more than ${POST_HISTORY_PAGES * MEDIA_PAGE_SIZE} posts since ${since}; older ones were not listed` })
+  }
+  recordPosts(listed.posts, out)
+  const toRead = listed.posts.filter((m) => !alreadyRead.has(m.id) && mediaMetricsFor(m))
+  await readPostInsights({ get, posts: toRead, out, fail })
+  out.postsListed = listed.posts.length
+  out.postsRemaining = toRead.length - out.postsRead
   return out
 }
 
@@ -543,7 +601,27 @@ export async function runStories(env, { accounts, graph, trigger = 'cron', now =
   return { accounts: results }
 }
 
-async function collectAccount(env, { account, acct, graph, job, trigger, now, today, days, reader, fetchImpl }) {
+/**
+ * Read every post published since `since` for each insights account (by hand only). It is
+ * recorded as a `range` run whose first day is `since`.
+ */
+export async function runPostHistory(env, { accounts, graph, since, only = null, now = new Date(), fetchImpl = fetch } = {}) {
+  if (!env.INSIGHTS_DB) throw new Error('INSIGHTS_DB is not bound')
+  const today = reportDay(now)
+  if (!isDay(since)) throw new RangeError('since must be a YYYY-MM-DD day')
+  if (since >= today) throw new RangeError(`since must be before today (${today} in ${REPORT_TIME_ZONE})`)
+  const alreadyRead = new Set((await env.INSIGHTS_DB.prepare(READ_TODAY).bind(today).all()).results.map((row) => row.media_id))
+  const results = []
+  for (const [account, acct] of Object.entries(accounts)) {
+    if (!acct.insights || (only && only !== account)) continue
+    const reader = (get) => readPostHistory({ get, igUserId: acct.ig_user_id, since, alreadyRead })
+    results.push(await collectAccount(env, { account, acct, graph, job: 'range', trigger: 'manual', now, today, days: [], window: { first: since, last: today }, reader, fetchImpl }))
+  }
+  if (only && !results.length) throw new RangeError(`account ${only} does not collect insights`)
+  return { since, accounts: results }
+}
+
+async function collectAccount(env, { account, acct, graph, job, trigger, now, today, days, window = null, reader, fetchImpl }) {
   const startedAt = now.toISOString()
   const tokenBinding = acct.ig_token_binding || 'IG_ACCESS_TOKEN'
   const token = env[tokenBinding]
@@ -570,7 +648,7 @@ async function collectAccount(env, { account, acct, graph, job, trigger, now, to
   if (read.media.length) statements.push(db.prepare(UPSERT_MEDIA).bind(account, startedAt, JSON.stringify(read.media)))
   if (read.mediaValues.length) statements.push(db.prepare(UPSERT_MEDIA_VALUES).bind(today, startedAt, JSON.stringify(read.mediaValues)))
   statements.push(db.prepare(INSERT_RUN).bind(
-    account, job, trigger, startedAt, finishedAt, state, days[0] ?? null, days[days.length - 1] ?? null,
+    account, job, trigger, startedAt, finishedAt, state, window?.first ?? days[0] ?? null, window?.last ?? days[days.length - 1] ?? null,
     read.daysComplete.length, read.daysFailed.length, read.dayValues.length, read.media.length, detail,
   ))
   await db.batch(statements)
@@ -584,6 +662,7 @@ async function collectAccount(env, { account, acct, graph, job, trigger, now, to
     daysFailed: read.daysFailed, dayValues: read.dayValues.length,
     followers: read.snapshot?.followers_count ?? null, audience: read.audience.length, onlineHours: read.online.length,
     mediaRead: read.media.length, mediaValues: read.mediaValues.length,
+    postsListed: read.postsListed, postsRead: read.postsRead, postsRemaining: read.postsRemaining,
     alerted: alerted ? alerted.ok : null,
   }
 }
