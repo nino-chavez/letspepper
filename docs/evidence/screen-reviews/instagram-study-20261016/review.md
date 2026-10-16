@@ -118,8 +118,9 @@ the actual workerd-rendered desktop and phone captures before a cold review. All
 frames and test records use invented data. Real-data verification stays in private local
 artifacts.
 
-The browser walk uses the production bundle, the local Cloudflare runtime, and disposable
-D1 tables created from the actual migrations. It passed sign-in rejection/acceptance,
+The initial browser walk used a generic esbuild bundle, the local Cloudflare runtime, and
+disposable D1 tables created from the actual migrations. That bundler did not preserve
+Wrangler’s name-helper behavior; the deployment correction below closes this gap. It passed sign-in rejection/acceptance,
 calendar and publication controls, navigation and reload persistence, sorting/search,
 post details and Instagram-link validation, hostile captions, contextual help topics,
 Escape/focus return, missing chart values, failed collection, empty data, and database
@@ -168,3 +169,21 @@ boundary is additionally covered by the request tests and hostile-caption/link c
 No further broad review was opened. Requested routes are recorded; actual runtime model
 and effort were not exposed. The final follow-up changes only this receipt and fixture
 trailing whitespace.
+
+### Deployment packaging correction
+
+The first authenticated production check after PR #99 found a blank content area.
+Wrangler 4.50.0 defaults to `keepNames: true`, which inserted `__name` references into
+the function serialized for the browser. That helper existed only in the Worker scope.
+The earlier generic esbuild browser test did not insert it, so it missed the failure.
+The previous successful dashboard workflow (38902229140) was rerun and the working
+original dashboard was restored and checked before redeploying the blend.
+
+The dashboard configuration now sets the supported `keep_names: false` field. The
+browser walk packages with the actual pinned Wrangler command, then changes only the
+server fixture clock. Its twenty-one desktop/phone captures and interaction checks pass.
+A new packaging test runs automatically in `social:dashboard:test`: a temporary config
+with name preservation enabled must reproduce `__name is not defined`; the actual
+production config must render the Overview. Both controls passed. No CI workflow,
+credential, schema, or collector change is needed. This corrects the packaging failure;
+it does not turn the earlier dry-run success into rendered evidence.

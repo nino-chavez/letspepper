@@ -3,14 +3,22 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { seeded, PASSPHRASE, NOW } from './fixtures.mjs'
 const require=createRequire(import.meta.url), wranglerRequire=createRequire(require.resolve('wrangler/package.json'))
-const {Miniflare}=wranglerRequire('miniflare'), {build}=wranglerRequire('esbuild')
+const {Miniflare}=wranglerRequire('miniflare')
 const out=resolve(process.env.DASHBOARD_CAPTURE_DIR??'.artifacts/insights-redesign/live-build')
 mkdirSync(out,{recursive:true})
-const built=await build({entryPoints:['scripts/social-publish/insights-dashboard/src/index.js'],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022',plugins:[{name:'fixture-clock',setup(builder){builder.onLoad({filter:/insights-dashboard\/src\/data\.js$/},args=>{const source=readFileSync(args.path,'utf8');assert.equal((source.match(/now = new Date\(\)/g)??[]).length,1);return {contents:source.replace('now = new Date()',`now = new Date('${NOW.toISOString()}')`),loader:'js'}})}}]})
-const mf=new Miniflare({modules:true,script:built.outputFiles[0].text,compatibilityDate:'2026-01-01',bindings:{DASHBOARD_PASSPHRASE:PASSPHRASE},d1Databases:['INSIGHTS_DB'],host:'127.0.0.1',port:0})
+// Use the exact production packager. A generic esbuild bundle has different defaults.
+const bundle=resolve(out,'bundle')
+execFileSync(process.execPath,[require.resolve('wrangler/bin/wrangler.js'),'deploy','--dry-run','--config','scripts/social-publish/insights-dashboard/wrangler.jsonc','--outdir',bundle],{stdio:'pipe',timeout:60000})
+const built=readFileSync(resolve(bundle,'index.js'),'utf8')
+// Only the server's fixture clock is replaced after production packaging.
+const clock=/now = (?:\/\* @__PURE__ \*\/ )?new Date\(\)/g
+assert.equal((built.match(clock)??[]).length,1)
+const script=built.replace(clock,`now = new Date('${NOW.toISOString()}')`)
+const mf=new Miniflare({modules:true,script,compatibilityDate:'2026-01-01',bindings:{DASHBOARD_PASSPHRASE:PASSPHRASE},d1Databases:['INSIGHTS_DB'],host:'127.0.0.1',port:0})
 const browser=await chromium.launch({headless:true})
 const errors=[], captures=[]
 try {
