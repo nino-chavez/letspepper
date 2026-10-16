@@ -1,0 +1,292 @@
+{
+  "data": [
+    {
+      "id": "90000000000000001/insights/follower_demographics/lifetime",
+      "name": "follower_demographics",
+      "period": "lifetime",
+      "title": "Follower demographics",
+      "description": "The demographic characteristics of followers, including countries, cities and gender distribution.",
+      "total_value": {
+        "breakdowns": [
+          {
+            "dimension_keys": [
+              "city"
+            ],
+            "results": [
+              {
+                "dimension_values": [
+                  "Example City 1, Illinois"
+                ],
+                "value": 817
+              },
+              {
+                "dimension_values": [
+                  "Example City 2, Illinois"
+                ],
+                "value": 854
+              },
+              {
+                "dimension_values": [
+                  "Example City 3, Illinois"
+                ],
+                "value": 891
+              },
+              {
+                "dimension_values": [
+                  "Example City 4, Illinois"
+                ],
+                "value": 28
+              },
+              {
+                "dimension_values": [
+                  "Example City 5, Illinois"
+                ],
+                "value": 65
+              },
+              {
+                "dimension_values": [
+                  "Example City 6, Illinois"
+                ],
+                "value": 102
+              },
+              {
+                "dimension_values": [
+                  "Example City 7, Illinois"
+                ],
+                "value": 139
+              },
+              {
+                "dimension_values": [
+                  "Example City 8, Illinois"
+                ],
+                "value": 176
+              },
+              {
+                "dimension_values": [
+                  "Example City 9, Illinois"
+                ],
+                "value": 213
+              },
+              {
+                "dimension_values": [
+                  "Example City 10, Illinois"
+                ],
+                "value": 250
+              },
+              {
+                "dimension_values": [
+                  "Example City 11, Illinois"
+                ],
+                "value": 287
+              },
+              {
+                "dimension_values": [
+                  "Example City 12, Illinois"
+                ],
+                "value": 324
+              },
+              {
+                "dimension_values": [
+                  "Example City 13, Illinois"
+                ],
+                "value": 361
+              },
+              {
+                "dimension_values": [
+                  "Example City 14, Illinois"
+                ],
+                "value": 398
+              },
+              {
+                "dimension_values": [
+                  "Example City 15, Illinois"
+                ],
+                "value": 435
+              },
+              {
+                "dimension_values": [
+                  "Example City 16, Illinois"
+                ],
+                "value": 472
+              },
+              {
+                "dimension_values": [
+                  "Example City 17, Illinois"
+                ],
+                "value": 509
+              },
+              {
+                "dimension_values": [
+                  "Example City 18, Illinois"
+                ],
+                "value": 546
+              },
+              {
+                "dimension_values": [
+                  "Example City 19, Illinois"
+                ],
+                "value": 583
+              },
+              {
+                "dimension_values": [
+                  "Example City 20, Illinois"
+                ],
+                "value": 620
+              },
+              {
+                "dimension_values": [
+                  "Example City 21, Illinois"
+                ],
+                "value": 657
+              },
+              {
+                "dimension_values": [
+                  "Example City 22, Illinois"
+                ],
+                "value": 694
+              },
+              {
+                "dimension_values": [
+                  "Example City 23, Illinois"
+                ],
+                "value": 731
+              },
+              {
+                "dimension_values": [
+                  "Example City 24, Illinois"
+                ],
+                "value": 768
+              },
+              {
+                "dimension_values": [
+                  "Example City 25, Illinois"
+                ],
+                "value": 805
+              },
+              {
+                "dimension_values": [
+                  "Example City 26, Illinois"
+                ],
+                "value": 842
+              },
+              {
+                "dimension_values": [
+                  "Example City 27, Illinois"
+                ],
+                "value": 879
+              },
+              {
+                "dimension_values": [
+                  "Example City 28, Illinois"
+                ],
+                "value": 16
+              },
+              {
+                "dimension_values": [
+                  "Example City 29, Illinois"
+                ],
+                "value": 53
+              },
+              {
+                "dimension_values": [
+                  "Example City 30, Illinois"
+                ],
+                "value": 90
+              },
+              {
+                "dimension_values": [
+                  "Example City 31, Illinois"
+                ],
+                "value": 127
+              },
+              {
+                "dimension_values": [
+                  "Example City 32, Illinois"
+                ],
+                "value": 164
+              },
+              {
+                "dimension_values": [
+                  "Example City 33, Illinois"
+                ],
+                "value": 201
+              },
+              {
+                "dimension_values": [
+                  "Example City 34, Illinois"
+                ],
+                "value": 238
+              },
+              {
+                "dimension_values": [
+                  "Example City 35, Illinois"
+                ],
+                "value": 275
+              },
+              {
+                "dimension_values": [
+                  "Example City 36, Illinois"
+                ],
+                "value": 312
+              },
+              {
+                "dimension_values": [
+                  "Example City 37, Illinois"
+                ],
+                "value": 349
+              },
+              {
+                "dimension_values": [
+                  "Example City 38, Illinois"
+                ],
+                "value": 386
+              },
+              {
+                "dimension_values": [
+                  "Example City 39, Illinois"
+                ],
+                "value": 423
+              },
+              {
+                "dimension_values": [
+                  "Example City 40, Illinois"
+                ],
+                "value": 460
+              },
+              {
+                "dimension_values": [
+                  "Example City 41, Illinois"
+                ],
+                "value": 497
+              },
+              {
+                "dimension_values": [
+                  "Example City 42, Illinois"
+                ],
+                "value": 534
+              },
+              {
+                "dimension_values": [
+                  "Example City 43, Illinois"
+                ],
+                "value": 571
+              },
+              {
+                "dimension_values": [
+                  "Example City 44, Illinois"
+                ],
+                "value": 608
+              },
+              {
+                "dimension_values": [
+                  "Example City 45, Illinois"
+                ],
+                "value": 645
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,67 +1,67 @@
 {
   "data": [
     {
-      "id": "17916892425265676/insights/views/lifetime",
+      "id": "90000000000000004/insights/views/lifetime",
       "name": "views",
       "period": "lifetime",
       "title": "Views",
       "description": "The number of times your reels was played or displayed.",
       "values": [
         {
-          "value": 3482
+          "value": 769
         }
       ]
     },
     {
-      "id": "17916892425265676/insights/reach/lifetime",
+      "id": "90000000000000004/insights/reach/lifetime",
       "name": "reach",
       "period": "lifetime",
       "title": "Accounts reached",
       "description": "The number of unique accounts that have seen this reel, at least once. Reach is different from impressions, which may include multiple views of your reel by the same accounts. This metric is estimated.",
       "values": [
         {
-          "value": 2161
+          "value": 806
         }
       ]
     },
     {
-      "id": "17916892425265676/insights/saved/lifetime",
+      "id": "90000000000000004/insights/saved/lifetime",
       "name": "saved",
       "period": "lifetime",
       "title": "Saved",
       "description": "The number of saves of your reel.",
       "values": [
         {
-          "value": 6
+          "value": 843
         }
       ]
     },
     {
-      "id": "17916892425265676/insights/shares/lifetime",
+      "id": "90000000000000004/insights/shares/lifetime",
       "name": "shares",
       "period": "lifetime",
       "title": "Shares",
       "description": "The number of shares of your reel.",
       "values": [
         {
-          "value": 7
+          "value": 880
         }
       ]
     },
     {
-      "id": "17916892425265676/insights/likes/lifetime",
+      "id": "90000000000000004/insights/likes/lifetime",
       "name": "likes",
       "period": "lifetime",
       "title": "Likes",
       "description": "The number of likes on your reel.",
       "values": [
         {
-          "value": 119
+          "value": 17
         }
       ]
     },
     {
-      "id": "17916892425265676/insights/comments/lifetime",
+      "id": "90000000000000004/insights/comments/lifetime",
       "name": "comments",
       "period": "lifetime",
       "title": "Comments",
@@ -73,38 +73,62 @@
       ]
     },
     {
-      "id": "17916892425265676/insights/total_interactions/lifetime",
+      "id": "90000000000000004/insights/total_interactions/lifetime",
       "name": "total_interactions",
       "period": "lifetime",
       "title": "Reels interactions",
       "description": "The number of likes, saves, comments and shares on your reels minus the number of unlikes, unsaves and deleted comments.",
       "values": [
         {
-          "value": 132
+          "value": 91
         }
       ]
     },
     {
-      "id": "17916892425265676/insights/ig_reels_avg_watch_time/lifetime",
+      "id": "90000000000000004/insights/ig_reels_avg_watch_time/lifetime",
       "name": "ig_reels_avg_watch_time",
       "period": "lifetime",
       "title": "Reels Average Watch Time (milliseconds)",
       "description": "This body communicates the definition for reels average watch time",
       "values": [
         {
-          "value": 12565
+          "value": 128
         }
       ]
     },
     {
-      "id": "17916892425265676/insights/ig_reels_video_view_total_time/lifetime",
+      "id": "90000000000000004/insights/ig_reels_video_view_total_time/lifetime",
       "name": "ig_reels_video_view_total_time",
       "period": "lifetime",
       "title": "Video View Total Time (milliseconds)",
       "description": "This body communicates the definition for reels video view watch time",
       "values": [
         {
-          "value": 27807424
+          "value": 165
+        }
+      ]
+    },
+    {
+      "id": "90000000000000004/insights/reels_skip_rate/lifetime",
+      "name": "reels_skip_rate",
+      "period": "lifetime",
+      "title": "Skip Rate",
+      "description": "The percentage of views from people who skipped during the first 3 seconds of your reel. This is calculated as the number of views that skipped your reel during the first 3 seconds divided by the number of initial views. An initial view is when your reel starts to play for the first time in a reel session.",
+      "values": [
+        {
+          "value": 57.6
+        }
+      ]
+    },
+    {
+      "id": "90000000000000004/insights/reposts/lifetime",
+      "name": "reposts",
+      "period": "lifetime",
+      "title": "Reposts",
+      "description": "The number of times your reel was reposted.",
+      "values": [
+        {
+          "value": 239
         }
       ]
     }

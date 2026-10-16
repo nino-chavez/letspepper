@@ -1,31 +1,31 @@
 {
   "data": [
     {
-      "id": "17968912968186616/insights/views/lifetime",
+      "id": "90000000000000002/insights/views/lifetime",
       "name": "views",
       "period": "lifetime",
       "title": "Views",
       "description": "The number of times your post was played or displayed.",
       "values": [
         {
-          "value": 3069
+          "value": 263
         }
       ]
     },
     {
-      "id": "17968912968186616/insights/reach/lifetime",
+      "id": "90000000000000002/insights/reach/lifetime",
       "name": "reach",
       "period": "lifetime",
       "title": "Accounts reached",
       "description": "The number of unique accounts that have seen this carousel container, at least once. Reach is different from impressions, which may include multiple views of your carousel container by the same accounts. This metric is estimated.",
       "values": [
         {
-          "value": 1063
+          "value": 300
         }
       ]
     },
     {
-      "id": "17968912968186616/insights/saved/lifetime",
+      "id": "90000000000000002/insights/saved/lifetime",
       "name": "saved",
       "period": "lifetime",
       "title": "Saved",
@@ -37,7 +37,7 @@
       ]
     },
     {
-      "id": "17968912968186616/insights/shares/lifetime",
+      "id": "90000000000000002/insights/shares/lifetime",
       "name": "shares",
       "period": "lifetime",
       "title": "Shares",
@@ -49,19 +49,19 @@
       ]
     },
     {
-      "id": "17968912968186616/insights/likes/lifetime",
+      "id": "90000000000000002/insights/likes/lifetime",
       "name": "likes",
       "period": "lifetime",
       "title": "Likes",
       "description": "The number of likes on your post.",
       "values": [
         {
-          "value": 60
+          "value": 411
         }
       ]
     },
     {
-      "id": "17968912968186616/insights/comments/lifetime",
+      "id": "90000000000000002/insights/comments/lifetime",
       "name": "comments",
       "period": "lifetime",
       "title": "Comments",
@@ -73,14 +73,62 @@
       ]
     },
     {
-      "id": "17968912968186616/insights/total_interactions/lifetime",
+      "id": "90000000000000002/insights/total_interactions/lifetime",
       "name": "total_interactions",
       "period": "lifetime",
       "title": "Post interactions",
       "description": "The number of likes, saves, comments and shares on your post minus the number of unlikes, unsaves and deleted comments.",
       "values": [
         {
-          "value": 61
+          "value": 485
+        }
+      ]
+    },
+    {
+      "id": "90000000000000002/insights/follows/lifetime",
+      "name": "follows",
+      "period": "lifetime",
+      "title": "Follows",
+      "description": "This is how many accounts started following you.",
+      "values": [
+        {
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "90000000000000002/insights/profile_visits/lifetime",
+      "name": "profile_visits",
+      "period": "lifetime",
+      "title": "Profile visits",
+      "description": "The number of times your profile was visited.",
+      "values": [
+        {
+          "value": 559
+        }
+      ]
+    },
+    {
+      "id": "90000000000000002/insights/profile_activity/lifetime",
+      "name": "profile_activity",
+      "period": "lifetime",
+      "title": "Profile activity",
+      "description": "[IG Insights] This header is the name of a metric that appears on an educational info sheet for a particular post, story, video or promotion. This metric is the sum of all profile actions people take when they engage with this content.",
+      "values": [
+        {
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "90000000000000002/insights/reposts/lifetime",
+      "name": "reposts",
+      "period": "lifetime",
+      "title": "Reposts",
+      "description": "The number of times your post was reposted.",
+      "values": [
+        {
+          "value": 0
         }
       ]
     }
