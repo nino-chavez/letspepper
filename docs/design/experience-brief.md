@@ -374,3 +374,28 @@ The [screen-review record](../evidence/screen-reviews/instagram-study-20261016/r
 names the independent findings, repairs, and verification limits. The study implements
 navigation, sorting, filtering, post detail, and contextual help. Dates are fixed;
 sign-in, loading, real Instagram links, and production data mapping are specified only.
+
+## Unified tracking extension — preserve, October 16, 2026
+
+Nino requested one database and dashboard in place of the tracking Sheet. Preserve
+ the selected layout, brand, API questions, main navigation, date meanings, access
+model and help behavior. Add a Business Suite report in the utility navigation;
+account totals and top posts are two views of that report. The reader is the same
+club operator, deciding what changed and which content merits inspection.
+
+Three data structures were compared against real cases: a single blended series
+would double-count views and misstate unique reach; independent stores would retain
+ the current split; source-labeled observations in the existing database preserve both
+ meanings. The third is selected. Keep the first option's single entry point through
+ the same authenticated dashboard. Reject its metric blending. Keep the second
+option's distinct source definitions, but reject its separate storage and Sheet sync.
+
+Affected surfaces: dashboard utility navigation, Business Suite account report,
+Business Suite top-post snapshot, and their empty/outdated/help states. The account
+report selects native observed ranges rather than inventing unique reach for an
+arbitrary filter. The post view retains its bounded top-12 scope, full caption,
+publication day, reading time, verified permalink where available, and unverified
+ownership. Daily tables are inspectable details with a sideways-scroll cue on phones.
+Missing values read “Not reported”; a source delay stays visible beside period totals.
+This extension adds no motion and does not imply a measured improvement in operator
+ task success.

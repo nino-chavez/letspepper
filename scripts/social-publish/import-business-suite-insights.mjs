@@ -78,7 +78,8 @@ export function importSql({ account, rows, observed }) {
 SELECT ${sqlString(account)}, j.value ->> 'day', j.value ->> 'metric', j.value ->> 'value', 'business_suite', ${sqlString(observed)}, ${sqlString(observed)}
 FROM json_each(${sqlString(JSON.stringify(rows))}) AS j WHERE true
 ON CONFLICT (account, day, metric, source) DO UPDATE SET
-  value = excluded.value, last_observed_at = excluded.last_observed_at;
+  value = excluded.value, last_observed_at = excluded.last_observed_at
+WHERE excluded.last_observed_at >= account_metric_days.last_observed_at;
 `
 }
 
