@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve, delimiter } from 'node:path'
-import { reportSql, validateReport } from './business-suite-report.mjs'
+import { reportSql, validateReport, verifyDailyReadback } from './business-suite-report.mjs'
 process.env.PATH=dirname(process.execPath)+delimiter+process.env.PATH
 const args=process.argv.slice(2),opt=k=>args[args.indexOf(k)+1]
 if(!args.includes('--out')||!args.includes('--previous'))throw Error('usage: refresh-business-suite.mjs --out <private directory> --previous <report.json> [--import-only]')
@@ -25,9 +25,7 @@ try{
  // Read every affected daily row. A fresh observation must match; a newer DB revision
  // may legitimately win. A missing source value was never written.
  const rows=JSON.parse(run('pnpm',['exec','wrangler','d1','execute','INSIGHTS_DB','--remote','--config',config,'--command',`SELECT day,metric,value,last_observed_at FROM account_metric_days WHERE account='630' AND source='business_suite' AND day BETWEEN '2026-09-01' AND ${sqlString(report.through_day)}`,'--json']))[0].results
- const byKey=new Map(rows.map(r=>[r.day+'/'+r.metric,r]))
- for(const row of report.daily){const saved=byKey.get(row.day+'/'+row.metric);if(!saved||!Number.isFinite(Date.parse(saved.last_observed_at))||Date.parse(saved.last_observed_at)<Date.parse(row.observed_at)||(Date.parse(saved.last_observed_at)===Date.parse(row.observed_at)&&saved.value!==row.value))throw Error('Daily readback mismatch: '+row.day+'/'+row.metric)}
- if(byKey.size!==rows.length)throw Error('Duplicate database daily key')
+ verifyDailyReadback(report.daily,rows)
  run('pnpm',['exec','wrangler','d1','execute','INSIGHTS_DB','--remote','--config',config,'--command',`INSERT INTO business_suite_sync_runs (account,started_at,finished_at,state,detail) VALUES ('630',${sqlString(started)},${sqlString(new Date().toISOString())},'ok',NULL)`,'--yes','--json'])
  const receipt={status:'success',completed_at:new Date().toISOString(),through_day:report.through_day,report_captured_at:report.captured_at,report_readback:true,daily_values_verified:report.daily.length,source_days:new Set(report.daily.map(r=>r.day)).size,snapshot_posts:report.snapshot.posts.length,sheet_written:false}
  writeFileSync(join(out,'db-sync-receipt.json'),JSON.stringify(receipt,null,2)+'\n');console.log(JSON.stringify(receipt))

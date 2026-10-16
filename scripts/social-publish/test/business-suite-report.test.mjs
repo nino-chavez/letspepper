@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
-import { reportSql, validateReport, sourceRange, dailySeries, postSnapshot, IG_ID } from '../business-suite-report.mjs'
+import { reportSql, validateReport, sourceRange, dailySeries, postSnapshot, IG_ID, verifyDailyReadback } from '../business-suite-report.mjs'
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8')
 // All numbers, captions and links in these tests are invented.
 const url='https://business.facebook.com/latest/insights/results?'+new URLSearchParams({business_id:'315859855990883',asset_id:'569987303404898',platform:'Instagram',time_range:encodeURIComponent(JSON.stringify({start:'2026-10-01',end:'2026-10-02'}))})
@@ -53,4 +53,11 @@ test('retained post metrics keep their earlier reading time',()=>{
 
 test('report rejects noncanonical timestamps, invalid snapshot dates and alien period metrics',()=>{
  for(const change of [r=>r.daily[0].observed_at='9/30/2026',r=>r.captured_at='2026-10-03T14:00:00Z',r=>r.snapshot.start='2026-02-30',r=>r.periods[0].metrics={wrong_metric:1}]){const r=report();change(r);assert.throws(()=>validateReport(r))}
+})
+
+test('the runner readback rejects older noncanonical stored dates and accepts real newer revisions',()=>{
+ const expected=report().daily
+ assert.throws(()=>verifyDailyReadback(expected,[{day:'2026-10-01',metric:'reach',value:1,last_observed_at:'9/30/2026'}]),/mismatch/)
+ assert.throws(()=>verifyDailyReadback(expected,[{day:'2026-10-01',metric:'reach',value:1,last_observed_at:'bad'}]),/mismatch/)
+ assert.equal(verifyDailyReadback(expected,[{day:'2026-10-01',metric:'reach',value:12,last_observed_at:'2026-10-04T14:00:00.000Z'}]),1)
 })

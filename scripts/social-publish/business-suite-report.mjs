@@ -100,6 +100,15 @@ export function validateReport(report) {
   if(report.snapshot.posts.length!==12||new Set(report.snapshot.posts.map(p=>p.identity_key)).size!==12)throw Error('Invalid post snapshot')
   return report
 }
+export function verifyDailyReadback(expected, rows) {
+  const byKey=new Map(rows.map(r=>[r.day+'/'+r.metric,r]))
+  if(byKey.size!==rows.length)throw Error('Duplicate database daily key')
+  for(const row of expected){
+    const saved=byKey.get(row.day+'/'+row.metric), observed=Date.parse(row.observed_at), actual=Date.parse(saved?.last_observed_at)
+    if(!saved||!Number.isFinite(actual)||actual<observed||(actual===observed&&saved.value!==row.value))throw Error('Daily readback mismatch: '+row.day+'/'+row.metric)
+  }
+  return expected.length
+}
 const sqlString=s=>`'${String(s).replaceAll("'","''")}'`
 export function reportSql(report) {
   validateReport(report)
