@@ -100,19 +100,40 @@ weekly totals.
 ## The dashboard
 
 `630-instagram-insights` (`insights-dashboard/`) is a separate, read-only Worker over the
-same database, for Nino and 630's director. It shows, for the last 7 or 30 days or
-everything recorded:
+same database, for Nino and 630's director. Its Overview starts with three questions:
+are more accounts seeing us, which posts deserve a closer look, and how did follower
+numbers change? Persistent navigation opens Posts, Stories, Audience, and Data status.
+The contextual help drawer explains each measure, how to read it, what to inspect next,
+and what it cannot establish.
 
-- plain answers first: reach per day, follows against unfollows, and the most-viewed post;
-- accounts reached per day, with the last two days marked provisional;
-- follows and unfollows by Monday-to-Sunday week;
-- the posts 630 published, most viewed first, and Stories from the last seven days;
-- who follows 630 (top cities, age, gender), as of the latest audience reading.
+Overview defaults to seven reporting days. The window ends three days before today's
+Los Angeles reporting date, leaving the two newest completed reporting days out. The
+30-day option follows the same rule. Missing collection never moves these dates backward.
+All recorded starts with the first recorded reach day and has no invented earlier period.
+Reach is compared only when both complete periods are recorded. Follows and unfollows
+each require all selected dates; net change requires both. Missing readings break chart
+lines, remain visible in the tables, and are listed in Data status. Zero remains zero.
 
-It compares a period with the one before only when every day of both is recorded, so a
-period reaching back past the first recorded day says there is not enough history yet. It
-says that Collab posts started by other accounts are missing, and that registrations are in
-the club's weekly scorecard, not here.
+Posts has its own publication-date filter, ending today. An Overview action opens the
+posts from the exact Overview dates and resets unrelated search/format filters. Rankings
+use lifetime totals at each metric's own last reading; older posts are not labeled final.
+Post details show those timestamps and the original Instagram link when available.
+The list includes collected posts even when no metrics were returned. Collab posts started
+by other accounts may be absent.
+
+Stories covers publications in the last seven reporting days, independently of Overview.
+It keeps link clicks and each navigation action separate; missing actions are not zero.
+Expired Stories retain their last capture without claiming it is final. Audience combines
+the selected follower-flow dates with separately dated follower-count and category
+snapshots. City lists are partial; age does not identify parents or athletes. Online-hour
+advice and the mismatched profile-link measure remain withheld. Ask the club director
+for the current registration scorecard; no verified public scorecard destination is wired.
+
+Data status separates the latest attempt from the last fully successful completion.
+It computes the next check from the actual daily 14:30 UTC and hourly :45 schedules,
+with Central-time labels that follow daylight saving. It flags overdue updates after a
+one-hour daily or fifteen-minute hourly allowance. Individual metric timestamps remain
+the source for freshness; a successful run does not refresh every old post.
 
 One passphrase signs a viewer in for 30 days. It lives in 1Password as
 `Cloudflare 630-instagram-insights` and is the Worker's `DASHBOARD_PASSPHRASE` secret;
@@ -122,7 +143,13 @@ Every response is uncached, unindexed, and served under a content security polic
 The Worker never writes: its queries are all `SELECT`, and a test fails otherwise. Its
 `wrangler.jsonc` declares no migrations; this Worker's schema stays owned by
 `worker/wrangler.jsonc`. `.github/workflows/deploy-insights-dashboard.yml` tests it on pull
-requests and deploys it from `main`. Its tests use invented data only.
+requests and deploys it from `main`. Its tests use invented data only. Run `pnpm social:dashboard:test` for read-model and
+request/authentication checks. Run `node --experimental-default-type=module
+scripts/social-publish/insights-dashboard/test/browser.mjs` under Node 22 for the
+Playwright walk against a local workerd runtime and disposable D1 database. The browser
+walk freezes only its fixture clock, exercises desktop and phone states, and writes
+captures to `.artifacts/insights-redesign/live-build` (locally ignored). It does not access
+Instagram or production data.
 
 ## Reading the data
 

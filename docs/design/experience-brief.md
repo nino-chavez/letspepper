@@ -399,3 +399,21 @@ ownership. Daily tables are inspectable details with a sideways-scroll cue on ph
 Missing values read “Not reported”; a source delay stays visible beside period totals.
 This extension adds no motion and does not imply a measured improvement in operator
  task success.
+
+## Production implementation, 16 October 2026
+
+The selected blend now owns the dashboard implementation in
+`scripts/social-publish/insights-dashboard/src`. Navigation, questions, evidence, next
+inspection, and contextual help follow the selected direction above. Posts has an
+independent publication window; an Overview action retains the exact Overview dates.
+Stories and Audience label their separate capture/snapshot dates. Production contains
+no concept selector, fixture state control, or synthetic data.
+
+The reading model uses calendar-anchored reporting windows, complete-period coverage,
+per-metric post timestamps, separate run attempt/success records, and explicit missing
+values. The current schema supports these fixes without a migration or collector change.
+The publishing Worker and its queues are outside this implementation.
+
+The canonical behavior and local verification commands are in
+`../../scripts/social-publish/INSIGHTS.md`, “The dashboard.” Real-data captures are private
+local artifacts; committed test data and review frames are synthetic.

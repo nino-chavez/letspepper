@@ -110,3 +110,61 @@ selection and focus, phone study controls, and contextual help. The overflow can
 still detected deliberate overflow before the real pages were checked. No page
 JavaScript errors were observed. These are browser tests with invented data, not
 physical-device acceptance or live collection verification.
+
+## Production implementation review, 16 October 2026
+
+The selected blend is implemented in the separate insights Worker. The parent inspected
+the actual workerd-rendered desktop and phone captures before a cold review. All committed
+frames and test records use invented data. Real-data verification stays in private local
+artifacts.
+
+The browser walk uses the production bundle, the local Cloudflare runtime, and disposable
+D1 tables created from the actual migrations. It passed sign-in rejection/acceptance,
+calendar and publication controls, navigation and reload persistence, sorting/search,
+post details and Instagram-link validation, hostile captions, contextual help topics,
+Escape/focus return, missing chart values, failed collection, empty data, and database
+failure. The horizontal-overflow detector first failed on a deliberately inserted wide
+visible element; every real desktop/phone frame then passed. Twenty-one states were
+captured. The fixture clock is frozen only in the test bundle.
+
+An independent read-only cold reviewer inspected fifteen full-screen captures without
+source or the design brief (dispatch b63a1293-3581-4b5a-a20d-d40e834289cd). Execution
+completed; the requested route was recorded, but runtime model/effort were not exposed.
+The parent checked each finding against the visible frame and running behavior:
+
+- Follower bars lacked a numeric scale. Added scale labels and per-day values in the
+  seven-day view; the exact-value table remains available.
+- Los Angeles reporting dates and Central timestamps required extra interpretation.
+  Publication filters now state that boundary beside the dates; timestamps name Central.
+- Load failure offered only reload. Added offline guidance explaining the read failure
+  and what the maintainer should inspect. A Data status link would depend on the same
+  unavailable database, so it is not offered as a working recovery.
+- A full-page capture made the phone modal appear to end above background content. This
+  was a capture artifact: the native dialog covers the viewport. Modal captures now use
+  viewport size; the parent inspected the result and tested Escape/focus restoration.
+- Code-like post titles were deliberate hostile-caption fixtures. They remain literal
+  text to prove escaping; the dashboard must preserve source captions rather than alter
+  real text to hide the fixture.
+
+The final browser walk passed again after those changes. The six `production-*.png`
+frames beside this receipt show the selected result, including missing and error states.
+The page's source contains no study selector or synthetic fixture content.
+
+The read-model unit tests, scheduler tests, publisher tests, website reader check,
+standings/predictions checks, mascot asset check, and Worker package dry run passed.
+A read-only call of the new loader against live D1 also succeeded. The dashboard's queries
+remain exclusively SELECT; collector code, schema, schedules, publisher queues, and auth
+semantics are unchanged. No migration or production data write is part of this release.
+Worker deployment and the final authenticated live walk remain separate release evidence.
+
+Post-commit review: the normal Claude hook failed because its OAuth session expired;
+it returned no code verdict. A bounded independent broad review ran the thirteen unit
+tests successfully but timed out without a final verdict. A final focused read-only pass
+(dispatch 2aacbdc0-ca38-48bd-ba18-090f125d789d) inspected date-control lifecycles and
+missing-value/timestamp/Story-key mappings and found no defect within those contracts.
+It was static review, not a runtime or security verdict. The parent independently checked
+those conclusions against source and the workerd browser walk; the auth and escaping
+boundary is additionally covered by the request tests and hostile-caption/link cases.
+No further broad review was opened. Requested routes are recorded; actual runtime model
+and effort were not exposed. The final follow-up changes only this receipt and fixture
+trailing whitespace.

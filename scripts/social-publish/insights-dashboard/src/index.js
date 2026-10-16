@@ -13,7 +13,7 @@
  */
 
 import { loadDashboard, DEFAULT_PERIOD } from './data.js'
-import { dashboardPage, signInPage } from './page.js'
+import { dashboardPage, signInPage, errorPage } from './page.js'
 import { COOKIE, securityHeaders, base64Url, passphraseMatches, sessionCookie, validSession } from './auth.js'
 
 function html(body, { status = 200, nonce = null, headers = {} } = {}) {
@@ -48,7 +48,12 @@ export default {
     if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: securityHeaders(null) })
     if (!env.DASHBOARD_PASSPHRASE) return html(signInPage({ configured: false }), { status: 503 })
     if (!(await validSession(request, env.DASHBOARD_PASSPHRASE))) return html(signInPage())
-    const data = await loadDashboard(env.INSIGHTS_DB, { period: url.searchParams.get('period') ?? DEFAULT_PERIOD })
+    let data
+    try {
+      data = await loadDashboard(env.INSIGHTS_DB, { period: url.searchParams.get('period') ?? DEFAULT_PERIOD, postsPeriod: url.searchParams.get('postsPeriod') ?? '30' })
+    } catch {
+      return html(errorPage(), { status: 503 })
+    }
     const nonce = base64Url(crypto.getRandomValues(new Uint8Array(16)))
     return html(dashboardPage(data, { nonce }), { nonce })
   },
