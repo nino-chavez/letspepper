@@ -309,6 +309,10 @@ INSERT INTO sync_runs (account, job, trigger, started_at, finished_at, state, fi
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
 
 const PREVIOUS_CRON_STATE = "SELECT state FROM sync_runs WHERE account = ?1 AND job = ?2 AND trigger = 'cron' ORDER BY id DESC LIMIT 1"
+// The Stories job leaves token problems to the daily job in both directions: it neither
+// alerts on one nor compares against one, so a renewal sends one recovery alert, not two.
+const PREVIOUS_STORIES_STATE = `SELECT state FROM sync_runs WHERE account = ?1 AND job = 'stories' AND trigger = 'cron'
+  AND state NOT IN ('missing_scope', 'token_invalid') ORDER BY id DESC LIMIT 1`
 
 /**
  * Read one account and return what to write, without writing it. `days` are the
@@ -553,7 +557,8 @@ async function collectAccount(env, { account, acct, graph, job, trigger, now, to
   const { state, detail } = runState(read)
   const finishedAt = new Date().toISOString()
   const db = env.INSIGHTS_DB
-  const previous = trigger === 'cron' ? ((await db.prepare(PREVIOUS_CRON_STATE).bind(account, job).first())?.state ?? null) : null
+  const previousQuery = job === 'stories' ? db.prepare(PREVIOUS_STORIES_STATE).bind(account) : db.prepare(PREVIOUS_CRON_STATE).bind(account, job)
+  const previous = trigger === 'cron' ? ((await previousQuery.first())?.state ?? null) : null
 
   const statements = []
   if (read.snapshot) {

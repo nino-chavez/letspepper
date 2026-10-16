@@ -152,9 +152,10 @@ account in `sync_runs`:
 
 A scheduled run sends a phone alert to `NTFY_TOPIC` only when an account's state differs
 from the previous scheduled run of the same job. A problem that lasts several days alerts
-once, and its recovery alerts once. A clean first run sends nothing. A token problem
-(`missing_scope`, `token_invalid`) is alerted by the daily job only, so one expired token
-sends one alert rather than one an hour.
+once, and its recovery alerts once. A clean first run sends nothing. Token problems
+(`missing_scope`, `token_invalid`) belong to the daily job: the Stories job neither alerts
+on one nor compares against one, so an expired token sends one alert and its renewal one
+recovery alert.
 
 ## The token
 

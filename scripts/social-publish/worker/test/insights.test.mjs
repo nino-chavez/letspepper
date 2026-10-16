@@ -451,6 +451,17 @@ test('the Stories job saves each live Story with its totals and navigation split
   const { accounts: [noScope] } = await stories(envWith(db), blocked.fetchImpl)
   assert.equal(noScope.state, 'missing_scope')
   assert.equal(ntfyCalls(blocked.calls).length, 0)
+  // When the token comes back, the Stories job compares with its last non-token run, so the
+  // recovery alert comes from the daily job alone; a real Stories failure still alerts.
+  const recovered = graphStub('granted')
+  await stories(envWith(db), recovered.fetchImpl)
+  assert.equal(ntfyCalls(recovered.calls).length, 0, 'no second recovery alert')
+  await stories(envWith(db), graphStub('missing_scope').fetchImpl)
+  const broken = graphStub((url) => url.pathname.endsWith('/stories') ? json({ error: { message: 'Service temporarily unavailable', code: 2 } }, 503) : json({ data: [] }))
+  const { accounts: [failed] } = await stories(envWith(db), broken.fetchImpl)
+  assert.equal(failed.state, 'error')
+  assert.equal(failed.previous, 'ok', 'the token-state run in between is skipped')
+  assert.equal(ntfyCalls(broken.calls).length, 1, 'a real Stories failure still alerts')
   // No live Story is a clean run with nothing to save.
   const none = graphStub((url) => url.pathname.endsWith('/stories') ? json({ data: [] }) : json({ error: { message: 'unexpected', code: 100 } }, 400))
   const { accounts: [empty] } = await stories(envWith(fakeD1()), none.fetchImpl)
