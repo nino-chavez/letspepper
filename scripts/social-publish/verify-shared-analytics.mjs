@@ -29,7 +29,7 @@ const db = {
   batch(statements) { return Promise.all(statements.map(async s => ({ results: await d1(s.sql, s.params) }))) },
 }
 const dashboard = await loadDashboard(db, { now })
-const collected = await scorecard.collectInstagram({ instagram: { account: '630', cloudflareAccountId: 'b6ffcf200d56bab5749e243f024658d2', d1DatabaseId: 'c192b5be-8142-4695-a37f-e92eeb0a12a0', provisionalDays: 2, staleAfterDays: 3 } }, now.toISOString(), now)
+const collected = await scorecard.collectInstagram({ windowDays: 7, instagram: { account: '630', cloudflareAccountId: 'b6ffcf200d56bab5749e243f024658d2', d1DatabaseId: 'c192b5be-8142-4695-a37f-e92eeb0a12a0', provisionalDays: 2, staleAfterDays: 3 } }, now.toISOString(), now)
 assert.equal(collected.summary.week.start, dashboard.window.start)
 assert.equal(collected.summary.week.end, dashboard.window.end)
 for (const [reportKey, dashboardKey] of [['follows', 'follows'], ['unfollows', 'unfollows'], ['typicalReach', 'typical']]) assert.equal(collected.summary[reportKey], dashboard.summary[dashboardKey], reportKey)
@@ -45,9 +45,9 @@ const window = reportingWindow({ now })
 const query = websiteSummaryQuery(window)
 const endpoint = `${process.env.POSTHOG_API_HOST.replace(/\/$/, '')}/api/projects/579364/query/`
 const website = readWebsiteSummary(await request(endpoint, process.env.POSTHOG_PERSONAL_API_KEY, { query: { kind: 'HogQLQuery', query } }))
-const posthog = await scorecard.collectPostHog({ posthog: { projectName: '630 Volleyball Website' } }, new Date(window.start + 'T12:00:00Z'), new Date(window.end + 'T12:00:00Z'), now.toISOString(), window)
+const posthog = await scorecard.collectPostHog({ posthog: { projectName: '630 Volleyball Website' } }, window, now.toISOString())
 // The collector's canonical result is compared separately from legacy visitor/event rows.
-assert.deepEqual(posthog.sharedAnalytics.summary, website, 'scorecard and PostHog canonical website answer')
+assert.deepEqual(posthog.websiteSummary, website, 'scorecard and PostHog canonical website answer')
 const receipt = { version: ANALYTICS_VERSION, verifiedAt: new Date().toISOString(), clock: now.toISOString(), instagram: { window: dashboard.window, summary: dashboard.summary, answer: dashboard.followerInsight, sourceReadAt: dashboard.dailyReadAt, independentQuery: sql, independentRows: flows }, website: { window, query, summary: website, answer: websiteAnswer(website) }, checks: ['dashboard-scorecard dates', 'Instagram flow totals', 'independent D1 sums and coverage', 'identical follower explanation', 'PostHog-scorecard website counts'], boundary: 'Read-only real source data. These are observations, not proof of registrations or causes.' }
 await writeFile(args.output, JSON.stringify(receipt, null, 2) + '\n')
 console.log(JSON.stringify({ receipt: args.output, instagram: dashboard.summary, website }))
