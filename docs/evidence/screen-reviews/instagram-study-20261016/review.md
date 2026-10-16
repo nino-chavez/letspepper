@@ -170,6 +170,29 @@ No further broad review was opened. Requested routes are recorded; actual runtim
 and effort were not exposed. The final follow-up changes only this receipt and fixture
 trailing whitespace.
 
+## Business Suite integration review — October 16
+
+Scope: preserve the selected dashboard, adding the native-source report and its
+account and top-post views. Eight desktop/phone captures cover populated, empty and
+outdated states. Real-data frames remain private under the tracking evidence directory.
+A separate cold reviewer opened five of those frames before giving feedback.
+
+Applied: put September daily-average context beside profile visits and link clicks;
+keep verified Instagram links visible; show ranks; provide direct Data status actions
+for empty/outdated states; fix phone table width and wrapped numeric values. The parent
+opened the actual desktop and phone renders and reran the capture checks after fixes.
+
+Not adopted: a performance target or good/bad verdict without an operator-defined goal;
+unsourced post thumbnails; replacing the bounded top-12 list with a second ranking.
+Caption details already expand on demand. No claim of improved operator task success
+or registration outcomes follows from this screen review.
+
+Independent code review findings were rechecked and fixed: canonical timestamp
+validation and epoch-based readback, valid snapshot dates, exact period metric names,
+and immutable refresh-run records. Tests reproduce the rejected inputs and older
+stored-timestamp case. The first broad review timed out without a verdict; it is not
+counted as a passing review. The narrower review produced the findings above.
+
 ### Deployment packaging correction
 
 The first authenticated production check after PR #99 found a blank content area.

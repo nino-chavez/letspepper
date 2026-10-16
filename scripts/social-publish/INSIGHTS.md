@@ -249,3 +249,36 @@ to `token_invalid`.
 - What a post was about. Captions are stored; labeling posts by topic is a later step.
 - Online hours on the dashboard, until two weeks are recorded and their time zone is
   checked.
+
+## Unified Business Suite reports
+
+The private dashboard also reads native Business Suite reports from the same D1
+ database. `business_suite_reports` keeps each validated report, its native period
+reach, Instagram-only and Facebook-crosspost views, link clicks, current follower
+snapshot, historical weekly backfill, and top-12 lifetime post snapshot. Daily
+observations also upsert into `account_metric_days` with `source = 'business_suite'`.
+API rows remain independent. A newer observation wins; missing values cannot erase
+observed values. Reports and real captions stay in private storage, never this repo.
+
+`capture-business-suite.mjs` owns the browser capture. It checks the asset, Instagram
+selection, rendered dates, six chart series, Audience > Trends follower totals, and
+the Instagram Feed filter with descending displayed views. It rereads 14 source days
+through yesterday in Los Angeles. `refresh-business-suite.mjs` imports the validated
+report with Wrangler, then reads back the saved report and affected daily values.
+`business-suite-report.mjs` owns parsing, identity checks and SQL generation.
+
+The daily local automation points at that runner. Its durable private tracker records
+the previous validated report path, evidence directory and sync receipt. The Google
+Sheet is a retained historical reference after database cutover; no dashboard query
+reads it. A browser sign-in or source-layout failure preserves the previous database
+report and is reported as failed. A successful API collection is separate from a
+successful Business Suite refresh.
+
+The authenticated `/business-suite` dashboard view shows account-period totals and
+per-day averages, source links, delayed follower dates, daily readings and the labeled
+historical backfill. `/business-suite?view=posts` shows only the top-12 lifetime snapshot,
+including unverified ownership and missing links. It is not a full post inventory.
+The existing Overview, Posts, Stories and Audience pages retain API definitions.
+Native period reach is read from its source card; it is never calculated by summing
+ daily reach. Individual follower identities remain on hold for complete dated owner
+exports. No follower list is scraped.

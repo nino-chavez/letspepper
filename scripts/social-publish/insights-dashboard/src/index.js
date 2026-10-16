@@ -14,6 +14,8 @@
 
 import { loadDashboard, DEFAULT_PERIOD } from './data.js'
 import { dashboardPage, signInPage, errorPage } from './page.js'
+import { businessSuitePage } from './business-suite-page.js'
+import { loadBusinessSuite, loadBusinessSuiteStatus } from './business-suite.js'
 import { COOKIE, securityHeaders, base64Url, passphraseMatches, sessionCookie, validSession } from './auth.js'
 
 function html(body, { status = 200, nonce = null, headers = {} } = {}) {
@@ -44,13 +46,18 @@ export default {
     if (url.pathname === '/sign-out' && request.method === 'POST') {
       return new Response(null, { status: 303, headers: { location: '/', 'set-cookie': clearCookie, ...securityHeaders(null) } })
     }
-    if (url.pathname !== '/') return new Response('Not found', { status: 404, headers: securityHeaders(null) })
+    if (!['/','/business-suite'].includes(url.pathname)) return new Response('Not found', { status: 404, headers: securityHeaders(null) })
     if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: securityHeaders(null) })
     if (!env.DASHBOARD_PASSPHRASE) return html(signInPage({ configured: false }), { status: 503 })
     if (!(await validSession(request, env.DASHBOARD_PASSPHRASE))) return html(signInPage())
     let data
     try {
+      if (url.pathname === '/business-suite') {
+        const [report,status]=await Promise.all([loadBusinessSuite(env.INSIGHTS_DB),loadBusinessSuiteStatus(env.INSIGHTS_DB)])
+        return html(businessSuitePage(report,{view:url.searchParams.get('view'),period:url.searchParams.get('period'),status}))
+      }
       data = await loadDashboard(env.INSIGHTS_DB, { period: url.searchParams.get('period') ?? DEFAULT_PERIOD, postsPeriod: url.searchParams.get('postsPeriod') ?? '30' })
+      data.businessSuiteStatus=await loadBusinessSuiteStatus(env.INSIGHTS_DB)
     } catch {
       return html(errorPage(), { status: 503 })
     }

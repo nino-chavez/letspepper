@@ -62,3 +62,6 @@ scripts/story-assets/jpo-mens.csv
 
 # Scratch renders from the composers; regenerate rather than commit.
 .temp/
+
+# Private local captures and development receipts.
+.artifacts/
