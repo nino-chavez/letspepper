@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import worker from '../src/index.js'
 import { runRegistrations, leagueAppsAccessToken, REGISTRATIONS_CRON, REGISTRATIONS_STATUS_KEY } from '../src/registrations.js'
 
@@ -94,4 +95,41 @@ test('manual refresh is POST-only and header-authenticated; wrong key is rejecte
   const response=await worker.fetch(new Request('https://example.invalid/registrations/run',{method:'POST',headers}),e)
   assert.equal(response.headers.get('Cache-Control'),'no-store')
   assert.equal((await response.json()).status,'unavailable')
+})
+
+test('outbound requests work in the actual Workers runtime and reject redirects',async()=>{
+  const require = createRequire(import.meta.url)
+  const { Miniflare } = createRequire(require.resolve('wrangler'))('miniflare')
+  const source = readFileSync(new URL('../src/registrations.js', import.meta.url), 'utf8')
+  const contract = readFileSync(new URL('../../analytics-contract.mjs', import.meta.url), 'utf8')
+  const mf = new Miniflare({ compatibilityDate:'2026-01-01', modulesRoot:'/', modules:[
+    {type:'ESModule',path:'/entry.js',contents:`
+      import {runRegistrations} from './worker/src/registrations.js';
+      export default {async fetch(request,env){
+        const calls=[];
+        const redirect=new URL(request.url).pathname==='/redirect';
+        const result=await runRegistrations({...env,QUEUE:{async put(){}}},{fetch:async(url,options)=>{
+          const outbound=new Request(url,options);
+          calls.push({url:String(url),redirect:outbound.redirect});
+          if(String(url).includes('/auth/token')) return redirect ? new Response(null,{status:302,headers:{Location:'https://untrusted.invalid'}}) : Response.json({access_token:'test-token'});
+          if(String(url).includes('/export/')) return Response.json([]);
+          return Response.json({status:1});
+        }});
+        return Response.json({result,calls});
+      }};
+    `},
+    {type:'ESModule',path:'/worker/src/registrations.js',contents:source},
+    {type:'ESModule',path:'/analytics-contract.mjs',contents:contract},
+  ],bindings:{LEAGUEAPPS_PRIVATE_KEY:pem,LEAGUEAPPS_CLIENT_ID:'test-client',POSTHOG_630_PROJECT_TOKEN:'test-project-token'}})
+  try {
+    const complete=await (await mf.dispatchFetch('https://test.invalid/')).json()
+    assert.equal(complete.result.status,'verified')
+    assert.equal(complete.result.delivery,'accepted')
+    assert.equal(complete.calls.length,3)
+    assert.ok(complete.calls.every(call=>call.redirect==='manual'))
+    const rejected=await (await mf.dispatchFetch('https://test.invalid/redirect')).json()
+    assert.equal(rejected.result.status,'unavailable')
+    assert.equal(rejected.result.delivery,'accepted')
+    assert.equal(rejected.calls.length,2)
+  } finally { await mf.dispose() }
 })
