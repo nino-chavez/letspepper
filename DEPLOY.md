@@ -40,6 +40,7 @@ For 630, `IG_630_ACCESS_TOKEN` comes from `Meta 630 Publisher` in 1Password. Mis
 - **Pages project, production** (verified): `NEXT_PUBLIC_CF_STREAM_SUBDOMAIN`, `NODE_VERSION`, `PNPM_VERSION`, `RALLY_HQ_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`
 - **Pages project, preview** (verified): the same, without `RALLY_HQ_API_KEY`
 - **Where they live**: Cloudflare Pages dashboard, Settings > Variables
+- **Build cache override**: `wrangler.toml` owns `NPM_CONFIG_CACHE=/tmp/letspepper-npm-cache`. Pages replaces dashboard plain-text variables with the Wrangler file before installing tools, so an API-only override does not reach Corepack bootstrap. This isolates npm from the restored home-directory cache; checksum validation stays enabled. Verify the cache path in the hosted build log when diagnosing an install failure.
 - **pnpm is pinned twice. Keep both equal**: `PNPM_VERSION` here (Cloudflare's build image does not read `packageManager`), and `packageManager` in `package.json` (the PR checks read it).
 
 ## Domains

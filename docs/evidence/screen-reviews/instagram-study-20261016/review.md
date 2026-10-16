@@ -240,3 +240,50 @@ dashboard suite includes the packaging negative control; the twenty-one-state br
 walk uses the actual Wrangler bundle. These checks establish the deployed behavior,
 not physical-device acceptance or improved operator decisions. Those outcomes still
 need an operator task trial.
+
+
+### Follower guidance and open-page refresh review
+
+The parent reproduced an open-page freshness gap: the scheduled collector's validated
+report reached the database and appeared after navigation, while an already-open
+page retained the older reading. Both dashboard sources now reload saved readings
+when visible and idle, pausing for form fields, help, and expanded explanations.
+This does not collect from Instagram more frequently.
+
+Follower guidance keeps gross follows and unfollows separate, requires complete
+periods of equal length, and distinguishes a missing comparison from a genuine zero.
+It offers investigation steps without assigning a cause or inventing a threshold.
+The shared help explicitly states that handle imports and comparisons are not built.
+No complete owner export was available for validating that separate work.
+
+The parent inspected the desktop follower answer and native report, plus the phone
+native report. A read-only cold reviewer inspected the rendered screens with only the
+reader and decision brief (dispatch `8adfd458-8f4e-423e-b6c7-3acb9f5644c6`). It found
+the limits understandable and requested a direct Data status action beside the missing
+readings message. The parent confirmed the detached action and added the local link
+on both sources. Native guidance distinguishes its capture status from its local daily
+readings; the API coverage table is not presented as native coverage. The requested route is recorded; runtime model and effort were not
+exposed. No physical-device or operator decision trial was performed.
+
+The production-packaged browser test changes a saved synthetic report after opening
+the page, proves that focus and an open explanation pause refresh, then verifies that
+current followers, follows and unfollows update automatically. Timer tests separately
+cover activity and hidden tabs. No synthetic values enter production.
+
+
+The final local dashboard suite and production-packaged browser walk passed, with
+28 captured states including the handle-export help on phone. An independent bounded
+post-commit review (`2ed3ff69-01f8-4494-9284-b029f19299e3`) found no P1/P2 defect in
+refresh, CSP serialization, complete-period comparisons or source separation. The
+parent checked those contracts against source and the executed browser test. The
+automatic Claude hook returned no review and had no live review process; it is not
+counted as a completed review. Actual runtime model/effort for the bounded review were
+not exposed.
+
+The scheduled Business Suite run completed independently, its database readback
+matched the saved report and daily values, and the authenticated live report matched
+that source after navigation. The regular daily schedule was restored. Private source
+captures, receipts and the run's archived-chat reference are retained under the tracking
+campaign's `unattended-verification` evidence. An already-open production page still
+needs verification after deployment; the automatic-update result above uses synthetic
+local data.

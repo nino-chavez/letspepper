@@ -59,7 +59,8 @@ export function dashboardClient(data, help) {
   }
   function followSummary() {
     const s=data.summary
-    return `<div class="flow"><div><strong>${fmt(s.follows)}</strong><span>followed</span></div><div><strong>${fmt(s.unfollows)}</strong><span>unfollowed</span></div></div><p>${finite(s.net)?`<strong>${s.net>0?'+':''}${fmt(s.net)} net new follows</strong> during these dates.`:'A complete net change is unavailable because daily readings are missing.'}</p>${hp('followers','How to read follower change')}`
+    const insight=data.followerInsight
+    return `<div class="flow"><div><strong>${fmt(s.follows)}</strong><span>followed</span></div><div><strong>${fmt(s.unfollows)}</strong><span>unfollowed</span></div></div><p>${finite(s.net)?`<strong>${s.net>0?'+':''}${fmt(s.net)} net new follows</strong> during these dates.`:'A complete net change is unavailable because daily readings are missing.'}</p>${hp('followers','How to read follower change')}${insight?`<section class="rule-section"><h3>Does this call for action?</h3><p><strong>${e(insight.heading)}</strong></p><p>${e(insight.detail)}</p><p>${e(insight.action)}</p>${insight.state==='incomplete'?'<button class="text-button" data-page="status">Check missing readings in Data status</button>':''}</section>`:''}<section class="rule-section"><h3>Can we tell who left?</h3><p>Not yet. No complete follower export has been imported. Daily counts cannot distinguish recent followers, long-time followers, or families leaving a program.</p>${hp('snapshots','How to start tracking handles')}</section>`
   }
   function followerChart() {
     // Each reporting day remains visible. A table is more legible than hundreds of bars.
