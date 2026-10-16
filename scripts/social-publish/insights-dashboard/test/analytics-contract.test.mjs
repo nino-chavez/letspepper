@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { instagramWindow, reportingWindow, summarizeInstagramDays, readWebsiteSummary, websiteAnswer, websiteSummaryQuery, METRIC_DEFINITIONS } from '../../analytics-contract.mjs'
+import { instagramWindow, reportingWindow, summarizeInstagramDays, readWebsiteSummary, websiteAnswer, websiteSummaryQuery, websiteInsightQuery, METRIC_DEFINITIONS } from '../../analytics-contract.mjs'
 
 test('dates follow the calendar rather than a late collector, including DST', () => {
   const w=instagramWindow({now:new Date('2026-10-16T18:00:00Z')})
@@ -35,4 +35,12 @@ test('PostHog errors, absent result tables and impossible subsets cannot pass as
   assert.equal(websiteAnswer(zero).handoffRate,null);assert.equal(websiteAnswer(null).state,'incomplete')
   assert.equal(websiteAnswer(readWebsiteSummary({columns,results:[[100,20,10,4]]})).instagramHandoffRate,0.4)
   assert.match(METRIC_DEFINITIONS['website.handoff_sessions'].limit,/does not prove a completed registration/)
+})
+
+test('saved PostHog answer uses the canonical counts and guidance', () => {
+  const query=websiteInsightQuery({start:'2026-10-09',end:'2026-10-15'})
+  assert.ok(query.includes(websiteSummaryQuery({start:'2026-10-09',end:'2026-10-15'})))
+  const answer=websiteAnswer({visits:0,handoff_visits:0,instagram_visits:0,instagram_handoff_visits:0})
+  assert.ok(query.includes(answer.action))
+  assert.match(query,/AS answer/);assert.match(query,/AS next_step/)
 })

@@ -122,8 +122,28 @@ export function readWebsiteSummary(data) {
   if (result.handoff_visits > result.visits || result.instagram_visits > result.visits || result.instagram_handoff_visits > Math.min(result.instagram_visits, result.handoff_visits)) throw new Error('Website handoffs must be a subset of visits')
   return result
 }
+const WEBSITE_ANSWER = {
+  heading: '{handoff_visits} of {visits} website visits reached a registration handoff.',
+  detail: '{instagram_visits} visits arrived from Instagram; {instagram_handoff_visits} of those reached a registration handoff. These are visits, not people or completed registrations.',
+  action: 'Inspect the landing pages and registration destinations. Use comparable periods before deciding what to change.',
+  emptyAction: 'Check tracking and the reporting dates before interpreting a quiet period.',
+}
+const answerText = (template, values) => template.replace(/\{(\w+)\}/g, (_, key) => values[key])
+
+/** The saved PostHog table presents the same answer and guidance as the scorecard. */
+export function websiteInsightQuery(window = null) {
+  const quote = value => `'${value.replaceAll("'", "''")}'`
+  const text = template => `concat(${template.split(/(\{\w+\})/g).filter(Boolean).map(part => /^\{/.test(part) ? `toString(${part.slice(1, -1)})` : quote(part)).join(', ')})`
+  return `SELECT ${text(WEBSITE_ANSWER.heading)} AS answer,
+  ${text(WEBSITE_ANSWER.detail)} AS context,
+  if(visits = 0, ${quote(WEBSITE_ANSWER.emptyAction)}, ${quote(WEBSITE_ANSWER.action)}) AS next_step,
+  visits, handoff_visits, instagram_visits, instagram_handoff_visits
+FROM (
+${websiteSummaryQuery(window)}
+)`
+}
 export function websiteAnswer(summary) {
   if (!summary) return { state: 'incomplete', heading: 'Website results are unavailable.', detail: 'The source did not return a complete answer. Missing does not mean zero.', action: 'Check source health before making a website decision.' }
   const { visits, handoff_visits: handoffs, instagram_visits: ig, instagram_handoff_visits: igHandoffs } = summary
-  return { state: 'recorded', heading: `${handoffs} of ${visits} website visits reached a registration handoff.`, detail: `${ig} visits arrived from Instagram; ${igHandoffs} of those reached a registration handoff. These are visits, not people or completed registrations.`, action: visits === 0 ? 'Check tracking and the reporting dates before interpreting a quiet period.' : 'Inspect the landing pages and registration destinations. Use comparable periods before deciding what to change.', handoffRate: visits > 0 ? handoffs / visits : null, instagramHandoffRate: ig > 0 ? igHandoffs / ig : null }
+  return { state: 'recorded', heading: answerText(WEBSITE_ANSWER.heading, summary), detail: answerText(WEBSITE_ANSWER.detail, summary), action: visits === 0 ? WEBSITE_ANSWER.emptyAction : WEBSITE_ANSWER.action, handoffRate: visits > 0 ? handoffs / visits : null, instagramHandoffRate: ig > 0 ? igHandoffs / ig : null }
 }
