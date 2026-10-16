@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/social-publish/insights-dashboard/**'
+      - 'scripts/social-publish/analytics-contract.mjs'
       - 'scripts/social-publish/worker/src/insights.js'
       - 'scripts/social-publish/worker/migrations/**'
       - 'package.json'
@@ -20,6 +21,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/social-publish/insights-dashboard/**'
+      - 'scripts/social-publish/analytics-contract.mjs'
       - 'scripts/social-publish/worker/src/insights.js'
       - 'scripts/social-publish/worker/migrations/**'
       - 'package.json'
