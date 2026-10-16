@@ -12,6 +12,9 @@
   "main": "src/index.js",
   "compatibility_date": "2026-01-01",
   "workers_dev": true,
+  // The self-contained browser function is serialized into a nonce-protected script.
+  // esbuild name helpers belong to the Worker scope and cannot cross that boundary.
+  "keep_names": false,
   "d1_databases": [
     {
       "binding": "INSIGHTS_DB",

@@ -143,11 +143,12 @@ Every response is uncached, unindexed, and served under a content security polic
 The Worker never writes: its queries are all `SELECT`, and a test fails otherwise. Its
 `wrangler.jsonc` declares no migrations; this Worker's schema stays owned by
 `worker/wrangler.jsonc`. `.github/workflows/deploy-insights-dashboard.yml` tests it on pull
-requests and deploys it from `main`. Its tests use invented data only. Run `pnpm social:dashboard:test` for read-model and
-request/authentication checks. Run `node --experimental-default-type=module
+requests and deploys it from `main`. Its tests use invented data only. Run `pnpm social:dashboard:test` for read-model,
+request/authentication, and production-packaging checks. The packaging check runs the
+pinned Wrangler bundle and includes a deliberately broken name-helper configuration. Run `node --experimental-default-type=module
 scripts/social-publish/insights-dashboard/test/browser.mjs` under Node 22 for the
 Playwright walk against a local workerd runtime and disposable D1 database. The browser
-walk freezes only its fixture clock, exercises desktop and phone states, and writes
+walk packages through Wrangler and freezes only its fixture clock, exercises desktop and phone states, and writes
 captures to `.artifacts/insights-redesign/live-build` (locally ignored). It does not access
 Instagram or production data.
 
