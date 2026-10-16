@@ -54,7 +54,8 @@ export default {
     try {
       if (url.pathname === '/business-suite') {
         const [report,status]=await Promise.all([loadBusinessSuite(env.INSIGHTS_DB),loadBusinessSuiteStatus(env.INSIGHTS_DB)])
-        return html(businessSuitePage(report,{view:url.searchParams.get('view'),period:url.searchParams.get('period'),status}))
+        const nonce=base64Url(crypto.getRandomValues(new Uint8Array(16)))
+        return html(businessSuitePage(report,{view:url.searchParams.get('view'),period:url.searchParams.get('period'),status,nonce}),{nonce})
       }
       data = await loadDashboard(env.INSIGHTS_DB, { period: url.searchParams.get('period') ?? DEFAULT_PERIOD, postsPeriod: url.searchParams.get('postsPeriod') ?? '30' })
       data.businessSuiteStatus=await loadBusinessSuiteStatus(env.INSIGHTS_DB)

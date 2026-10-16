@@ -69,7 +69,7 @@ try {
   await page.setViewportSize({width:390,height:844})
   for(const q of ['reach','posts','followers']){await page.getByLabel('Your question').selectOption(q);await capture(`phone-question-${q}`)}
   for(const label of ['Posts','Stories','Audience']){await page.locator('#nav').getByRole('button',{name:label,exact:true}).click();await capture(`phone-${label.toLowerCase()}`)}
-  await page.getByRole('button',{name:'Help with this page'}).click();await capture('phone-help');await page.keyboard.press('Escape')
+  await page.getByRole('button',{name:'Help with this page'}).click();await capture('phone-help');await page.locator('#topic').selectOption('snapshots');await page.getByRole('heading',{name:'Track handles across dated exports'}).waitFor();await capture('phone-handle-help');await page.keyboard.press('Escape')
   await page.locator('.mobile-status').click();await capture('phone-status')
   await db.prepare("DELETE FROM account_metric_days WHERE day='2026-10-10' AND metric IN ('reach','follows_and_unfollows:NON_FOLLOWER')").run()
   await page.goto(base+'?page=overview');await page.getByRole('heading',{name:'We can’t compare this period yet.'}).waitFor();assert.match(await page.locator('.chart-line').getAttribute('d'),/M.*M/);await capture('phone-missing')
@@ -84,11 +84,29 @@ try {
   const nativeMetrics={instagram_views:300,facebook_crosspost_views:10,unique_reach:120,content_interactions:20,profile_visits:30,link_clicks:4,follows:9,unfollows:2}
   const native={captured_at:NOW.toISOString(),through_day:'2026-10-15',current_followers:100,followers_observed_at:NOW.toISOString(),daily:[],weekly_backfill:[],periods:[{start:'2026-09-01',end:'2026-09-30',days:30,observed_at:NOW.toISOString(),reach_rounded:true,follower_through:'2026-09-30',metrics:nativeMetrics,source_url:'https://business.facebook.com/latest/insights/results'},{start:'2026-10-01',end:'2026-10-15',days:15,observed_at:NOW.toISOString(),reach_rounded:true,follower_through:'2026-10-14',metrics:nativeMetrics,source_url:'https://business.facebook.com/latest/insights/results'}],snapshot:{start:'2026-09-01',end:'2026-10-15',observed_at:NOW.toISOString(),posts:Array.from({length:12},(_,i)=>({rank:i+1,published_day:'2026-10-14',caption:'Invented native post '+i,format:'Reel',ownership:'ownership unverified',observed_at:NOW.toISOString(),permalink:null,metrics:{views:100-i,shares:2,saves:1}}))}}
   await db.prepare('INSERT INTO business_suite_reports VALUES (?,?,?,?)').bind('630',native.captured_at,native.through_day,JSON.stringify(native)).run()
-  await page.reload();await page.getByRole('heading',{name:'How did the account perform?'}).waitFor();await capture('phone-native-totals')
+  await page.reload();await page.getByRole('heading',{name:'How did the account perform?'}).waitFor();assert.equal(await page.getByRole('link',{name:'Check missing readings in Data status'}).getAttribute('href'),'/?page=status');await capture('phone-native-totals')
   await page.getByLabel('Reporting period').selectOption('2026-09-01_2026-09-30');await page.getByRole('button',{name:'Show period'}).click();await page.getByRole('heading',{name:'Sep 1, 2026 – Sep 30, 2026',exact:true}).waitFor()
   await page.locator('.suite-tabs').getByRole('link',{name:'Top posts',exact:true}).click();assert.equal(await page.locator('tbody tr').count(),12);await capture('phone-native-posts')
   await page.getByText('Read caption and other metrics',{exact:true}).first().click();await page.getByText('Instagram link not verified.',{exact:true}).first().waitFor()
   await page.setViewportSize({width:1365,height:900});await page.goto(base+'business-suite');await capture('desktop-native-totals')
+  // A new saved report must reach an already-open page without a user reload.
+  // Focus and an open explanation deliberately block the first two timer checks.
+  await page.clock.install({time:NOW})
+  await page.reload()
+  native.captured_at='2026-10-16T15:01:00.000Z';native.current_followers=101
+  native.periods[1].metrics={...nativeMetrics,follows:12,unfollows:4}
+  await db.prepare('INSERT INTO business_suite_reports VALUES (?,?,?,?)').bind('630',native.captured_at,native.through_day,JSON.stringify(native)).run()
+  await page.getByLabel('Reporting period').focus();await page.clock.fastForward('06:00')
+  await page.getByText('100 current followers',{exact:false}).waitFor()
+  await page.locator('main').focus();await page.getByText('Can we tell who left?',{exact:true}).click();await page.clock.fastForward('01:15')
+  await page.getByText('100 current followers',{exact:false}).waitFor()
+  await page.getByText('Can we tell who left?',{exact:true}).click()
+  await Promise.all([page.waitForEvent('load'),page.clock.fastForward('01:15')])
+  await page.getByText('101 current followers',{exact:false}).waitFor()
+  assert.match(await page.locator('.suite-metrics tbody tr').filter({hasText:/^Follows/}).innerText(),/12/)
+  assert.match(await page.locator('.suite-metrics tbody tr').filter({hasText:/^Unfollows/}).innerText(),/4/)
+  await capture('desktop-native-auto-updated')
+  await page.clock.resume()
   await db.prepare("INSERT INTO business_suite_sync_runs VALUES ('630','2026-10-16T16:00:00Z','2026-10-16T16:00:10Z','error','Invented failed capture')").run();await page.reload();await page.getByText('The latest Business Suite update failed.',{exact:false}).waitFor();await capture('desktop-native-failed')
   // Only the intentionally rejected login and database-error request may emit HTTP console errors.
   assert.deepEqual(errors.filter(m=>!m.includes('401')&&!m.includes('503')),[])

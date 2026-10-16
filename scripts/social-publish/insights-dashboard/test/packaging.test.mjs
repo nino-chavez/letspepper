@@ -26,7 +26,7 @@ test('the exact Wrangler bundle runs its serialized browser script without Worke
   function run(script){
     const elements=new Map()
     const document={querySelector(selector){if(!elements.has(selector))elements.set(selector,{innerHTML:'',addEventListener(){}});return elements.get(selector)},addEventListener(){}}
-    runInNewContext(script,{document,window:{addEventListener(){}},location:'https://dashboard.test/',history:{replaceState(){}},URL,URLSearchParams},{timeout:2000})
+    runInNewContext(script,{document,window:{addEventListener(){}},setInterval(){},location:'https://dashboard.test/',history:{replaceState(){}},URL,URLSearchParams},{timeout:2000})
     assert.match(elements.get('#main').innerHTML,/Start with a question/)
     return elements
   }

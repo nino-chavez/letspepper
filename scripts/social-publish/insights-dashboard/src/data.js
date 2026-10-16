@@ -1,5 +1,6 @@
 /** Read-only view of Graph API observations. Business Suite has a different scope. */
 import { reportDay, addDays, dayRange, reportMidnight } from '../../worker/src/insights.js'
+import { followerInsight } from './follower-insight.js'
 
 export const ACCOUNT = '630'
 export const PERIODS = { 7: '7 days', 30: '30 days', all: 'All recorded' }
@@ -112,6 +113,7 @@ export async function loadDashboard(db, { period = DEFAULT_PERIOD, postsPeriod =
     period, postsPeriod, today, window, postsWindow, storiesWindow, historyStart:bounds?.first_day??null,
     empty: !series.some(d=>Object.keys(METRICS).some(k=>Number.isFinite(d[k]))),
     series, previous, coverage, summary:{ typical,previousTypical,comparable,ratio:comparable&&previousTypical>0?typical/previousTypical:null,follows,unfollows,net:Number.isFinite(follows)&&Number.isFinite(unfollows)?follows-unfollows:null },
+    followerInsight:followerInsight(series,previous),
     runs, dailyThrough:bounds?.last_day??null, dailyReadAt:bounds?.observed_at??null,
     followers:followerRows[0]??null, posts:allPosts.filter(p=>inWindow(p,postsWindow)), overviewPosts:allPosts.filter(p=>inWindow(p,window)),
     stories:shapePosts(stories.results,now.getTime()), storiesSince:storySinceRows[0]?.since??null,

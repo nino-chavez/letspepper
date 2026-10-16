@@ -240,3 +240,31 @@ dashboard suite includes the packaging negative control; the twenty-one-state br
 walk uses the actual Wrangler bundle. These checks establish the deployed behavior,
 not physical-device acceptance or improved operator decisions. Those outcomes still
 need an operator task trial.
+
+
+### Follower guidance and open-page refresh review
+
+The parent reproduced an open-page freshness gap: the scheduled collector's validated
+report reached the database and appeared after navigation, while an already-open
+page retained the older reading. Both dashboard sources now reload saved readings
+when visible and idle, pausing for form fields, help, and expanded explanations.
+This does not collect from Instagram more frequently.
+
+Follower guidance keeps gross follows and unfollows separate, requires complete
+periods of equal length, and distinguishes a missing comparison from a genuine zero.
+It offers investigation steps without assigning a cause or inventing a threshold.
+The shared help explicitly states that handle imports and comparisons are not built.
+No complete owner export was available for validating that separate work.
+
+The parent inspected the desktop follower answer and native report, plus the phone
+native report. A read-only cold reviewer inspected the rendered screens with only the
+reader and decision brief (dispatch `8adfd458-8f4e-423e-b6c7-3acb9f5644c6`). It found
+the limits understandable and requested a direct Data status action beside the missing
+readings message. The parent confirmed the detached action and added the local link
+on both sources. The requested route is recorded; runtime model and effort were not
+exposed. No physical-device or operator decision trial was performed.
+
+The production-packaged browser test changes a saved synthetic report after opening
+the page, proves that focus and an open explanation pause refresh, then verifies that
+current followers, follows and unfollows update automatically. Timer tests separately
+cover activity and hidden tabs. No synthetic values enter production.

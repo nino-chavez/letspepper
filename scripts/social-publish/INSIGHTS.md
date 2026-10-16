@@ -135,6 +135,24 @@ with Central-time labels that follow daylight saving. It flags overdue updates a
 one-hour daily or fifteen-minute hourly allowance. Individual metric timestamps remain
 the source for freshness; a successful run does not refresh every old post.
 
+Follower guidance compares follows and unfollows separately across complete periods of
+equal length. It describes observed differences and suggests what to inspect; it does
+not assign a cause or label a change statistically significant. Business Suite uses
+its source-labeled daily readings through the last reported follower day. An incomplete
+earlier period remains a baseline, even when native period totals are available.
+
+An open dashboard checks for saved readings by reloading after five minutes. It waits
+until the tab is visible and has been idle for one minute, with no focused form field
+or open help/details. The current URL preserves page and filter choices. This refresh
+reads the database; it does not trigger a new collection from Instagram.
+
+The follower help explains the separate handle-tracking gap. No follower-list importer
+or identity comparison is implemented. The first complete, dated owner export is the
+baseline needed to validate that work. Later comparisons may show handles added or
+absent; absence alone does not prove an unfollow, a reason, or bot/hacked status. Known
+club program records would be needed to investigate families aging out. Aggregate
+counts, the historical Sheet, and the automatic collector cannot provide that evidence.
+
 One passphrase signs a viewer in for 30 days. It lives in 1Password as
 `Cloudflare 630-instagram-insights` and is the Worker's `DASHBOARD_PASSPHRASE` secret;
 changing it signs everyone out. Sign-in attempts are limited to ten a minute per address.
