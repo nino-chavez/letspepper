@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { seeded, PASSPHRASE, NOW } from './fixtures.mjs'
+import { makeSnapshot, snapshotStatement } from '../../follower-snapshots.mjs'
 const require=createRequire(import.meta.url), wranglerRequire=createRequire(require.resolve('wrangler/package.json'))
 const {Miniflare}=wranglerRequire('miniflare')
 const out=resolve(process.env.DASHBOARD_CAPTURE_DIR??'.artifacts/insights-redesign/live-build')
@@ -23,7 +24,7 @@ const browser=await chromium.launch({headless:true})
 const errors=[], captures=[]
 try {
   const db=await mf.getD1Database('INSIGHTS_DB')
-  for(const name of ['0001_instagram_insights.sql','0002_stories_audience_online.sql','0003_business_suite_reports.sql']) {
+  for(const name of ['0001_instagram_insights.sql','0002_stories_audience_online.sql','0003_business_suite_reports.sql','0004_follower_handle_snapshots.sql']) {
     const sql=readFileSync(`scripts/social-publish/worker/migrations/${name}`,'utf8').replace(/--[^\n]*/g,'')
     for(const statement of sql.split(';').map(s=>s.trim()).filter(Boolean))await db.prepare(statement).run()
   }
@@ -52,6 +53,22 @@ try {
   assert.equal(await page.evaluate(()=>{const el=document.createElement('div');el.id='overflow-probe';el.style='width:3000px;height:2px';el.textContent='overflow detector probe';document.body.append(el);return document.documentElement.scrollWidth>document.documentElement.clientWidth+1}),true)
   await page.locator('#overflow-probe').evaluate(el=>el.remove())
   await capture('desktop-reach')
+  await page.getByRole('link',{name:'Follower snapshots',exact:true}).click()
+  await page.getByRole('heading',{name:'Waiting for the first complete follower export.'}).waitFor();await capture('desktop-snapshot-empty')
+  const saveSnapshot=async(handles,exported_at)=>{
+    const manifest={version:1,account:'630volleyball',source:'instagram_accounts_center',date_range:'all_time',format:'json',account_verified:true,all_parts_verified:true,exported_at,follower_files:['followers_1.json']}
+    const row=makeSnapshot(manifest,[{name:'followers_1.json',text:JSON.stringify(handles.map(value=>({string_list_data:[{value}]})))}])
+    const statement=snapshotStatement(row);await db.prepare(statement.sql).bind(...statement.params).run()
+  }
+  await saveSnapshot(['example_alpha','example_beta','example_gamma'],'2026-10-01T12:00:00Z')
+  await page.reload();await page.getByRole('heading',{name:'This is the starting list.'}).waitFor();assert.equal(await page.locator('.handle-list li').count(),3);await capture('desktop-snapshot-baseline')
+  await saveSnapshot(['example_beta','example_delta','example_gamma'],'2026-10-08T12:00:00Z')
+  await page.reload();await page.getByRole('heading',{name:'1 added. 1 absent in the later export.'}).waitFor();await capture('desktop-snapshot-comparison')
+  await page.setViewportSize({width:390,height:844});await page.getByLabel('Show',{exact:true}).selectOption('absent');await page.getByRole('button',{name:'Show handles'}).click();assert.equal(await page.locator('.handle-list').innerText(),'@example_alpha');await capture('phone-snapshot-absent')
+  await page.getByText('How do I get an export, and what can it tell us?',{exact:true}).click();await capture('phone-snapshot-help')
+  await page.getByLabel('Find a handle').fill('no-match');await page.getByRole('button',{name:'Show handles'}).click();await page.getByText('No handles match this view.',{exact:true}).waitFor()
+  await page.getByLabel('Export prepared').selectOption({index:1});await page.getByRole('button',{name:'Show handles'}).click();await page.getByRole('heading',{name:'This is the starting list.'}).waitFor();await capture('phone-snapshot-baseline')
+  await page.goto(base);await page.setViewportSize({width:1365,height:900})
   await page.getByRole('button',{name:'What should we learn from?',exact:false}).click();await page.reload();assert.equal(await page.locator('[data-question="posts"]').getAttribute('aria-pressed'),'true');await capture('desktop-question-posts')
   await page.getByRole('button',{name:'Compare all posts by saves'}).click();assert.equal(await page.getByLabel('Compare by').inputValue(),'saves');assert.match(await page.locator('.period-line').innerText(),/From Overview/)
   await page.getByLabel('Find a post').fill('no-match');await page.getByRole('heading',{name:'No posts match these filters.'}).waitFor()
