@@ -5,7 +5,7 @@ import { writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { loadDashboard } from './insights-dashboard/src/data.js'
-import { ANALYTICS_VERSION, reportingWindow, websiteSummaryQuery, readWebsiteSummary, websiteAnswer } from './analytics-contract.mjs'
+import { ANALYTICS_VERSION, reportingWindow, websiteSummaryQuery, websiteInsightQuery, readWebsiteSummary, websiteAnswer } from './analytics-contract.mjs'
 
 const args = Object.fromEntries(process.argv.slice(2).map((v, i, a) => v.startsWith('--') ? [v.slice(2), a[i + 1]] : []).filter(x => x.length))
 if (!args.scorecard || !args.output) throw new Error('Use --scorecard <build-weekly-scorecard.mjs> --output <private receipt.json> [--now <ISO>]')
@@ -48,6 +48,14 @@ const website = readWebsiteSummary(await request(endpoint, process.env.POSTHOG_P
 const posthog = await scorecard.collectPostHog({ posthog: { projectName: '630 Volleyball Website' } }, window, now.toISOString())
 // The collector's canonical result is compared separately from legacy visitor/event rows.
 assert.deepEqual(posthog.websiteSummary, website, 'scorecard and PostHog canonical website answer')
-const receipt = { version: ANALYTICS_VERSION, verifiedAt: new Date().toISOString(), clock: now.toISOString(), instagram: { window: dashboard.window, summary: dashboard.summary, answer: dashboard.followerInsight, sourceReadAt: dashboard.dailyReadAt, independentQuery: sql, independentRows: flows }, website: { window, query, summary: website, answer: websiteAnswer(website) }, checks: ['dashboard-scorecard dates', 'Instagram flow totals', 'independent D1 sums and coverage', 'identical follower explanation', 'PostHog-scorecard website counts'], boundary: 'Read-only real source data. These are observations, not proof of registrations or causes.' }
+assert.ok(Array.isArray(posthog.byEntryChannel), 'arrival-channel query must succeed for release verification')
+for (const [metric, field, filter] of [['visits', 'visits', () => true], ['handoff_visits', 'handoffVisits', () => true], ['instagram_visits', 'visits', r => r.network === 'Instagram'], ['instagram_handoff_visits', 'handoffVisits', r => r.network === 'Instagram']]) {
+  assert.equal(posthog.byEntryChannel.filter(filter).reduce((sum, row) => sum + row[field], 0), website[metric], `arrival-channel sum: ${metric}`)
+}
+const savedAnswer = await request(endpoint, process.env.POSTHOG_PERSONAL_API_KEY, { query: { kind: 'HogQLQuery', query: websiteInsightQuery(window) } })
+assert.deepEqual(readWebsiteSummary(savedAnswer), website)
+for (const [column, key] of [['answer', 'heading'], ['context', 'detail'], ['next_step', 'action']]) assert.equal(savedAnswer.results[0][savedAnswer.columns.indexOf(column)], websiteAnswer(website)[key], `saved PostHog ${column}`)
+
+const receipt = { version: ANALYTICS_VERSION, verifiedAt: new Date().toISOString(), clock: now.toISOString(), instagram: { window: dashboard.window, summary: dashboard.summary, answer: dashboard.followerInsight, sourceReadAt: dashboard.dailyReadAt, independentQuery: sql, independentRows: flows }, website: { window, query, summary: website, answer: websiteAnswer(website), channels: posthog.byEntryChannel }, checks: ['dashboard-scorecard dates', 'Instagram flow totals', 'independent D1 sums and coverage', 'identical follower explanation', 'PostHog-scorecard website counts', 'arrival-channel totals', 'identical saved PostHog written answer'], boundary: 'Read-only real source data. These are observations, not proof of registrations or causes.' }
 await writeFile(args.output, JSON.stringify(receipt, null, 2) + '\n')
 console.log(JSON.stringify({ receipt: args.output, instagram: dashboard.summary, website }))
