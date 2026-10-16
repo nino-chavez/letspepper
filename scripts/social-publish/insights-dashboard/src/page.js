@@ -259,9 +259,14 @@ function answers(data) {
     out.push(`${base}${compare}`)
   }
   if (Number.isFinite(s.typical)) {
-    const compare = Number.isFinite(s.ratio) ? `, ${times(s.ratio)} the ${e(String(data.window.days.length))} days before` : ''
+    const days = e(String(data.window.days.length))
+    // "All recorded" has nothing before it by definition, so it gets no comparison and no excuse.
+    const compare = Number.isFinite(s.ratio) ? `, ${times(s.ratio)} the ${days} days before`
+      : data.period === 'all' ? ''
+        : s.comparable ? `. The ${days} days before reached none`
+          : `. The ${days} days before aren't fully recorded, so there's no comparison`
     const busiest = s.busiest ? ` Busiest day: ${e(dayLabel(s.busiest.day))}, ${number(s.busiest.reach)}.` : ''
-    out.push(`<strong>${e(periodPhrase(data))}:</strong> a typical day reached <strong>${number(s.typical)}</strong>${compare}.${busiest}`)
+    out.push(`<strong>${e(periodPhrase(data))}:</strong> a typical day reached <strong>${number(s.typical)}</strong> accounts${compare}.${busiest}`)
   }
   const total = data.followers?.followers_count
   out.push(`${Number.isFinite(total) ? `<strong>${number(total)}</strong> followers. ` : ''}<strong>${number(s.follows)}</strong> followed and <strong>${number(s.unfollows)}</strong> unfollowed in this period: ${s.net >= 0 ? `<strong>${number(s.net)}</strong> more` : `<strong>${number(-s.net)}</strong> fewer`}.`)
