@@ -44,3 +44,50 @@ test('saved PostHog answer uses the canonical counts and guidance', () => {
   assert.ok(query.includes(answer.action))
   assert.match(query,/AS answer/);assert.match(query,/AS next_step/)
 })
+
+// Invented participant rows; never use private exports as fixtures.
+const registrations = await import('../../analytics-contract.mjs')
+const registrationWindow = registrations.reportingWindow({ now: '2026-10-16T17:00:00Z' })
+const participant = (id, extra = {}) => ({ id, registrationId: id, created: Date.parse('2026-10-09T05:00:00Z'), lastUpdated: id, isStaff: 0, deleted: false, role: 'FREEAGENT', registrationStatus: 'SPOT_RESERVED', paymentStatus: 'PAID', ...extra })
+test('registration rollup counts participant registrations by Central creation day and current status', () => {
+  const r = registrations.createRegistrationRollup(registrationWindow)
+  for (const row of [participant(1), participant(1), participant(2, { registrationStatus:'SPOT_PENDING' }), participant(3, { registrationStatus:'WAITING_LIST' }), participant(4,{paymentStatus:'VOID'}), participant(5,{paymentStatus:'REFUND'}), participant(6,{isStaff:1}), participant(7,{deleted:true}), participant(8,{role:'Tournament Team Registration'}), participant(9,{created:Date.parse('2026-10-09T04:59:59Z')}), participant(10,{created:Date.parse('2026-10-16T05:00:00Z')}), participant(11,{registrationStatus:'UNKNOWN'}), participant(12,{paymentStatus:'UNPAID'})]) r.add(row)
+  const result = r.finish('2026-10-16T17:00:00Z')
+  assert.deepEqual(result.current,{reserved:2,pending:1,waitlist:1,excluded:2,other:1})
+  assert.equal(result.previous.reserved,1)
+  r.add(participant(1,{deleted:true,lastUpdated:100}))
+  r.add(participant(1,{lastUpdated:1}))
+  assert.equal(r.finish().current.reserved,1)
+  assert.match(registrations.registrationAnswer(result).heading,/2 registrations/)
+  assert.throws(()=>r.add(participant(13,{isStaff:undefined})),/flags/)
+  assert.throws(()=>r.add(participant(14,{created:null})),/fields/)
+})
+test('empty verified export is zero; incomplete and malformed snapshots are unavailable', () => {
+  assert.equal(registrations.registrationAnswer(null).state,'unavailable')
+  const empty = registrations.createRegistrationRollup(registrationWindow).finish()
+  assert.match(registrations.registrationAnswer(empty).heading,/0 registrations/)
+  empty.current.reserved = null
+  assert.equal(registrations.registrationAnswer(empty).state,'unavailable')
+})
+test('LeagueApps paging follows short pages and inclusive cursor, refuses truncation or regression', async () => {
+  const pages = [[participant(1)],[participant(1),participant(2)],[participant(2)]]
+  const seen=[]
+  assert.deepEqual(await registrations.walkLeagueAppsExport(async()=>pages.shift(),r=>seen.push(r.id)),{rowsRead:2,pages:3})
+  assert.deepEqual(seen,[1,2])
+  await assert.rejects(registrations.walkLeagueAppsExport(async()=>[participant(1)],()=>{},{maxPages:1}),/incomplete/)
+  const backwards=[[participant(2)],[participant(1)]]
+  await assert.rejects(registrations.walkLeagueAppsExport(async()=>backwards.shift(),()=>{}),/advance/)
+  await assert.rejects(registrations.walkLeagueAppsExport(async()=>({error:'bad'}),()=>{}),/array/)
+})
+test('published snapshot allowlist never includes identities or raw rows', () => {
+  const sample=registrations.createRegistrationRollup(registrationWindow).finish('2026-10-16T17:00:00Z')
+  sample.email='private@example.invalid'; sample.rows=[{userId:123}]
+  const props=registrations.registrationSnapshotProperties(sample,'cron')
+  assert.equal(props.$process_person_profile,false)
+  assert.equal(props.trigger,'cron')
+  assert.equal(props.current_reserved,0)
+  assert.doesNotMatch(JSON.stringify(props),/private@|userId|rows|registrationId/)
+  assert.match(registrations.registrationInsightQuery(),/36 HOUR/)
+  assert.match(registrations.registrationInsightQuery(),/period_start =/)
+  assert.match(registrations.registrationInsightQuery(),/Missing data does not mean zero/)
+})
