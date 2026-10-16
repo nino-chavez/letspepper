@@ -187,3 +187,33 @@ with name preservation enabled must reproduce `__name is not defined`; the actua
 production config must render the Overview. Both controls passed. No CI workflow,
 credential, schema, or collector change is needed. This corrects the packaging failure;
 it does not turn the earlier dry-run success into rendered evidence.
+
+### Live release verification
+
+PRs [#99](https://github.com/nino-chavez/letspepper/pull/99) and
+[#101](https://github.com/nino-chavez/letspepper/pull/101) merged after all required
+checks passed. The dashboard deployment for commit
+`3737030c57ae74e9ef934ab2b4d9ea35cea75467` completed its actual Deploy dashboard
+step successfully in [run 38919742753](https://github.com/nino-chavez/letspepper/actions/runs/38919742753).
+
+The parent then checked the authenticated live dashboard with real readings. All
+five pages rendered. All three Overview questions changed the answer and retained
+the selected question in the URL. The next action opened Posts with the Overview
+publication dates and cleared hidden filters. Sorting changed the table; post detail
+showed each metric's reading time and a valid Instagram link. Contextual help opened
+the relevant topic. Escape closed it and returned focus to its trigger.
+
+The desktop browser viewport was 1309 × 887. A held phone viewport of 390 × 844
+showed the compact question selector and full-width help dialog. Each page fit its
+viewport without horizontal overflow. The parent inspected desktop Overview, Posts,
+Data status and help, plus phone Overview, Data status and help captures. A 45-second
+console/exception observation covering the desktop page walk recorded no events.
+An isolated signed-out browser context showed only the passphrase screen.
+
+Real-data captures and the compact release receipt are private local artifacts under
+`.artifacts/insights-redesign/production-live/`, excluded from version control. No real
+analytics or post captions were added to this public repository. The fourteen-test
+dashboard suite includes the packaging negative control; the twenty-one-state browser
+walk uses the actual Wrangler bundle. These checks establish the deployed behavior,
+not physical-device acceptance or improved operator decisions. Those outcomes still
+need an operator task trial.
