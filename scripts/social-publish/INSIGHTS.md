@@ -264,8 +264,14 @@ observed values. Reports and real captions stay in private storage, never this r
 selection, rendered dates, six chart series, Audience > Trends follower totals, and
 the Instagram Feed filter with descending displayed views. It rereads 14 source days
 through yesterday in Los Angeles. `refresh-business-suite.mjs` imports the validated
-report with Wrangler, then reads back the saved report and affected daily values.
-`business-suite-report.mjs` owns parsing, identity checks and SQL generation.
+report through the D1 query API with bound parameters, then reads back the saved report and affected daily values.
+`business-suite-report.mjs` owns parsing and identity checks. `business-suite-import.mjs`
+owns bound writes, following the API collector’s JSON parameter pattern. Set both
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` from the existing Cloudflare
+account-ops 1Password item. The runner reads the database ID from `INSIGHTS_DB`;
+it does not discover accounts or put the report inside SQL text.
+See [D1 query parameters](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/)
+and [D1 value and SQL limits](https://developers.cloudflare.com/d1/platform/limits/).
 
 The daily local automation points at that runner. Its durable private tracker records
 the previous validated report path, evidence directory and sync receipt. The Google

@@ -3,11 +3,30 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { reportSql, validateReport, sourceRange, dailySeries, postSnapshot, IG_ID, verifyDailyReadback } from '../business-suite-report.mjs'
+import { reportStatements, d1Query } from '../business-suite-import.mjs'
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8')
 // All numbers, captions and links in these tests are invented.
 const url='https://business.facebook.com/latest/insights/results?'+new URLSearchParams({business_id:'315859855990883',asset_id:'569987303404898',platform:'Instagram',time_range:encodeURIComponent(JSON.stringify({start:'2026-10-01',end:'2026-10-02'}))})
 const capture=()=>({url,captured_at:'2026-10-03T14:00:00.000Z',text:'\nInstagram\nOct 1, 2026 – Oct 2, 2026',tables:Array.from({length:6},()=> '\t1790838000\t1790924400\nPrimary\t10\t0')})
 const report=()=>({version:1,account:'630',instagram_id:IG_ID,captured_at:'2026-10-03T14:00:00.000Z',through_day:'2026-10-02',daily:[{day:'2026-10-01',metric:'reach',value:10,observed_at:'2026-10-03T14:00:00.000Z'}],periods:[{start:'2026-10-01',end:'2026-10-02',days:2,reach_rounded:false,metrics:{unique_reach:11,instagram_views:20,facebook_crosspost_views:0,content_interactions:3,profile_visits:2,link_clicks:1,follows:1,unfollows:0}}],snapshot:{start:'2026-10-01',end:'2026-10-02',observed_at:'2026-10-03T14:00:00.000Z',posts:Array.from({length:12},(_,i)=>({identity_key:'invented-'+i,published_day:'2026-10-01',observed_at:'2026-10-03T14:00:00.000Z'}))}})
+test('bound import handles reports beyond SQL text limits and preserves newer values',()=>{
+ const db=new DatabaseSync(':memory:');db.exec(read('../worker/migrations/0001_instagram_insights.sql'));db.exec(read('../worker/migrations/0003_business_suite_reports.sql'))
+ const r=report();r.snapshot.posts[0].caption="Invented ' caption ".repeat(10000)
+ assert.ok(JSON.stringify(r).length>100000)
+ const apply=x=>{for(const {sql,params} of reportStatements(x)){assert.ok(Buffer.byteLength(sql)<100000);db.prepare(sql).run(...params)}}
+ apply(r);apply(r)
+ assert.deepEqual(JSON.parse(db.prepare('SELECT report_json FROM business_suite_reports').get().report_json),r)
+ const older=report();older.captured_at='2026-10-02T14:00:00.000Z';older.daily[0].observed_at=older.captured_at;older.daily[0].value=3;apply(older)
+ verifyDailyReadback(r.daily,db.prepare('SELECT day,metric,value,last_observed_at FROM account_metric_days').all())
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM account_metric_days').get().n,1)
+})
+test('D1 client binds JSON and refuses HTTP or nested failures without leaking provider messages',async()=>{
+ const config={accountId:'a'.repeat(32),databaseId:'test',token:'invented-secret',sql:'SELECT ?1',params:['large-json']}
+ const success=await d1Query(config,async(url,options)=>{assert.ok(url.includes('/accounts/'+config.accountId+'/'));assert.deepEqual(JSON.parse(options.body),{sql:config.sql,params:config.params});return {ok:true,status:200,json:async()=>({success:true,result:[{success:true,results:[{value:1}]}]})}})
+ assert.deepEqual(success,[{value:1}])
+ for(const body of [{success:false,errors:[{code:10000,message:'invented-secret'}]},{success:true,result:[{success:false}]}])await assert.rejects(d1Query(config,async()=>({ok:true,status:200,json:async()=>body})),e=>e.message.includes('D1 query failed')&&!e.message.includes('invented-secret'))
+ await assert.rejects(d1Query({...config,accountId:undefined}),/CLOUDFLARE_ACCOUNT_ID/)
+})
 test('chart parsing keeps observed zero and verifies rendered dates/platform and asset',()=>{
  assert.equal(dailySeries(capture()).length,12)
  assert.equal(dailySeries(capture())[1].value,0)
