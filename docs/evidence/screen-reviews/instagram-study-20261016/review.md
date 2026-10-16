@@ -1,9 +1,9 @@
 # Instagram dashboard study: screen review
 
-The recommended home is **A, Weekly brief**. It gives a first-time club operator a
-finding, the evidence behind it, and one useful next inspection. This is a proposed
-direction. Nino has not selected it, and no operator task test has established that
-it improves decisions.
+The first review favored **A, Weekly brief**. Nino subsequently selected a blend:
+B’s operator questions with A/C’s side navigation. That human decision is recorded
+in the experience brief and supersedes the first recommendation. No operator task
+test has established that the selected blend improves decisions.
 
 ## What was reviewed
 
@@ -68,7 +68,45 @@ metric definitions, sign-in, loading, physical-device interaction, or operator t
 success. The prototype uses fixed dates and invented posts. It cannot fetch, save,
 publish, or schedule anything. The study is not the deployed dashboard.
 
-Choose the home structure before production implementation. The experience brief
-specifies the data corrections needed first and the tasks a club director and a
+The home structure is selected. The experience brief specifies the data corrections needed first and the tasks a club director and a
 content operator should attempt. A production release needs new evidence against
 real data, with private captures kept private.
+
+## Selected blend, 2026-10-16
+
+Nino selected question-led content with A/C's side navigation. The study now defaults
+to that blend, retains the three source concepts, and applies question headings and
+purpose statements across the detail pages. This is a selected design direction;
+production behavior and operator effectiveness remain unproven.
+
+The parent opened the rendered question answers, detail pages, missing/empty/outdated
+states and phone views. A second cold reviewer inspected 13 neutral-named frames,
+without source or specification. Completed dispatch:
+`312ef69a-c796-4d09-83ae-301a59cfdf1c`. Observed model and effort were unavailable.
+An earlier dispatch returned only a missing-path request and is not counted as review.
+Branch references were unchanged by both read-only dispatches.
+
+The parent checked each substantive finding against the visible copy rather than
+relying on the reviewer's frame numbers:
+
+- Outdated reach still offered a current-sounding post inspection. The action now
+  says Inspect dated post results and names the older Oct 13 reading.
+- Posting-time guidance named a limitation without an owner action. It now tells
+  the operator to ask the dashboard maintainer to verify timezone and coverage.
+- Reading date and reporting day needed a clearer distinction. Data status now
+  explains that an update reads earlier reporting days.
+- Phone study controls competed with the operator screen. They now sit behind
+  Study controls; the synthetic-data disclosure stays visible.
+
+The parent also corrected the empty state so it cannot claim a last reading, and
+made page help open the currently selected question's topic. The corrected empty,
+outdated and phone frames were inspected after these changes.
+
+The local review runner passed with 43 captures, including the 24 original-concept
+views and 19 blend views. Added behavior checks cover the default blend, question
+selection and reload, question-specific table sorting, clearing hidden post filters
+when opening all posts, incomplete follower totals, empty freshness, phone question
+selection and focus, phone study controls, and contextual help. The overflow canary
+still detected deliberate overflow before the real pages were checked. No page
+JavaScript errors were observed. These are browser tests with invented data, not
+physical-device acceptance or live collection verification.

@@ -11,8 +11,9 @@
   <a class="skip" href="#main">Skip to results</a>
   <div class="review-bar" aria-label="Design study controls">
     <strong>Design study</strong>
-    <label>Concept <select id="concept"><option value="a">A · Weekly brief</option><option value="b">B · Questions</option><option value="c">C · Content desk</option></select></label>
-    <label>Data <select id="state"><option value="complete">Complete</option><option value="missing">Missing readings</option><option value="stale">Out of date</option><option value="empty">Not yet recorded</option></select></label>
+    <button class="review-toggle" id="toggle-study" aria-expanded="false" aria-controls="study-controls">Study controls</button>
+    <div class="study-controls" id="study-controls"><label>Concept <select id="concept"><option value="d">Selected · Blend</option><option value="a">A · Weekly brief</option><option value="b">B · Questions</option><option value="c">C · Content desk</option></select></label>
+    <label>Data <select id="state"><option value="complete">Complete</option><option value="missing">Missing readings</option><option value="stale">Out of date</option><option value="empty">Not yet recorded</option></select></label></div>
     <span class="mock">Mock — synthetic data</span>
   </div>
   <div class="app">
