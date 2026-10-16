@@ -1,0 +1,170 @@
+{
+  "data": [
+    {
+      "id": "90000000000000001/insights/follower_demographics/lifetime",
+      "name": "follower_demographics",
+      "period": "lifetime",
+      "title": "Follower demographics",
+      "description": "The demographic characteristics of followers, including countries, cities and gender distribution.",
+      "total_value": {
+        "breakdowns": [
+          {
+            "dimension_keys": [
+              "age",
+              "gender"
+            ],
+            "results": [
+              {
+                "dimension_values": [
+                  "13-17",
+                  "F"
+                ],
+                "value": 40
+              },
+              {
+                "dimension_values": [
+                  "18-24",
+                  "F"
+                ],
+                "value": 77
+              },
+              {
+                "dimension_values": [
+                  "25-34",
+                  "F"
+                ],
+                "value": 114
+              },
+              {
+                "dimension_values": [
+                  "35-44",
+                  "F"
+                ],
+                "value": 151
+              },
+              {
+                "dimension_values": [
+                  "45-54",
+                  "F"
+                ],
+                "value": 188
+              },
+              {
+                "dimension_values": [
+                  "55-64",
+                  "F"
+                ],
+                "value": 225
+              },
+              {
+                "dimension_values": [
+                  "65+",
+                  "F"
+                ],
+                "value": 262
+              },
+              {
+                "dimension_values": [
+                  "13-17",
+                  "M"
+                ],
+                "value": 299
+              },
+              {
+                "dimension_values": [
+                  "18-24",
+                  "M"
+                ],
+                "value": 336
+              },
+              {
+                "dimension_values": [
+                  "25-34",
+                  "M"
+                ],
+                "value": 373
+              },
+              {
+                "dimension_values": [
+                  "35-44",
+                  "M"
+                ],
+                "value": 410
+              },
+              {
+                "dimension_values": [
+                  "45-54",
+                  "M"
+                ],
+                "value": 447
+              },
+              {
+                "dimension_values": [
+                  "55-64",
+                  "M"
+                ],
+                "value": 484
+              },
+              {
+                "dimension_values": [
+                  "65+",
+                  "M"
+                ],
+                "value": 521
+              },
+              {
+                "dimension_values": [
+                  "13-17",
+                  "U"
+                ],
+                "value": 558
+              },
+              {
+                "dimension_values": [
+                  "18-24",
+                  "U"
+                ],
+                "value": 595
+              },
+              {
+                "dimension_values": [
+                  "25-34",
+                  "U"
+                ],
+                "value": 632
+              },
+              {
+                "dimension_values": [
+                  "35-44",
+                  "U"
+                ],
+                "value": 669
+              },
+              {
+                "dimension_values": [
+                  "45-54",
+                  "U"
+                ],
+                "value": 706
+              },
+              {
+                "dimension_values": [
+                  "55-64",
+                  "U"
+                ],
+                "value": 743
+              },
+              {
+                "dimension_values": [
+                  "65+",
+                  "U"
+                ],
+                "value": 780
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

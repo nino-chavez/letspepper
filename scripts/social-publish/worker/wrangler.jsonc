@@ -26,10 +26,12 @@
   // local launchd drip (com.letspepper.reels, disabled at cutover) as the sole poster.
   //
   // Daily cron (added 2026-10-15): "30 14 * * *" runs ONLY the read-only Instagram
-  // insights job (src/insights.js, INSIGHTS.md). scheduled() branches on the cron
-  // string, so this tick never publishes. The string must equal INSIGHTS_CRON in
-  // src/insights.js; worker/test/insights.test.mjs fails if the two drift.
-  "triggers": { "crons": ["0 * * * *", "30 14 * * *"] },
+  // insights job (src/insights.js, INSIGHTS.md). Hourly cron "45 * * * *" (added
+  // 2026-10-16) runs ONLY the read-only Stories read, which must catch each Story before
+  // its insights expire. scheduled() branches on the cron string, so neither tick
+  // publishes. The strings must equal INSIGHTS_CRON and STORIES_CRON in src/insights.js;
+  // worker/test/insights.test.mjs fails if they drift.
+  "triggers": { "crons": ["0 * * * *", "30 14 * * *", "45 * * * *"] },
   "kv_namespaces": [
     { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
   ],

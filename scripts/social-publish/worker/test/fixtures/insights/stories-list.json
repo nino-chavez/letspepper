@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "id": "90000000000000008",
+      "media_product_type": "STORY",
+      "media_type": "VIDEO",
+      "permalink": "https://www.instagram.com/p/EXAMPLE8/",
+      "timestamp": "2026-10-16T02:20:38+0000"
+    },
+    {
+      "id": "90000000000000009",
+      "media_product_type": "STORY",
+      "media_type": "VIDEO",
+      "permalink": "https://www.instagram.com/p/EXAMPLE9/",
+      "timestamp": "2026-10-16T00:29:26+0000"
+    },
+    {
+      "id": "90000000000000010",
+      "media_product_type": "STORY",
+      "media_type": "VIDEO",
+      "permalink": "https://www.instagram.com/p/EXAMPLE10/",
+      "timestamp": "2026-10-15T18:01:00+0000"
+    }
+  ]
+}
