@@ -156,3 +156,15 @@ A read-only call of the new loader against live D1 also succeeded. The dashboard
 remain exclusively SELECT; collector code, schema, schedules, publisher queues, and auth
 semantics are unchanged. No migration or production data write is part of this release.
 Worker deployment and the final authenticated live walk remain separate release evidence.
+
+Post-commit review: the normal Claude hook failed because its OAuth session expired;
+it returned no code verdict. A bounded independent broad review ran the thirteen unit
+tests successfully but timed out without a final verdict. A final focused read-only pass
+(dispatch 2aacbdc0-ca38-48bd-ba18-090f125d789d) inspected date-control lifecycles and
+missing-value/timestamp/Story-key mappings and found no defect within those contracts.
+It was static review, not a runtime or security verdict. The parent independently checked
+those conclusions against source and the workerd browser walk; the auth and escaping
+boundary is additionally covered by the request tests and hostile-caption/link cases.
+No further broad review was opened. Requested routes are recorded; actual runtime model
+and effort were not exposed. The final follow-up changes only this receipt and fixture
+trailing whitespace.
