@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>630 Instagram — design study</title>
+  <link rel="stylesheet" href="study.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to results</a>
+  <div class="review-bar" aria-label="Design study controls">
+    <strong>Design study</strong>
+    <label>Concept <select id="concept"><option value="a">A · Weekly brief</option><option value="b">B · Questions</option><option value="c">C · Content desk</option></select></label>
+    <label>Data <select id="state"><option value="complete">Complete</option><option value="missing">Missing readings</option><option value="stale">Out of date</option><option value="empty">Not yet recorded</option></select></label>
+    <span class="mock">Mock — synthetic data</span>
+  </div>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">630<span>VOLLEYBALL</span></div>
+      <p class="rail-label">Instagram</p>
+      <nav id="nav" aria-label="Main navigation"></nav>
+      <div class="rail-bottom"><button data-page="status">Data status</button><button data-help="start">How to use this</button><span>@630volleyball</span></div>
+    </aside>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <dialog id="help" class="drawer" aria-labelledby="help-title">
+    <div class="drawer-top"><span>Help</span><button class="quiet" data-close="help">Close</button></div>
+    <label class="topic-label" for="topic">Choose a topic</label><select id="topic"></select>
+    <div id="help-body"></div>
+  </dialog>
+  <dialog id="post-detail" class="detail" aria-labelledby="post-title"><div id="post-body"></div></dialog>
+  <footer class="study-footer">Every number in this study is invented; do not quote it. This is a design preview, with no connection to the club's analytics. No publishing or saving actions are available.</footer>
+  <script src="study.js"></script>
+</body>
+</html>

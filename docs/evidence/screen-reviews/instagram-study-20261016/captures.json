@@ -1,0 +1,242 @@
+{
+  "kind": "design-study",
+  "synthetic": true,
+  "records": [
+    {
+      "file": "a-complete.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-missing.jpg",
+      "concept": "a",
+      "state": "missing",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-stale.jpg",
+      "concept": "a",
+      "state": "stale",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-empty.jpg",
+      "concept": "a",
+      "state": "empty",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "b-complete.jpg",
+      "concept": "b",
+      "state": "complete",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "b-missing.jpg",
+      "concept": "b",
+      "state": "missing",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "b-stale.jpg",
+      "concept": "b",
+      "state": "stale",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "b-empty.jpg",
+      "concept": "b",
+      "state": "empty",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "c-complete.jpg",
+      "concept": "c",
+      "state": "complete",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "c-missing.jpg",
+      "concept": "c",
+      "state": "missing",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "c-stale.jpg",
+      "concept": "c",
+      "state": "stale",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "c-empty.jpg",
+      "concept": "c",
+      "state": "empty",
+      "page": "overview",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-posts.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "posts",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-stories.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "stories",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-audience.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "audience",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-status.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "status",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-post-detail.jpg",
+      "page": "post-detail",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "a-help.jpg",
+      "page": "posts",
+      "topic": "posts",
+      "viewport": {
+        "width": 1365,
+        "height": 900
+      }
+    },
+    {
+      "file": "phone-overview.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "overview",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "phone-posts.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "posts",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "phone-stories.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "stories",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "phone-audience.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "audience",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "phone-status.jpg",
+      "concept": "a",
+      "state": "complete",
+      "page": "status",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "phone-help.jpg",
+      "page": "status",
+      "topic": "freshness",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ]
+}
