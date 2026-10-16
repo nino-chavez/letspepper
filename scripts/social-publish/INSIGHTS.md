@@ -1,14 +1,17 @@
 # Instagram insights
 
-`letspepper-reels-worker` reads Instagram insights once a day and stores them in the
-`social-insights` D1 database. The job only reads. It runs on its own daily cron, so it
-cannot publish, and a failure in it cannot stop a post.
+`letspepper-reels-worker` reads Instagram insights and stores them in the `social-insights`
+D1 database. Two jobs do the reading: a daily one at 9:30 a.m. Central, and an hourly
+Stories one at 45 minutes past each hour. Both only read. Each runs on its own cron, so
+neither can publish, and a failure in either cannot stop a post.
 
 It covers every account marked `insights: true` in the Worker's `ACCOUNTS` registry
 (`worker/src/index.js`). Today that is @630volleyball.
 
 Code: `worker/src/insights.js`. Schema: `worker/migrations/`. Tests:
-`worker/test/insights.test.mjs`.
+`worker/test/insights.test.mjs`. The test fixtures keep the shape of real Meta responses
+but carry invented numbers, IDs and city names: this repository is public, and 630's real
+Insights live only in the database.
 
 ## What it records
 
@@ -16,18 +19,25 @@ Code: `worker/src/insights.js`. Schema: `worker/migrations/`. Tests:
 |---|---|---|
 | `account_metric_days` | account, day, metric, source | Daily account totals |
 | `account_snapshots` | account, day | `followers_count`, `follows_count`, `media_count` as read that day |
-| `media` | post | Every feed post and Reel the job has seen |
-| `media_metric_snapshots` | post, day, metric | A post's lifetime totals as read that day |
-| `sync_runs` | account, run | What each run read, its state, and any error |
+| `media` | post or Story | Every feed post, Reel and Story the jobs have seen, with the post's caption |
+| `media_metric_snapshots` | post, day, metric | A post's or Story's lifetime totals, as last read that day |
+| `audience_snapshots` | account, day, breakdown, dimension | Followers by city (Meta's top 45) and by age and gender, as read that day |
+| `online_followers` | account, Meta day, hour | Followers online in each hour, as Meta labels it |
+| `sync_runs` | account, run | Which job ran, what it read, its state, and any error |
 
 A day is Meta's reporting day: midnight to midnight in America/Los_Angeles, the same days
 Business Suite shows. A value Meta did not return is not stored, so a missing row means
 "not observed", never zero.
 
 Each daily run reads the account's profile counts. It re-reads the last seven complete
-days, because Meta can revise a day for up to 48 hours. It also reads lifetime totals for
-posts published in the last 14 days. A later reading replaces an earlier one, and
+days, because Meta can revise a day for up to 48 hours. It reads the follower audience and
+the last four days of online hours. It also reads the caption and lifetime totals of every
+post published in the last 14 days. A later reading replaces an earlier one, and
 `first_observed_at` keeps the first.
+
+Each hourly run reads every Story that is live. A Story's insights disappear 24 hours after
+it is posted, so the last hourly reading before then is its near-final result. Within one
+day, a later reading replaces an earlier one.
 
 ## Metric names
 
@@ -46,10 +56,24 @@ The same check fixed the day window. Meta includes the window's end, so a window
 the next midnight returned two days summed. The job ends each window one second earlier.
 With that window, reach and interactions for Oct 6, 7 and 12 equal Business Suite's.
 
-Post metrics are lifetime totals: `views`, `reach`, `saved`, `shares`, `likes`,
-`comments`, `total_interactions`. Reels add `ig_reels_avg_watch_time` and
-`ig_reels_video_view_total_time`, both in milliseconds. `like_count` and `comments_count`
-come from the post itself and need no insights permission.
+Post metrics are lifetime totals. Each list was checked against live calls on 2026-10-15,
+because Meta refuses the whole request when one metric does not apply:
+
+| Kind | Metrics |
+|---|---|
+| Feed post | `views`, `reach`, `saved`, `shares`, `likes`, `comments`, `total_interactions`, `follows`, `profile_visits`, `profile_activity`, `reposts` |
+| Reel | `views`, `reach`, `saved`, `shares`, `likes`, `comments`, `total_interactions`, `ig_reels_avg_watch_time` and `ig_reels_video_view_total_time` (milliseconds), `reels_skip_rate` (a percentage with a decimal), `reposts` |
+| Story | `reach`, `views`, `replies`, `shares`, `follows`, `profile_visits`, `total_interactions`, `link_clicks`, `navigation`, and `navigation:tap_forward`, `:tap_back`, `:tap_exit`, `:swipe_forward` |
+
+Reels do not report `follows` or `profile_visits`, and `crossposted_views` and
+`facebook_views` failed outright, so none of those is read. `like_count` and
+`comments_count` come from the post itself and need no insights permission.
+
+Audience rows keep Meta's cut: its top 45 cities, and age by gender (`dimension` reads
+like `18-24:F`). The cities cover only part of the followers, so never add them up as a
+follower count. Online-hours rows keep Meta's own `end_time` and hour number. Which time
+zone those hours are in has not been checked against Business Suite yet, so read them as
+Meta's labels until it is.
 
 Daily reach counts unique accounts for that day only. Never add daily reach together to get
 a weekly or monthly reach.
@@ -89,12 +113,14 @@ pnpm exec wrangler d1 execute INSIGHTS_DB --remote --config scripts/social-publi
      GROUP BY day ORDER BY day"
 ```
 
-`GET /insights/status?key=<TRIGGER_KEY>` shows each account's last run and last good run.
-It also shows the latest follower count and which days each source covers.
+`GET /insights/status?key=<TRIGGER_KEY>` shows each account's last daily run and last good
+one, the same for the Stories job, the latest follower count, and which days each source
+covers.
 
 ## Running it by hand
 
 `GET /insights/run?key=<TRIGGER_KEY>` runs the daily read now.
+`GET /insights/stories?key=<TRIGGER_KEY>` reads the live Stories now.
 
 `GET /insights/run?key=<TRIGGER_KEY>&from=YYYY-MM-DD&to=YYYY-MM-DD` reads a range of past
 days and skips posts. Optional `&account=630` limits it to one account. A range must end
@@ -102,15 +128,19 @@ before today in Los Angeles and covers at most 22 days. Backfill a longer period
 22-day pieces.
 
 One run spends at most 45 Graph requests, which keeps it under the Workers Free plan's
-cap of 50. A daily run spends about 27 for 630. If more than 29 posts fall in the 14-day
-window, the run saves what it read and reports `stopped at the 45-request run budget`.
+cap of 50. A daily run spends about 31 for 630. If more than 26 posts fall in the 14-day
+window, the run saves what it read and reports `stopped at the 45-request run budget`. A
+Stories run spends one request plus two per live Story. A Graph request that has not
+answered within 20 seconds counts as a failed read, so a hung request cannot keep a run
+from recording itself.
 
 A run started by hand returns its result to the caller. It never sends a phone alert and
 never changes what the next scheduled run alerts about.
 
 ## Alerts
 
-Every run records one of these states per account in `sync_runs`:
+Every run records its job (`daily`, `range` or `stories`) and one of these states per
+account in `sync_runs`:
 
 | State | Means |
 |---|---|
@@ -121,8 +151,11 @@ Every run records one of these states per account in `sync_runs`:
 | `error` | Nothing new was saved; `detail` says why |
 
 A scheduled run sends a phone alert to `NTFY_TOPIC` only when an account's state differs
-from its previous scheduled run's. A problem that lasts several days alerts once, and its
-recovery alerts once. A clean first run sends nothing.
+from the previous scheduled run of the same job. A problem that lasts several days alerts
+once, and its recovery alerts once. A clean first run sends nothing. Token problems
+(`missing_scope`, `token_invalid`) belong to the daily job: the Stories job neither alerts
+on one nor compares against one, so an expired token sends one alert and its renewal one
+recovery alert.
 
 ## The token
 
@@ -142,7 +175,9 @@ to `token_invalid`.
 
 ## Not covered
 
-- Stories. The media list does not include them, and their insights last 24 hours.
-- Audience demographics.
 - Which accounts followed or unfollowed. Meta reports counts only.
+- Clicks on the profile's website link. Business Suite shows them, but the API's
+  `profile_links_taps` returned 0 every day for 630 while Business Suite showed clicks on
+  most days, so the number is stored but should not be read as link clicks.
+- What a post was about. Captions are stored; labeling posts by topic is a later step.
 - A dashboard. Query the tables, or read `/insights/status`.
