@@ -16,14 +16,14 @@ execFileSync(process.execPath,[require.resolve('wrangler/bin/wrangler.js'),'depl
 const built=readFileSync(resolve(bundle,'index.js'),'utf8')
 // Only the server's fixture clock is replaced after production packaging.
 const clock=/now = (?:\/\* @__PURE__ \*\/ )?new Date\(\)/g
-assert.equal((built.match(clock)??[]).length,1)
+assert.equal((built.match(clock)??[]).length,2) // API window and native report freshness clocks
 const script=built.replace(clock,`now = new Date('${NOW.toISOString()}')`)
 const mf=new Miniflare({modules:true,script,compatibilityDate:'2026-01-01',bindings:{DASHBOARD_PASSPHRASE:PASSPHRASE},d1Databases:['INSIGHTS_DB'],host:'127.0.0.1',port:0})
 const browser=await chromium.launch({headless:true})
 const errors=[], captures=[]
 try {
   const db=await mf.getD1Database('INSIGHTS_DB')
-  for(const name of ['0001_instagram_insights.sql','0002_stories_audience_online.sql']) {
+  for(const name of ['0001_instagram_insights.sql','0002_stories_audience_online.sql','0003_business_suite_reports.sql']) {
     const sql=readFileSync(`scripts/social-publish/worker/migrations/${name}`,'utf8').replace(/--[^\n]*/g,'')
     for(const statement of sql.split(';').map(s=>s.trim()).filter(Boolean))await db.prepare(statement).run()
   }
@@ -79,6 +79,17 @@ try {
   for(const name of ['account_metric_days','account_snapshots','media_metric_snapshots','media','audience_snapshots','sync_runs'])await db.prepare(`DELETE FROM ${name}`).run()
   await page.goto(base);await page.getByRole('heading',{name:'No daily results are recorded for these dates.'}).waitFor();await capture('phone-empty')
   await db.prepare('DROP TABLE account_metric_days').run();await page.reload();await page.getByRole('heading',{name:'Results could not be loaded.'}).waitFor();await capture('phone-load-error')
+  // Native reports use the same authenticated Worker even when the API read fails.
+  await page.goto(base+'business-suite');await page.getByRole('heading',{name:'The first Business Suite report has not been saved.'}).waitFor();await capture('phone-native-empty')
+  const nativeMetrics={instagram_views:300,facebook_crosspost_views:10,unique_reach:120,content_interactions:20,profile_visits:30,link_clicks:4,follows:9,unfollows:2}
+  const native={captured_at:NOW.toISOString(),through_day:'2026-10-15',current_followers:100,followers_observed_at:NOW.toISOString(),daily:[],weekly_backfill:[],periods:[{start:'2026-09-01',end:'2026-09-30',days:30,observed_at:NOW.toISOString(),reach_rounded:true,follower_through:'2026-09-30',metrics:nativeMetrics,source_url:'https://business.facebook.com/latest/insights/results'},{start:'2026-10-01',end:'2026-10-15',days:15,observed_at:NOW.toISOString(),reach_rounded:true,follower_through:'2026-10-14',metrics:nativeMetrics,source_url:'https://business.facebook.com/latest/insights/results'}],snapshot:{start:'2026-09-01',end:'2026-10-15',observed_at:NOW.toISOString(),posts:Array.from({length:12},(_,i)=>({rank:i+1,published_day:'2026-10-14',caption:'Invented native post '+i,format:'Reel',ownership:'ownership unverified',observed_at:NOW.toISOString(),permalink:null,metrics:{views:100-i,shares:2,saves:1}}))}}
+  await db.prepare('INSERT INTO business_suite_reports VALUES (?,?,?,?)').bind('630',native.captured_at,native.through_day,JSON.stringify(native)).run()
+  await page.reload();await page.getByRole('heading',{name:'How did the account perform?'}).waitFor();await capture('phone-native-totals')
+  await page.getByLabel('Reporting period').selectOption('2026-09-01_2026-09-30');await page.getByRole('button',{name:'Show period'}).click();await page.getByRole('heading',{name:'Sep 1, 2026 – Sep 30, 2026',exact:true}).waitFor()
+  await page.locator('.suite-tabs').getByRole('link',{name:'Top posts',exact:true}).click();assert.equal(await page.locator('tbody tr').count(),12);await capture('phone-native-posts')
+  await page.getByText('Read caption and other metrics',{exact:true}).first().click();await page.getByText('Instagram link not verified.',{exact:true}).first().waitFor()
+  await page.setViewportSize({width:1365,height:900});await page.goto(base+'business-suite');await capture('desktop-native-totals')
+  await db.prepare("INSERT INTO business_suite_sync_runs VALUES ('630','2026-10-16T16:00:00Z','2026-10-16T16:00:10Z','error','Invented failed capture')").run();await page.reload();await page.getByText('The latest Business Suite update failed.',{exact:false}).waitFor();await capture('desktop-native-failed')
   // Only the intentionally rejected login and database-error request may emit HTTP console errors.
   assert.deepEqual(errors.filter(m=>!m.includes('401')&&!m.includes('503')),[])
   writeFileSync(resolve(out,'captures.json'),JSON.stringify(captures,null,2)+'\n')
