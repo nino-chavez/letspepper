@@ -1,9 +1,10 @@
 /**
  * letspepper-reels-worker — cloud cron drip for owned Instagram and Facebook Pages.
  *
- * Two crons (wrangler.jsonc). The daily INSIGHTS_CRON runs only the read-only Instagram
- * insights job in ./insights.js (../../INSIGHTS.md). Every other tick is the hourly
- * publisher below, followed by the engagement sweep when SWEEP_ENABLED (../../SWEEP.md).
+ * Three crons (wrangler.jsonc). The daily INSIGHTS_CRON and the hourly STORIES_CRON run only
+ * the read-only Instagram insights jobs in ./insights.js (../../INSIGHTS.md). Every other
+ * tick is the hourly publisher below, followed by the engagement sweep when SWEEP_ENABLED
+ * (../../SWEEP.md).
  *
  * Hourly publisher. GLOBAL cadence with EVENT PRIORITY:
  *   - At most ONE fresh campaign item per allowed slot → ALLOWED_HOURS_UTC sets
@@ -35,7 +36,7 @@
  *                      can be supplied via each account's optional
  *                      FB_*_ACCESS_TOKEN binding.
  *   TRIGGER_KEY        guards /run, /run?force=1, /status, /sweep, /inbox,
- *                      /insights/run and /insights/status (secret)
+ *                      /insights/run, /insights/stories and /insights/status (secret)
  *   REVIEW_KEY         guards GET /review and POST /review/cancel ONLY — a separate secret
  *                      from TRIGGER_KEY, which /review can never reach (secret, added
  *                      2026-09-26 — see SETUP.md "/review"). Absent means every /review*
@@ -93,7 +94,7 @@ import {
 } from '../../notify.mjs'
 import { veto } from '../../veto-shape.mjs'
 import { shortAlbumName } from '../../gallery-announce-caption.mjs'
-import { INSIGHTS_CRON, runInsights, insightsStatus } from './insights.js'
+import { INSIGHTS_CRON, STORIES_CRON, runInsights, runStories, insightsStatus } from './insights.js'
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
@@ -1143,12 +1144,17 @@ ${secondaryHtml}
 
 export default {
   async scheduled(controller, env, ctx) {
-    // Two crons share this Worker (wrangler.jsonc). The daily insights cron runs ONLY the
-    // read-only insights job; every other tick is the hourly publisher. Branching on the
-    // cron string is what keeps the daily tick from publishing a second time.
+    // Three crons share this Worker (wrangler.jsonc). The daily insights cron and the hourly
+    // Stories cron run ONLY their read-only insights job; every other tick is the hourly
+    // publisher. Branching on the cron string is what keeps an insights tick from publishing.
     if (controller.cron === INSIGHTS_CRON) {
       ctx.waitUntil(runInsights(env, { accounts: ACCOUNTS, graph: GRAPH, trigger: 'cron' })
         .catch((e) => console.error('insights failed', e)))
+      return
+    }
+    if (controller.cron === STORIES_CRON) {
+      ctx.waitUntil(runStories(env, { accounts: ACCOUNTS, graph: GRAPH, trigger: 'cron' })
+        .catch((e) => console.error('stories insights failed', e)))
       return
     }
     ctx.waitUntil((async () => {
@@ -1173,6 +1179,10 @@ export default {
         if (e instanceof RangeError) return new Response(e.message, { status: 400 })
         throw e
       }
+    }
+    if (url.pathname === '/insights/stories') {
+      if (!authed) return new Response('forbidden', { status: 403 })
+      return Response.json(await runStories(env, { accounts: ACCOUNTS, graph: GRAPH, trigger: 'manual' }))
     }
     if (url.pathname === '/insights/status') {
       if (!authed) return new Response('forbidden', { status: 403 })
