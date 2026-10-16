@@ -67,7 +67,11 @@ export function postSnapshot(capture, previous=[]) {
   const posts=rows.map((row,rank)=>{
     const c=row.cells,caption=c[0].split('\n')[0],m=/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d+),/.exec(c[1])
     if(!m)throw Error('Unrecognized published date')
-    const published_day=`${range.start.slice(0,4)}-${String(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(m[1])+1).padStart(2,'0')}-${m[2].padStart(2,'0')}`
+    const month=String(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(m[1])+1).padStart(2,'0')
+    const candidates=[]
+    for(let year=Number(range.start.slice(0,4));year<=Number(range.end.slice(0,4));year++){const day=`${year}-${month}-${m[2].padStart(2,'0')}`;if(day>=range.start&&day<=range.end)candidates.push(day)}
+    if(candidates.length!==1)throw Error('Publication year is ambiguous in the displayed source')
+    const published_day=candidates[0]
     if(published_day<range.start||published_day>range.end)throw Error('Post outside publication range')
     const format=c[0].includes('\nCarousel')?'Carousel':c[0].includes('\nReel')?'Reel':'Post'
     const author=c[0].split('\n').filter(s=>s&& !['Boost','Open Dropdown','Crossposted','\u200b',format].includes(s)).slice(1).join(' / ')

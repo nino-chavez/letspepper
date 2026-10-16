@@ -3,8 +3,9 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, delimiter } from 'node:path'
 import { reportSql, validateReport } from './business-suite-report.mjs'
+process.env.PATH=dirname(process.execPath)+delimiter+process.env.PATH
 const args=process.argv.slice(2),opt=k=>args[args.indexOf(k)+1]
 if(!args.includes('--out')||!args.includes('--previous'))throw Error('usage: refresh-business-suite.mjs --out <private directory> --previous <report.json> [--import-only]')
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..'),out=resolve(opt('--out')),previous=resolve(opt('--previous'))
