@@ -12,6 +12,7 @@
     "reader:check:website": "node tools/lib/encounter-audit.mjs --root=. --surface=website --strict",
     "reader:check:social": "node tools/lib/encounter-audit.mjs --root=. --surface=\"social publishing queue\" --strict",
     "social:worker:test": "node --experimental-default-type=module --test scripts/social-publish/worker/test/*.test.mjs",
+    "social:dashboard:test": "node --experimental-default-type=module --test scripts/social-publish/insights-dashboard/test/*.test.mjs",
     "creative:copy": "node scripts/media-kit/lint-copy.mjs",
     "creative:render": "node scripts/media-kit/render-media-kit.mjs",
     "creative:build": "node scripts/media-kit/build-all.mjs",
