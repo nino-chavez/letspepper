@@ -36,7 +36,8 @@
  *                      can be supplied via each account's optional
  *                      FB_*_ACCESS_TOKEN binding.
  *   TRIGGER_KEY        guards /run, /run?force=1, /status, /sweep, /inbox,
- *                      /insights/run, /insights/stories and /insights/status (secret)
+ *                      /insights/run, /insights/stories, /insights/posts and
+ *                      /insights/status (secret)
  *   REVIEW_KEY         guards GET /review and POST /review/cancel ONLY — a separate secret
  *                      from TRIGGER_KEY, which /review can never reach (secret, added
  *                      2026-09-26 — see SETUP.md "/review"). Absent means every /review*
@@ -94,7 +95,7 @@ import {
 } from '../../notify.mjs'
 import { veto } from '../../veto-shape.mjs'
 import { shortAlbumName } from '../../gallery-announce-caption.mjs'
-import { INSIGHTS_CRON, STORIES_CRON, runInsights, runStories, insightsStatus } from './insights.js'
+import { INSIGHTS_CRON, STORIES_CRON, runInsights, runStories, runPostHistory, insightsStatus } from './insights.js'
 
 const GRAPH = 'https://graph.facebook.com/v25.0'
 const DEFAULT_ALLOWED_HOURS_UTC = [16, 23] // 11a, 6p CDT → 2/day
@@ -1183,6 +1184,17 @@ export default {
     if (url.pathname === '/insights/stories') {
       if (!authed) return new Response('forbidden', { status: 403 })
       return Response.json(await runStories(env, { accounts: ACCOUNTS, graph: GRAPH, trigger: 'manual' }))
+    }
+    if (url.pathname === '/insights/posts') {
+      if (!authed) return new Response('forbidden', { status: 403 })
+      try {
+        return Response.json(await runPostHistory(env, {
+          accounts: ACCOUNTS, graph: GRAPH, since: url.searchParams.get('since'), only: url.searchParams.get('account'),
+        }))
+      } catch (e) {
+        if (e instanceof RangeError) return new Response(e.message, { status: 400 })
+        throw e
+      }
     }
     if (url.pathname === '/insights/status') {
       if (!authed) return new Response('forbidden', { status: 403 })

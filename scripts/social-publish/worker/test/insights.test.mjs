@@ -6,7 +6,7 @@ import worker from '../src/index.js'
 import {
   INSIGHTS_CRON, STORIES_CRON, RUN_BUDGET, MAX_RANGE_DAYS, GRAPH_TIMEOUT_MS, DAY_METRICS, FOLLOW_METRIC, MEDIA_METRICS,
   reportDay, dayWindow, lookbackDays, readInsights, readAudience, readOnlineFollowers, classify, GraphError, alertFor,
-  runInsights, runStories, insightsStatus,
+  runInsights, runStories, runPostHistory, insightsStatus, POST_HISTORY_PAGES,
 } from '../src/insights.js'
 
 const here = (p) => new URL(p, import.meta.url)
@@ -47,6 +47,7 @@ function fakeD1() {
   const statement = (sql, args = []) => ({
     bind: (...next) => statement(sql, next),
     async first() { return plain(sqlite.prepare(sql).get(...args)) },
+    async all() { return { results: sqlite.prepare(sql).all(...args).map(plain) } },
     exec() {
       const prepared = sqlite.prepare(sql)
       if (/^\s*SELECT/i.test(sql)) return { results: prepared.all(...args).map(plain) }
@@ -469,6 +470,59 @@ test('the Stories job saves each live Story with its totals and navigation split
   assert.equal(empty.mediaRead, 0)
 })
 
+// A post list in Meta's paged shape: newest first, one post every 12 hours from NOW, split
+// into pages of 50 linked by cursors.
+function pagedPosts(count) {
+  const posts = Array.from({ length: count }, (_, i) => ({
+    id: `8${String(i).padStart(5, '0')}`, timestamp: new Date(NOW.getTime() - (i + 1) * 12 * 3600000).toISOString().replace('.000Z', '+0000'),
+    media_type: 'VIDEO', media_product_type: 'REELS', permalink: null, caption: `Post ${i}`, like_count: i, comments_count: 0,
+  }))
+  return (url) => {
+    const page = Number(url.searchParams.get('after') ?? 0)
+    const data = posts.slice(page * 50, page * 50 + 50)
+    const more = page * 50 + 50 < posts.length
+    return json({ data, paging: { cursors: { before: 'b', after: String(page + 1) }, ...(more ? { next: 'https://graph.facebook.com/next-page' } : {}) } })
+  }
+}
+
+test('the post backfill pages back to its start day, then resumes without re-reading', async () => {
+  const db = fakeD1()
+  const list = pagedPosts(120)
+  const stub = graphStub((url) => url.pathname.endsWith(`${IG}/media`) ? list(url) : graphStub('granted').fetchImpl(url.toString()))
+  // Since Sep 20 (LA) with one post every 12 hours from Oct 16: posts 0–51 qualify, and
+  // the 52nd page entry is the first older one.
+  const first = await runPostHistory(envWith(db), { accounts: ACCOUNTS, graph: GRAPH, since: '2026-09-20', now: NOW, fetchImpl: stub.fetchImpl })
+  const run = first.accounts[0]
+  const listCalls = graphCalls(stub.calls).filter((c) => c.url.pathname.endsWith(`${IG}/media`))
+  assert.deepEqual(listCalls.map((c) => c.url.searchParams.get('after')), [null, '1'], 'the second page follows the cursor')
+  assert.equal(run.postsListed, 52)
+  assert.equal(run.job, 'range')
+  assert.equal(run.state, 'partial', 'the budget runs out before every post is read')
+  assert.equal(run.postsRead, RUN_BUDGET - 2)
+  assert.equal(run.postsRemaining, 52 - (RUN_BUDGET - 2))
+  assert.equal(db.rows("SELECT COUNT(*) AS n FROM media WHERE caption LIKE 'Post %'")[0].n, 52)
+  assert.deepEqual(db.rows('SELECT first_day, last_day FROM sync_runs'), [{ first_day: '2026-09-20', last_day: '2026-10-16' }])
+
+  const second = graphStub((url) => url.pathname.endsWith(`${IG}/media`) ? list(url) : graphStub('granted').fetchImpl(url.toString()))
+  const { accounts: [rest] } = await runPostHistory(envWith(db), { accounts: ACCOUNTS, graph: GRAPH, since: '2026-09-20', now: NOW, fetchImpl: second.fetchImpl })
+  assert.equal(rest.state, 'ok')
+  assert.equal(rest.postsRead, 52 - (RUN_BUDGET - 2))
+  assert.equal(rest.postsRemaining, 0)
+  const insightCalls = graphCalls(second.calls).filter((c) => c.url.pathname.endsWith('/insights'))
+  assert.equal(insightCalls.length, rest.postsRead, 'posts read earlier the same day are skipped')
+  assert.equal(db.rows("SELECT COUNT(DISTINCT media_id) AS n FROM media_metric_snapshots WHERE metric = 'reach'")[0].n, 52)
+  assert.equal(ntfyCalls([...stub.calls, ...second.calls]).length, 0, 'a backfill never alerts')
+})
+
+test('the post backfill stops listing at its page limit and says so', async () => {
+  const db = fakeD1()
+  const list = pagedPosts(POST_HISTORY_PAGES * 50 + 10)
+  const stub = graphStub((url) => url.pathname.endsWith(`${IG}/media`) ? list(url) : json({ error: { message: 'not reached', code: 100 } }, 400))
+  const { accounts: [run] } = await runPostHistory(envWith(db), { accounts: ACCOUNTS, graph: GRAPH, since: '2025-01-01', now: NOW, fetchImpl: stub.fetchImpl })
+  assert.equal(run.postsListed, POST_HISTORY_PAGES * 50)
+  assert.match(run.detail, new RegExp(`more than ${POST_HISTORY_PAGES * 50} posts since 2025-01-01`))
+})
+
 test('migration 0002 labels runs written before it by the job that wrote them', () => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(MIGRATIONS[0])
@@ -504,6 +558,9 @@ test('/insights routes need the trigger key and report freshness', async () => {
     const ranStories = await (await call('/insights/stories?key=trigger')).json()
     assert.equal(ranStories.accounts[0].job, 'stories')
     assert.equal((await call('/insights/stories?key=wrong')).status, 403)
+    assert.equal((await call('/insights/posts?key=wrong&since=2026-09-01')).status, 403)
+    assert.equal((await call('/insights/posts?key=trigger&since=2099-01-01')).status, 400)
+    assert.equal((await call('/insights/posts?key=trigger')).status, 400, 'since is required')
     const after = await (await call('/insights/status?key=trigger')).json()
     assert.equal(after['630'].lastStoriesRun.trigger, 'manual')
   } finally {

@@ -122,6 +122,13 @@ covers.
 `GET /insights/run?key=<TRIGGER_KEY>` runs the daily read now.
 `GET /insights/stories?key=<TRIGGER_KEY>` reads the live Stories now.
 
+`GET /insights/posts?key=<TRIGGER_KEY>&since=YYYY-MM-DD` reads every post published since
+that day: caption and lifetime totals, paging back through the post list up to 200 posts.
+The daily run reads only the last 14 days of posts, so this is how older posts get their
+rows. Posts already read that Los Angeles day are skipped, so when a call reports
+`postsRemaining` above 0, call it again until it reaches 0. It is recorded as a `range` run
+and never alerts.
+
 `GET /insights/run?key=<TRIGGER_KEY>&from=YYYY-MM-DD&to=YYYY-MM-DD` reads a range of past
 days and skips posts. Optional `&account=630` limits it to one account. A range must end
 before today in Los Angeles and covers at most 22 days. Backfill a longer period in
@@ -179,5 +186,8 @@ to `token_invalid`.
 - Clicks on the profile's website link. Business Suite shows them, but the API's
   `profile_links_taps` returned 0 every day for 630 while Business Suite showed clicks on
   most days, so the number is stored but should not be read as link clicks.
+- Posts another account published with 630 as a Collab collaborator. The API lists only
+  posts the account itself published, so those never get rows. On 2026-10-16 the API
+  listed fewer posts since Sep 1 than Business Suite showed for the same account.
 - What a post was about. Captions are stored; labeling posts by topic is a later step.
 - A dashboard. Query the tables, or read `/insights/status`.
