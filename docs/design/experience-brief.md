@@ -1,8 +1,8 @@
 # Make Instagram results useful to a club operator
 
-Status: proposed redesign, 2026-10-16. Design intent: `rethink`.
+Status: blended direction selected by Nino, 2026-10-16. Design intent: `rethink`.
 Open the [clickable study](../../research/design-explorations/instagram-dashboard/index.html).
-It uses invented data. Production remains unchanged. Human selection is pending.
+It uses invented data. Production remains unchanged. The selected blend is the default.
 
 ## Recommendation
 
@@ -10,8 +10,8 @@ Give operators four pages: **Overview, Posts, Stories, Audience**. Put **Data st
 in the utility navigation and **Help with this page** beside each page title. Keep a
 single help drawer that opens to the exact metric or question the reader selected.
 
-Overview should answer three questions in order: what changed, how much we can trust
-that reading, and what to inspect next. Posts and Stories help the operator choose
+Overview starts with an operator's question, explains why it matters, then shows the
+answer, its evidence and limits, and what to inspect next. Posts and Stories help the operator choose
 content to learn from. Audience describes the people who follow the account. Each
 page owns its dates so the reader never has to remember an exception to a global filter.
 
@@ -98,7 +98,30 @@ Desktop uses a left navigation rail; phone uses four wrapping navigation links. 
 uses a right modal drawer on desktop and a full-height modal on phone. Escape closes;
 focus is contained and returns to the trigger. No auto-opening tour.
 
-## Three structures to compare
+## Selected blend and the three source concepts
+
+Nino selected the blend in this chat on 2026-10-16: “i like the concept of a question
+led view since it helps the operator understand why they are looking at the data but
+i like the nav style of concept A and C”. This is the human direction decision; it
+does not claim operator task success or approve a particular production data reading.
+
+The selected study combines B's question-led Overview with the persistent left
+navigation from A/C. Page names stay familiar: Overview, Posts, Stories, Audience.
+Inside a page, question headings and short purpose statements explain why the data
+is there. Each Overview question has a specific answer, evidence, limit, and next
+inspection. On a phone, a compact question chooser replaces the desktop question row.
+
+Graft record:
+
+- From B: selectable operator questions and explanations of why each measure matters.
+  Leave out B's horizontal primary navigation; it is not the selected navigation style.
+- From A: the left navigation, clear main answer, visible data limits, and one next
+  inspection. Leave out an unsolicited weekly verdict before the reader's question.
+- From C: the compact comparison table inside the content question and Posts page.
+  Leave out a ranking as the universal home, because it does not explain the account.
+
+The original three concepts remain available in the study for reference. No new
+concept-selection round is required to continue within this blended direction.
 
 Each is rendered with the same invented numbers and the same complete, incomplete,
 outdated, and empty states. Switch concepts and states in the study's review bar.
@@ -109,10 +132,9 @@ outdated, and empty states. Switch concepts and states in the study's review bar
 | B. Questions | “Are more accounts seeing us?”, “What should we learn from?”, “How did follower numbers change?” | Makes the purpose of each measure explicit | Readers must choose a question before seeing the full situation |
 | C. Content desk | Posts first, with the account trend beside them | Fast for the person preparing next week's content | Directors may mistake successful posts for account-wide improvement |
 
-Recommend A. Borrow B's question-shaped section headings and C's compact sortable
-content table. Keep the questions visible as help entry points, without adding a quiz.
-Keep content one click away, without making it the universal start. These are proposed
-grafts; a named human selection still precedes production implementation.
+The initial recommendation was A. Nino's selection above supersedes that recommendation:
+questions now organize Overview, while the page navigation remains visible. Content
+stays one click away and can also be explored through the content question.
 
 Tested against cases: weekly check, choosing content to repeat, missing comparison,
 outdated data, and an empty account. A can answer the weekly check without navigation;
@@ -133,13 +155,19 @@ All recorded belongs in an analysis view, with no artificial previous-period com
 Components, in order:
 
 1. Account name, period, comparison dates, data-through date; Help and Data status.
-2. One evidence-backed sentence, such as “More accounts saw 630 on a typical day.”
-3. Typical daily reach, current and previous value, with a plain definition of median.
-4. A small daily line chart: real dates, zero baseline, gaps for missing days, dashed
+2. A question chooser: “Are more accounts seeing us?”, “What should we learn from?”,
+   and “How did follower numbers change?”. Reach is selected on first arrival.
+3. For the selected question: a short explanation of why it matters, then one
+   evidence-backed answer, such as “More accounts saw 630 on a typical day.”
+4. In the reach answer: typical daily reach, current and previous value, with a plain
+   definition of median, and an action to inspect posts from the selected week.
+5. A small daily line chart: real dates, zero baseline, gaps for missing days, dashed
    revision-buffer points, and a table alternative. No smoothed curve through gaps.
-5. Follower change: “42 followed · 30 unfollowed · 12 net new follows.” These example
+6. In the follower answer: “42 followed · 30 unfollowed · 12 net new follows.” These example
    numbers are invented. Show current follower count separately with its own date.
-6. One next inspection: “Review the posts people saved.” State why this is useful,
+7. In the content answer: a compact table of posts ordered by saves, with lifetime
+   scope, publication age and reading dates. One next inspection: “Review the posts
+   people saved.” State why this is useful,
    then use “Compare posts by saves” to open Posts with the same period and `sort=saves`. This is an inspection,
    not a claim that copying the post will grow registrations.
 
@@ -148,8 +176,9 @@ No causal claim tying a reach spike to a post just because their dates overlap.
 
 ### Posts — find content worth learning from
 
-Title: “Posts”. Subtitle: “Posts 630 published in this period. Results shown are lifetime
-totals as last read.” Controls: publish-date window, All / Reels / Carousels / Photos,
+Navigation label: “Posts”. Page question: “Which posts are worth learning from?”.
+Purpose: “Use saves, shares, or reach to choose content for a closer look.” The date
+row explains that results are totals since publication, as last read. Controls: publish-date window, All / Reels / Carousels / Photos,
 caption search, and “Compare by” (Reach, Saves, Shares, Views). Default Reach; choose
 Saves when arriving from the corresponding next-step link.
 
@@ -171,6 +200,9 @@ some Collabs, are missing here.” Link to the explanation. Do not rank these as
 
 ### Stories — read temporary content with honest limits
 
+Page question: “What did people do after seeing a Story?”. Explain that these actions
+help choose what to inspect; link taps alone do not establish registrations.
+
 Own window: “Stories recorded in the last 7 days”, plus recording-start date. Do not
 inherit Overview's date selector. Newest first by default. Each row shows posting time,
 Live / Expired, accounts reached, link taps if reported, and last successful reading.
@@ -186,7 +218,8 @@ from “No Stories were posted”; collection cannot prove the latter.
 
 ### Audience — distinguish growth from a current snapshot
 
-Two clear sections. “Follower change” uses the chosen date range and paired daily or
+Page question: “How is our audience changing?”. Explain that the trend and the latest
+snapshot answer different questions. Two clear sections. “Follower change” uses the chosen date range and paired daily or
 weekly bars for follows/unfollows, plus the net in text. Show clipped weeks as partial,
 not as fully comparable weeks. “Who follows 630” uses its own snapshot date and is not
 affected by the trend selector.
@@ -200,7 +233,8 @@ label it “When followers were online”, an input to a test, not a promised op
 
 ### Data status — useful to a reader, specific enough for the maintainer
 
-Secondary destination, not a fifth main task. Show Daily activity, Posts, Stories, and
+Page question: “Can I rely on these results?”. This is a secondary destination, not a
+fifth main task. Show Daily activity, Posts, Stories, and
 Audience separately: data through, latest successful reading, latest attempt, coverage,
 and plain status. A successful run does not certify all older posts are current.
 
@@ -301,7 +335,8 @@ not a guarantee that older numbers never change.
 
 ## Verification and decision
 
-Before selecting a direction, have a reader who did not build it use the rendered study:
+Before implementing the selected direction, have a reader who did not build it review
+the rendered study. For later operator validation, ask a director and content operator to
 find what changed, explain reach versus views, open the post worth inspecting, identify
 a missing comparison, and say what they can do about an outdated update. Record errors
 and hesitation; do not turn a subjective score into evidence of task success.
@@ -316,9 +351,9 @@ Implementation order: data truth first; shared navigation and help; Overview; Po
 detail; Stories; Audience and Data status; rendered review; existing tests and deployment
 checks. Preserve the read-only boundary, access controls, escaping, and no-store headers.
 
-What could change the recommendation: operators only use this while preparing posts
-(favor C); they reliably arrive with one question and prefer guided exploration (favor B);
-or Stories volume stays so low that a separate page adds more navigation than value
+What could change the selected structure: operators consistently need the same one
+question on arrival (remember that choice); they only use this while preparing posts
+(consider a Posts entry point); or Stories volume stays so low that a separate page adds more navigation than value
 (combine Posts and Stories under Content with explicit tabs and their own dates).
 
 ## Provenance and limits

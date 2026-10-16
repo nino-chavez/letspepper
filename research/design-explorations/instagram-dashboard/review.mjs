@@ -31,12 +31,12 @@ try {
  for(const concept of ['a','b','c'])for(const state of ['complete','missing','stale','empty'])await capture(`${concept}-${state}`,{concept,state,page:'overview'});
  for(const name of ['posts','stories','audience','status'])await capture('a-'+name,{concept:'a',state:'complete',page:name});
 
- await page.goto(base+'?state=missing');
+ await page.goto(base+'?concept=a&state=missing');
  assert.equal(await page.locator('.chart-line').getAttribute('d').then(d=>(d.match(/M/g)||[]).length),2,'A missing day must break the line');
  assert.equal(await page.locator('.finding').innerText().then(t=>t.includes('50%')),false,'Missing days must suppress comparison');
  assert.equal(await page.locator('.side-section').innerText().then(t=>t.includes('12 net')),false,'Missing unfollows must suppress complete net');
 
- await page.goto(base);
+ await page.goto(base+'?concept=a');
  await page.getByRole('button',{name:'Compare posts by saves',exact:true}).click();
  assert.equal(await page.locator('#sort').inputValue(),'saves');
  const first=page.locator('.post-link').first();
@@ -65,7 +65,54 @@ try {
  await page.screenshot({path:path.join(out,'phone-help.jpg'),type:'jpeg',quality:85});
  records.push({file:'phone-help.jpg',page:'status',topic:'freshness',viewport:page.viewportSize()});
  assert.equal(await page.locator('#help').evaluate(e=>e.getBoundingClientRect().width<=document.documentElement.clientWidth),true);
+
+ // Selected blend: stable page navigation, question-specific answers and actions.
+ await page.setViewportSize({width:1365,height:900});
+ await page.goto(base);
+ assert.equal(await page.locator('body').getAttribute('class'),'concept-d');
+ for(const state of ['complete','missing','stale','empty'])await capture(`blend-${state}`,{concept:'d',state,page:'overview'});
+ for(const question of ['posts','followers'])await capture(`blend-${question}`,{concept:'d',state:'complete',page:'overview',question});
+ for(const name of ['posts','stories','audience','status'])await capture('blend-page-'+name,{concept:'d',state:'complete',page:name});
+ await page.goto(base);
+ await page.getByRole('button',{name:'What should we learn from? Find content worth a closer look.',exact:true}).click();
+ assert.equal(new URL(page.url()).searchParams.get('question'),'posts');
+ assert.match(await page.locator('th[aria-sort]').innerText(),/Lifetime saves/);
+ assert.match(await page.locator('.post-link').first().innerText(),/repeatable serve/);
+ assert.equal(await page.locator('tbody tr').first().locator('td').nth(2).innerText(),'28');
+ await page.reload();
+ assert.equal(await page.locator('[data-question="posts"]').getAttribute('aria-pressed'),'true');
+ await page.getByRole('button',{name:'Compare all posts by saves',exact:true}).click();
+ assert.equal(await page.locator('#sort').inputValue(),'saves');
+ await page.getByPlaceholder('Search caption').fill('nothing matches');
+ await page.getByRole('navigation',{name:'Main navigation'}).getByRole('button',{name:'Overview',exact:true}).click();
+ assert.equal(await page.locator('.post-link').count(),3,'Overview must not inherit hidden post filters');
+ await page.getByRole('button',{name:'Compare all posts by saves',exact:true}).click();
+ assert.equal(await page.locator('.post-link').count(),5,'Compare all must clear earlier filters');
+ await page.getByRole('button',{name:'Help with this page',exact:true}).click();
+ await page.screenshot({path:path.join(out,'blend-help.jpg'),type:'jpeg',quality:85});
+ records.push({file:'blend-help.jpg',concept:'d',page:'posts',topic:'posts',viewport:page.viewportSize()});
+ await page.keyboard.press('Escape');
+ await page.goto(base+'?concept=d&state=empty');
+ assert.equal(await page.locator('.period-line').innerText().then(t=>t.includes('Last read')),false,'Empty state cannot claim a last reading');
+ await page.goto(base+'?concept=d&state=missing&question=followers');
+ assert.equal(await page.locator('.finding').innerText().then(t=>t.includes('12 more')),false);
+ await page.setViewportSize({width:390,height:844});
+ for(const question of ['reach','posts','followers'])await capture('blend-phone-'+question,{concept:'d',state:'complete',page:'overview',question});
+ for(const name of ['posts','stories','audience','status'])await capture('blend-phone-'+name+'-page',{concept:'d',state:'complete',page:name});
+ await page.goto(base);
+ await page.getByRole('button',{name:'Study controls',exact:true}).click();
+ assert.equal(await page.locator('#concept').isVisible(),true);
+ await page.getByRole('button',{name:'Study controls',exact:true}).click();
+ assert.equal(await page.locator('#concept').isVisible(),false);
+ assert.equal(await page.getByText('Mock — synthetic data',{exact:true}).isVisible(),true);
+ await page.getByLabel('Your question',{exact:true}).selectOption('posts');
+ assert.equal(await page.locator('.post-link').count(),3);
+ assert.equal(await page.evaluate(()=>document.activeElement.id),'question-picker');
+ await page.getByRole('button',{name:'Help with this page',exact:true}).click();
+ await page.screenshot({path:path.join(out,'blend-phone-help.jpg'),type:'jpeg',quality:85});
+ assert.match(await page.locator('#help-title').innerText(),/Learn from a post/);
+ records.push({file:'blend-phone-help.jpg',concept:'d',page:'overview',topic:'posts',viewport:page.viewportSize()});
  assert.deepEqual(errors,[]);
  await fs.writeFile(path.join(out,'captures.json'),JSON.stringify({kind:'design-study',synthetic:true,records},null,2)+'\n');
- console.log(`PASS: ${records.length} synthetic captures; missing-data semantics, sorting, post detail, filtering, help focus, phone overflow; overflow canary detected.`);
+ console.log(`PASS: ${records.length} synthetic captures; missing-data semantics, sorting, post detail, filtering, help focus, phone overflow; blended question navigation, state restoration, scoped sorting and actions; overflow canary detected.`);
 } finally {await browser.close();}
