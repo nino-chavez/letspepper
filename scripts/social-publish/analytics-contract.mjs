@@ -19,6 +19,7 @@ export const METRIC_DEFINITIONS = Object.freeze({
   'website.handoff_sessions': { label: 'Visits with a registration handoff', unit: 'visits', source: 'PostHog', timezone: WEBSITE_TIMEZONE, definition: 'Website visits with a subsequent registration_link_clicked event to a LeagueApps program route or program ID within the same reporting window.', denominator: 'website.sessions', limit: 'A handoff is a click toward registration. It does not prove a completed registration, payment, or commitment.', action: 'Inspect the destination and program page when visitors reach this step. LeagueApps owns completed registrations.' },
   'website.instagram_sessions': { label: 'Visits arriving from Instagram', unit: 'visits', source: 'PostHog', timezone: WEBSITE_TIMEZONE, definition: 'Website visits whose session entry referrer is instagram.com or a subdomain, or whose entry utm_source is instagram or ig.', denominator: null, limit: 'Untagged in-app visits may appear as Direct. Arrival source does not establish which post caused a visit or registration.', action: 'Use consistent campaign tags on Instagram links and inspect the landing page.' },
   'website.instagram_handoff_sessions': { label: 'Instagram visits with a registration handoff', unit: 'visits', source: 'PostHog', timezone: WEBSITE_TIMEZONE, definition: 'Visits arriving from Instagram that also meet the registration handoff definition.', denominator: 'website.instagram_sessions', limit: 'This is observed website intent, not registrations attributed to Instagram. No follower handles are joined to website sessions.', action: 'Review the tagged landing page and its next step before changing the content plan.' },
+  'leagueapps.reserved_registrations': { label: 'Registrations with reserved spots', unit: 'registrations', source: 'LeagueApps private registration export', timezone: WEBSITE_TIMEZONE, definition: 'Participant registrations created during the selected complete days that currently have a reserved spot in LeagueApps. Each registration is counted once. Staff, team-only entries, deleted entries, and voided or refunded entries are excluded.', denominator: null, limit: 'All channels and programs. Counts registrations, not unique athletes. A reserved spot does not prove full payment or season commitment. Staff-created entries and roster imports can affect the count. Website and Instagram attribution is not established.', action: 'Review pending entries in LeagueApps. Compare program openings and roster uploads before interpreting the week-to-week change.' },
 })
 
 export function calendarDay(now, timezone) {
@@ -149,4 +150,123 @@ export function websiteAnswer(summary) {
   if (!summary) return { state: 'incomplete', heading: 'Website results are unavailable.', detail: 'The source did not return a complete answer. Missing does not mean zero.', action: 'Check source health before making a website decision.' }
   const { visits, handoff_visits: handoffs, instagram_visits: ig, instagram_handoff_visits: igHandoffs } = summary
   return { state: 'recorded', heading: answerText(WEBSITE_ANSWER.heading, summary), detail: answerText(WEBSITE_ANSWER.detail, summary), action: visits === 0 ? WEBSITE_ANSWER.emptyAction : WEBSITE_ANSWER.action, handoffRate: visits > 0 ? handoffs / visits : null, instagramHandoffRate: ig > 0 ? igHandoffs / ig : null }
+}
+
+// Aggregates only. Never persist the input rows, identifiers, or this in-memory map.
+export const REGISTRATION_EVENT = '630_leagueapps_registration_snapshot'
+export const REGISTRATION_VERSION = '630-registrations-v1'
+export const REGISTRATION_HELP = METRIC_DEFINITIONS['leagueapps.reserved_registrations']
+const registrationBuckets = ['reserved', 'pending', 'waitlist', 'excluded', 'other']
+export function createRegistrationRollup(window = reportingWindow()) {
+  const rows = new Map()
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: WEBSITE_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
+  return {
+    add(row) {
+      // Refuse schema drift rather than treating a missing flag as "not staff".
+      if (![0, 1, false, true].includes(row.isStaff) || typeof row.deleted !== 'boolean') throw new Error('LeagueApps participant flags are invalid')
+      if (!Number.isSafeInteger(row.registrationId) || !Number.isSafeInteger(row.created) || row.created <= 0 || !Number.isSafeInteger(row.lastUpdated)) throw new Error('LeagueApps registration fields are invalid')
+      const day = formatter.format(row.created)
+      const period = day >= window.start && day <= window.end ? 'current'
+        : day >= window.previous.start && day <= window.previous.end ? 'previous' : null
+      const prior = rows.get(row.registrationId)
+      if (prior && prior.updated > row.lastUpdated) return
+      let bucket = null
+      if (period && !row.deleted && !row.isStaff && ['PLAYER', 'FREEAGENT'].includes(row.role)) {
+        bucket = ['VOID', 'REFUND'].includes(row.paymentStatus) ? 'excluded'
+          : ({ SPOT_RESERVED: 'reserved', SPOT_PENDING: 'pending', WAITING_LIST: 'waitlist' })[row.registrationStatus] || 'other'
+      }
+      // Store only the minimum needed to reconcile duplicate IDs and newer statuses.
+      rows.set(row.registrationId, { updated: row.lastUpdated, period, bucket })
+    },
+    finish(asOf = new Date().toISOString()) {
+      if (!Number.isFinite(Date.parse(asOf))) throw new Error('Invalid LeagueApps observation time')
+      const totals = () => Object.fromEntries(registrationBuckets.map(key => [key, 0]))
+      const result = { version: REGISTRATION_VERSION, status: 'verified', window, asOf, current: totals(), previous: totals() }
+      for (const row of rows.values()) if (row.period && row.bucket) result[row.period][row.bucket]++
+      return result
+    },
+  }
+}
+
+// The vendor's cursor is inclusive. A short page does not establish completion.
+// Callers supply the authenticated page read and consume rows in memory only.
+export async function walkLeagueAppsExport(fetchPage, onRow, { maxPages = 35 } = {}) {
+  let cursor = { lastUpdated: 0, lastId: 0 }, rowsRead = 0
+  for (let page = 1; page <= maxPages; page++) {
+    const response = await fetchPage(cursor)
+    if (!Array.isArray(response)) throw new Error('LeagueApps export was not an array')
+    const rows = response.filter(row => !(row.id === cursor.lastId && row.lastUpdated === cursor.lastUpdated))
+    if (!rows.length) return { rowsRead, pages: page }
+    for (const row of rows) onRow(row)
+    rowsRead += rows.length
+    const last = rows.at(-1)
+    if (!Number.isSafeInteger(last.id) || !Number.isSafeInteger(last.lastUpdated)
+      || last.lastUpdated < cursor.lastUpdated || (last.lastUpdated === cursor.lastUpdated && last.id <= cursor.lastId)) throw new Error('LeagueApps export cursor did not advance')
+    cursor = { lastUpdated: last.lastUpdated, lastId: last.id }
+  }
+  throw new Error('LeagueApps export exceeded its page limit; totals are incomplete')
+}
+
+export function registrationAnswer(snapshot) {
+  const valid = snapshot?.status === 'verified' && snapshot.version === REGISTRATION_VERSION
+    && ['current', 'previous'].every(period => registrationBuckets.every(key => count(snapshot[period]?.[key])))
+  if (!valid) return { state: 'unavailable', heading: 'Registration totals are unavailable.', detail: 'A complete LeagueApps refresh is needed. Missing data does not mean zero registrations.', action: 'Check the LeagueApps refresh, then reload this report.' }
+  const { current: c, previous: p } = snapshot
+  return {
+    state: 'recorded',
+    heading: `${c.reserved} registrations have reserved spots; the previous seven days had ${p.reserved}.`,
+    detail: `${c.pending} pending; ${c.waitlist} waitlisted. ${c.excluded} voided or refunded and ${c.other} with other statuses are excluded from reserved spots.`,
+    action: REGISTRATION_HELP.action,
+  }
+}
+
+/** An explicit allowlist; even an accidentally enriched snapshot cannot publish PII. */
+export function registrationSnapshotProperties(snapshot, trigger) {
+  const answer = registrationAnswer(snapshot)
+  return {
+    $process_person_profile: false, $geoip_disable: true, $ip: null,
+    registration_version: REGISTRATION_VERSION, source: 'leagueapps', club: '630volleyball',
+    status: answer.state === 'recorded' ? 'verified' : 'unavailable',
+    period_start: snapshot.window.start, period_end: snapshot.window.end,
+    as_of: snapshot.asOf, trigger: trigger === 'cron' ? 'cron' : 'manual',
+    ...Object.fromEntries(['current', 'previous'].flatMap(period => registrationBuckets.map(key => [
+      `${period}_${key}`, answer.state === 'recorded' ? snapshot[period][key] : null,
+    ]))),
+    answer: answer.heading, context: answer.detail, next_step: answer.action,
+  }
+}
+
+// The published wording comes from registrationAnswer(), also used by the scorecard.
+// One aggregate row means a failed/missing refresh still renders an explicit answer.
+export function registrationInsightQuery() {
+  const q = value => `'${value.replaceAll("'", "''")}'`
+  const midnight = `toStartOfDay(now(), '${WEBSITE_TIMEZONE}')`
+  const unavailable = registrationAnswer(null)
+  return `SELECT row.1 AS Question, row.2 AS Answer
+FROM (
+  SELECT count() AS snapshots,
+    argMax(properties.status, timestamp) AS status,
+    argMax(properties.period_start, timestamp) AS period_start,
+    argMax(properties.period_end, timestamp) AS period_end,
+    argMax(properties.answer, timestamp) AS answer,
+    argMax(properties.context, timestamp) AS context,
+    argMax(properties.next_step, timestamp) AS next_step,
+    formatDateTime(max(timestamp), '%Y-%m-%d %H:%i:%S', 'UTC') AS as_of,
+    snapshots > 0 AND status = 'verified'
+      AND period_start = toString(toDate(${midnight} - INTERVAL 7 DAY))
+      AND period_end = toString(toDate(${midnight} - INTERVAL 1 DAY))
+      AND max(timestamp) >= now() - INTERVAL 36 HOUR AS usable
+  FROM events
+  WHERE event = '${REGISTRATION_EVENT}' AND properties.registration_version = '${REGISTRATION_VERSION}'
+    AND properties.club = '630volleyball' AND timestamp >= now() - INTERVAL 7 DAY
+)
+ARRAY JOIN [
+  tuple('Which dates?', concat(toString(toDate(${midnight} - INTERVAL 7 DAY)), ' through ', toString(toDate(${midnight} - INTERVAL 1 DAY)), ' (Central time). Based on creation date; statuses are current at refresh. Dashboard filters do not change this table.')),
+  tuple('How many registrations have reserved spots?', if(usable, toString(answer), ${q(unavailable.heading)})),
+  tuple('How many are waiting?', if(usable, toString(context), ${q(unavailable.detail)})),
+  tuple('What should we do?', if(usable, toString(next_step), ${q(unavailable.action)})),
+  tuple('What counts?', ${q(REGISTRATION_HELP.definition)}),
+  tuple('What can this tell us?', ${q(REGISTRATION_HELP.limit)}),
+  tuple('When did this refresh?', if(snapshots > 0, concat(toString(as_of), ' (UTC). Refreshes daily at 11:15 UTC. ', if(usable, 'Complete export recorded.', 'Unavailable or out of date; do not treat these totals as zero.')), 'No refresh recorded yet.'))
+] AS row`
 }

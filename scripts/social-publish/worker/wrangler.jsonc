@@ -31,7 +31,9 @@
   // its insights expire. scheduled() branches on the cron string, so neither tick
   // publishes. The strings must equal INSIGHTS_CRON and STORIES_CRON in src/insights.js;
   // worker/test/insights.test.mjs fails if they drift.
-  "triggers": { "crons": ["0 * * * *", "30 14 * * *", "45 * * * *"] },
+  // Daily 11:15 UTC: isolated LeagueApps export, aggregate snapshots to PostHog.
+  // No family records persist. See INSIGHTS.md; REGISTRATIONS_CRON must match.
+  "triggers": { "crons": ["0 * * * *", "30 14 * * *", "45 * * * *", "15 11 * * *"] },
   "kv_namespaces": [
     { "binding": "QUEUE", "id": "c2e5f3feb71f4804b801eb8b56782442" }
   ],
@@ -92,6 +94,8 @@
     "SUBREQUEST_BUDGET": "40"
   },
   "observability": { "enabled": true }
+  // LeagueApps reporting: LEAGUEAPPS_PRIVATE_KEY, LEAGUEAPPS_CLIENT_ID,
+  // POSTHOG_630_PROJECT_TOKEN. Existing 1Password LeagueApps/PostHog 630volleyball items.
   // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, FB_ACCESS_TOKEN,
   // TRIGGER_KEY. Meta exposes Instagram content and Facebook Page management
   // as separate app use cases, so keep their System User tokens isolated.
