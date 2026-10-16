@@ -16,6 +16,8 @@ import { loadDashboard, DEFAULT_PERIOD } from './data.js'
 import { dashboardPage, signInPage, errorPage } from './page.js'
 import { businessSuitePage } from './business-suite-page.js'
 import { loadBusinessSuite, loadBusinessSuiteStatus } from './business-suite.js'
+import { loadFollowerSnapshots } from './follower-snapshots.js'
+import { followerSnapshotsPage } from './follower-snapshots-page.js'
 import { COOKIE, securityHeaders, base64Url, passphraseMatches, sessionCookie, validSession } from './auth.js'
 
 function html(body, { status = 200, nonce = null, headers = {} } = {}) {
@@ -46,12 +48,17 @@ export default {
     if (url.pathname === '/sign-out' && request.method === 'POST') {
       return new Response(null, { status: 303, headers: { location: '/', 'set-cookie': clearCookie, ...securityHeaders(null) } })
     }
-    if (!['/','/business-suite'].includes(url.pathname)) return new Response('Not found', { status: 404, headers: securityHeaders(null) })
+    if (!['/','/business-suite','/followers'].includes(url.pathname)) return new Response('Not found', { status: 404, headers: securityHeaders(null) })
     if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: securityHeaders(null) })
     if (!env.DASHBOARD_PASSPHRASE) return html(signInPage({ configured: false }), { status: 503 })
     if (!(await validSession(request, env.DASHBOARD_PASSPHRASE))) return html(signInPage())
     let data
     try {
+      if (url.pathname === '/followers') {
+        const snapshots = await loadFollowerSnapshots(env.INSIGHTS_DB,url.searchParams)
+        const nonce = base64Url(crypto.getRandomValues(new Uint8Array(16)))
+        return html(followerSnapshotsPage(snapshots,{nonce}),{nonce})
+      }
       if (url.pathname === '/business-suite') {
         const [report,status]=await Promise.all([loadBusinessSuite(env.INSIGHTS_DB),loadBusinessSuiteStatus(env.INSIGHTS_DB)])
         const nonce=base64Url(crypto.getRandomValues(new Uint8Array(16)))

@@ -146,12 +146,77 @@ until the tab is visible and has been idle for one minute, with no focused form 
 or open help/details. The current URL preserves page and filter choices. This refresh
 reads the database; it does not trigger a new collection from Instagram.
 
-The follower help explains the separate handle-tracking gap. No follower-list importer
-or identity comparison is implemented. The first complete, dated owner export is the
-baseline needed to validate that work. Later comparisons may show handles added or
-absent; absence alone does not prove an unfollow, a reason, or bot/hacked status. Known
-club program records would be needed to investigate families aging out. Aggregate
-counts, the historical Sheet, and the automatic collector cannot provide that evidence.
+### Dated follower handles
+
+`/followers` reads complete owner exports from `follower_handle_snapshots`. The first
+export is a baseline, with no additions or absences claimed. Later exports compare with
+the preceding dated export. The reader can select a historical export, inspect Added or
+Absent in later export, and search or page through the handles. This route uses the same
+sign-in as the rest of the dashboard. It only reads the database.
+
+These lists update after an owner export is imported, not through the daily aggregate
+collector. A changed handle can appear as an addition and an absence. Absence alone
+cannot establish an unfollow, age, graduation, ban, block, deletion, hacking, or bot
+status. Activity between exports is invisible. Use known club records for program-stage
+questions; do not infer age from a handle or photo.
+
+**First real import remains pending.** Synthetic tests validate the importer and
+comparison behavior. They do not establish that an actual owner export has been
+obtained, that its format matches, or that Meta included every account.
+
+To import an official export:
+
+1. In Accounts Center, verify the selected profile is `630volleyball`. Request Followers
+   and following, all time, JSON, to the owner's device. Preserve every archive part and
+   the export preparation timestamp shown by the source. Do not substitute today's
+   import time for an unknown export timestamp.
+2. Keep raw archives and extracted files outside this public repository, under the
+   private `630-instagram-tracking/owner-exports/<export-date>/` directory. Never commit
+   real handles, screenshots, or raw JSON. Inspect the archive's profile identity and
+   file inventory. The handle array itself does not identify the owning account.
+3. Create `manifest.json` beside the extracted directory. The example below is a
+   template: its timestamp is invented, and both verification flags must stay false
+   until the account and complete file set have been checked against the owner export.
+
+```json
+{
+  "version": 1,
+  "account": "630volleyball",
+  "source": "instagram_accounts_center",
+  "exported_at": "2026-10-01T12:00:00Z",
+  "date_range": "all_time",
+  "format": "json",
+  "account_verified": false,
+  "all_parts_verified": false,
+  "follower_files": ["connections/followers_and_following/followers_1.json"]
+}
+```
+
+4. List every follower JSON path relative to the extracted directory. The importer
+   scans for `followers.json` or `followers_N.json`, verifies the reviewed inventory and
+   numbered sequence, and rejects malformed entries, duplicates and empty lists. It
+   accepts arrays of `string_list_data` records, or a `relationships_followers` wrapper.
+   An unfamiliar real format must be reviewed before extending the parser. These checks
+   cannot detect a final export part that was never supplied or an omission by Meta;
+   the complete-archive review is required. Preserve that review with the private files.
+5. Run `node scripts/social-publish/import-follower-export.mjs --directory <extracted>
+   --manifest <manifest.json> --receipt <new-validation-receipt.json>` from the repo.
+   It validates only. Check the count against the source and investigate any discrepancy;
+   the current profile total may have changed since the export was prepared.
+6. With the existing Cloudflare account-ops secret supplied as `CLOUDFLARE_ACCOUNT_ID`
+   and `CLOUDFLARE_API_TOKEN`, repeat with `--apply` and a new receipt filename. The
+   importer uses bound parameters and one atomic row. It reads the saved handles and
+   provenance back before writing a success receipt. Repeating the same import is
+   idempotent; different content at the same export timestamp is rejected.
+7. Verify `/followers` shows the export date, count and baseline/comparison state. Keep
+   the receipt beside the source archives. Update the private tracker only after that
+   readback succeeds. Request another export when the next comparison is needed.
+
+The immutable row stores normalized handles and SHA-256 hashes of each source file.
+One JSON value avoids partial multi-batch imports; the importer rejects values above
+1.5 MB. This is smaller than a separate membership table for this account's current
+size, while preserving the same set comparisons. No new write endpoint, cron, token,
+or collection of follower profile attributes is introduced.
 
 One passphrase signs a viewer in for 30 days. It lives in 1Password as
 `Cloudflare 630-instagram-insights` and is the Worker's `DASHBOARD_PASSPHRASE` secret;
@@ -304,5 +369,5 @@ historical backfill. `/business-suite?view=posts` shows only the top-12 lifetime
 including unverified ownership and missing links. It is not a full post inventory.
 The existing Overview, Posts, Stories and Audience pages retain API definitions.
 Native period reach is read from its source card; it is never calculated by summing
- daily reach. Individual follower identities remain on hold for complete dated owner
-exports. No follower list is scraped.
+ daily reach. Handle comparisons use complete dated owner exports on `/followers`. Partial browser
+observations cannot establish absences and are not imported as complete snapshots.
