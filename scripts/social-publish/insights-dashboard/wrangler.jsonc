@@ -1,0 +1,27 @@
+{
+  // 630-instagram-insights: the read-only dashboard over the scheduler Worker's insights
+  // database (../INSIGHTS.md, "The dashboard"). It binds the same D1 database but declares
+  // no migrations_dir: ../worker/wrangler.jsonc owns the schema, and its deploy workflow
+  // applies migrations. This Worker only reads (src/data.js; a test fails on any
+  // non-SELECT statement).
+  //
+  // Secret (set with the Cloudflare API or `wrangler secret put`, never in this file):
+  // DASHBOARD_PASSPHRASE, from 1Password `Cloudflare 630-instagram-insights`. Absent
+  // means the page answers "not set up yet" and nobody can sign in.
+  "name": "630-instagram-insights",
+  "main": "src/index.js",
+  "compatibility_date": "2026-01-01",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "INSIGHTS_DB",
+      "database_name": "social-insights",
+      "database_id": "c192b5be-8142-4695-a37f-e92eeb0a12a0"
+    }
+  ],
+  // Ten sign-in attempts a minute per client IP (Workers rate limiting binding).
+  "ratelimits": [
+    { "name": "SIGN_IN_LIMIT", "namespace_id": "6301", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "observability": { "enabled": true }
+}

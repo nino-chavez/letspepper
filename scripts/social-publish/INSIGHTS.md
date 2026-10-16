@@ -97,6 +97,33 @@ The two sources stay in separate rows and are compared, not merged.
 refuses any capture whose daily follows and unfollows do not add up to Business Suite's
 weekly totals.
 
+## The dashboard
+
+`630-instagram-insights` (`insights-dashboard/`) is a separate, read-only Worker over the
+same database, for Nino and 630's director. It shows, for the last 7 or 30 days or
+everything recorded:
+
+- plain answers first: reach per day, follows against unfollows, and the most-viewed post;
+- accounts reached per day, with the last two days marked provisional;
+- follows and unfollows by Monday-to-Sunday week;
+- the posts 630 published, most viewed first, and Stories from the last seven days;
+- who follows 630 (top cities, age, gender), as of the latest audience reading.
+
+It compares a period with the one before only when every day of both is recorded, so a
+period reaching back past the first recorded day says there is not enough history yet. It
+says that Collab posts started by other accounts are missing, and that registrations are in
+the club's weekly scorecard, not here.
+
+One passphrase signs a viewer in for 30 days. It lives in 1Password as
+`Cloudflare 630-instagram-insights` and is the Worker's `DASHBOARD_PASSPHRASE` secret;
+changing it signs everyone out. Sign-in attempts are limited to ten a minute per address.
+Every response is uncached, unindexed, and served under a content security policy.
+
+The Worker never writes: its queries are all `SELECT`, and a test fails otherwise. Its
+`wrangler.jsonc` declares no migrations; this Worker's schema stays owned by
+`worker/wrangler.jsonc`. `.github/workflows/deploy-insights-dashboard.yml` tests it on pull
+requests and deploys it from `main`. Its tests use invented data only.
+
 ## Reading the data
 
 Run queries from the repo root.
@@ -187,7 +214,10 @@ to `token_invalid`.
   `profile_links_taps` returned 0 every day for 630 while Business Suite showed clicks on
   most days, so the number is stored but should not be read as link clicks.
 - Posts another account published with 630 as a Collab collaborator. The API lists only
-  posts the account itself published, so those never get rows. On 2026-10-16 the API
-  listed fewer posts since Sep 1 than Business Suite showed for the same account.
+  posts the account itself published, so those never get rows. Checked on 2026-10-16 against
+  Business Suite's top 12 posts since Sep 1 (captured 2026-10-15): 11 were in the API's
+  list, and the missing one, a Collab carousel another account started, had the most views
+  of the 12.
 - What a post was about. Captions are stored; labeling posts by topic is a later step.
-- A dashboard. Query the tables, or read `/insights/status`.
+- Online hours on the dashboard, until two weeks are recorded and their time zone is
+  checked.
