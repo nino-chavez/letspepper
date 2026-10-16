@@ -261,7 +261,8 @@ native report. A read-only cold reviewer inspected the rendered screens with onl
 reader and decision brief (dispatch `8adfd458-8f4e-423e-b6c7-3acb9f5644c6`). It found
 the limits understandable and requested a direct Data status action beside the missing
 readings message. The parent confirmed the detached action and added the local link
-on both sources. The requested route is recorded; runtime model and effort were not
+on both sources. Native guidance distinguishes its capture status from its local daily
+readings; the API coverage table is not presented as native coverage. The requested route is recorded; runtime model and effort were not
 exposed. No physical-device or operator decision trial was performed.
 
 The production-packaged browser test changes a saved synthetic report after opening
