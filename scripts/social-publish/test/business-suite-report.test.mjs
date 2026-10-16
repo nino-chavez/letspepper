@@ -37,3 +37,16 @@ test('post identity survives control labels changing; wrong filter refuses impor
  assert.equal(first.posts[0].identity_key,second.posts[0].identity_key)
  c.filter='All content';assert.throws(()=>postSnapshot(c),/filter/)
 })
+
+test('a missing ranked views cell fails rather than promoting the thirteenth post',()=>{
+ const c={...capture(),filter:'Instagram Feed',sort:'descending',rows:Array.from({length:13},(_,i)=>({cells:[`Caption ${i}\nReel\n630volleyball`,'Thu Oct 1, 12:00pm',i===0?'--':String(100-i),'10','--','3','2','1','0','0','--','--','--','--','2s']}))}
+ assert.throws(()=>postSnapshot(c),/numeric views/)
+})
+
+test('retained post metrics keep their earlier reading time',()=>{
+ const c={...capture(),filter:'Instagram Feed',sort:'descending',rows:Array.from({length:12},(_,i)=>({cells:[`Caption ${i}\nReel\n630volleyball`,'Thu Oct 1, 12:00pm',String(100-i),'10','--','3','2','1','4','0','--','--','--','--','2s']}))}
+ const old=postSnapshot(c);c.captured_at='2026-10-04T14:00:00Z';c.rows[0].cells[8]='--';const fresh=postSnapshot(c,old.posts)
+ assert.equal(fresh.posts[0].metrics.shares,4)
+ assert.equal(fresh.posts[0].metric_observed_at.shares,old.observed_at)
+ assert.deepEqual(fresh.posts[0].retained_metrics,['shares'])
+})

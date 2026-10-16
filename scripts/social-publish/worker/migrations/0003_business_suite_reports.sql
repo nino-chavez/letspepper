@@ -8,3 +8,13 @@ CREATE TABLE business_suite_reports (
   report_json TEXT NOT NULL CHECK (json_valid(report_json)),
   PRIMARY KEY (account, captured_at)
 );
+
+-- A failed browser capture must remain visible without replacing the last good report.
+CREATE TABLE business_suite_sync_runs (
+  account TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('ok', 'error')),
+  detail TEXT,
+  PRIMARY KEY (account, started_at)
+);

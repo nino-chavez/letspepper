@@ -9,8 +9,9 @@ export const ACCOUNT = '630'
 export const IG_ID = '17841411569230130'
 const ASSET = '569987303404898', BUSINESS = '315859855990883'
 const DAY = /^\d{4}-\d{2}-\d{2}$/
+const validDay=d=>DAY.test(d)&&Number.isFinite(Date.parse(d+'T12:00:00Z'))&&new Date(d+'T12:00:00Z').toISOString().slice(0,10)===d
 const clean = s => String(s).replaceAll('\u200b', '')
-const count = s => /^[\d,]+$/.test(String(s)) ? Number(String(s).replaceAll(',', '')) : null
+const count = s => /^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(String(s)) ? Number(String(s).replaceAll(',', '')) : null
 const dateLabel = day => new Date(day+'T12:00:00Z').toLocaleDateString('en-US',{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'})
 export function sourceRange(capture, { audience = false } = {}) {
   const u = new URL(capture.url)
@@ -22,7 +23,7 @@ export function sourceRange(capture, { audience = false } = {}) {
     const end=new Date(Date.parse(first+'T12:00:00Z')-86400000).toISOString().slice(0,10)
     range={start:end.slice(0,7)+'-01',end}
   }
-  if (!DAY.test(range.start) || !DAY.test(range.end) || range.start > range.end) throw Error('Invalid source range')
+  if (!validDay(range.start) || !validDay(range.end) || range.start > range.end) throw Error('Invalid source range')
   const text = clean(capture.text)
   if (!text.includes('\nInstagram\n') || !text.includes(dateLabel(range.start)) || !text.includes(dateLabel(range.end))) throw Error('Rendered Instagram platform/date range not verified')
   if (audience && (!text.includes('Followers breakdown') || u.searchParams.get('audience_tab') !== 'trends')) throw Error('Audience Trends not selected')
@@ -40,7 +41,7 @@ export function dailySeries(capture) {
     const values = lines[1]?.split('\t').slice(1).map(count)
     if (!values || dates.length !== values.length || new Set(dates).size !== dates.length) throw Error('Invalid chart series')
     return dates.flatMap((day,j) => {
-      if (!DAY.test(day) || day < range.start || day > range.end) throw Error('Chart day outside rendered range')
+      if (!validDay(day) || day < range.start || day > range.end) throw Error('Chart day outside rendered range')
       return values[j] === null ? [] : [{day,metric:names[i],value:values[j],observed_at:capture.captured_at,source_url:capture.url}]
     })
   })
@@ -86,10 +87,10 @@ export function postSnapshot(capture, previous=[]) {
   return {start:range.start,end:range.end,scope:'top 12 lifetime performance; not a complete inventory',observed_at:capture.captured_at,posts}
 }
 export function validateReport(report) {
-  if(report.version!==1||report.account!==ACCOUNT||report.instagram_id!==IG_ID||!DAY.test(report.through_day)||!Number.isFinite(Date.parse(report.captured_at)))throw Error('Invalid report identity/date')
+  if(report.version!==1||report.account!==ACCOUNT||report.instagram_id!==IG_ID||!validDay(report.through_day)||!Number.isFinite(Date.parse(report.captured_at)))throw Error('Invalid report identity/date')
   const keys=new Set(), metrics=new Set(['views_including_facebook_crossposts','reach','content_interactions','link_clicks','profile_visits','follows','unfollows'])
-  for(const r of report.daily){const key=r.day+'/'+r.metric;if(keys.has(key)||!metrics.has(r.metric)||!Number.isFinite(Date.parse(r.observed_at))||!DAY.test(r.day)||r.day>report.through_day||!Number.isInteger(r.value)||r.value<0)throw Error('Invalid or duplicate daily value');keys.add(key)}
-  for(const p of report.periods){if(p.start>p.end||p.end>report.through_day||p.days!==Math.round((Date.parse(p.end)-Date.parse(p.start))/86400000)+1)throw Error('Invalid period dates');for(const v of Object.values(p.metrics))if(v!==null&&(!Number.isFinite(v)||v<0))throw Error('Invalid period metric')}
+  for(const r of report.daily){const key=r.day+'/'+r.metric;if(keys.has(key)||!metrics.has(r.metric)||!Number.isFinite(Date.parse(r.observed_at))||!validDay(r.day)||r.day>report.through_day||!Number.isInteger(r.value)||r.value<0)throw Error('Invalid or duplicate daily value');keys.add(key)}
+  for(const p of report.periods){if(!validDay(p.start)||!validDay(p.end)||p.start>p.end||p.end>report.through_day||p.days!==Math.round((Date.parse(p.end)-Date.parse(p.start))/86400000)+1)throw Error('Invalid period dates');for(const v of Object.values(p.metrics))if(v!==null&&(!Number.isFinite(v)||v<0))throw Error('Invalid period metric')}
   if(report.snapshot.posts.length!==12||new Set(report.snapshot.posts.map(p=>p.identity_key)).size!==12)throw Error('Invalid post snapshot')
   return report
 }

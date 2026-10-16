@@ -11,6 +11,7 @@ if(!args.includes('--out')||!args.includes('--previous'))throw Error('usage: ref
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..'),out=resolve(opt('--out')),previous=resolve(opt('--previous'))
 const run=(name,a,options={})=>execFileSync(name,a,{cwd:root,encoding:'utf8',timeout:300000,stdio:['ignore','pipe','pipe'],...options})
 const config='scripts/social-publish/worker/wrangler.jsonc',reportFile=join(out,'report.json')
+const started=new Date().toISOString()
 const sqlString=s=>`'${String(s).replaceAll("'","''")}'`
 try{
  if(!args.includes('--import-only'))run(process.execPath,['scripts/social-publish/capture-business-suite.mjs','--out',out,'--previous',previous],{stdio:['ignore','inherit','inherit']})
@@ -27,6 +28,9 @@ try{
  const byKey=new Map(rows.map(r=>[r.day+'/'+r.metric,r]))
  for(const row of report.daily){const saved=byKey.get(row.day+'/'+row.metric);if(!saved||saved.last_observed_at<row.observed_at||(saved.last_observed_at===row.observed_at&&saved.value!==row.value))throw Error('Daily readback mismatch: '+row.day+'/'+row.metric)}
  if(byKey.size!==rows.length)throw Error('Duplicate database daily key')
+ run('pnpm',['exec','wrangler','d1','execute','INSIGHTS_DB','--remote','--config',config,'--command',`INSERT INTO business_suite_sync_runs VALUES ('630',${sqlString(started)},${sqlString(new Date().toISOString())},'ok',NULL) ON CONFLICT (account,started_at) DO UPDATE SET finished_at=excluded.finished_at,state='ok',detail=NULL`,'--yes','--json'])
  const receipt={status:'success',completed_at:new Date().toISOString(),through_day:report.through_day,report_captured_at:report.captured_at,report_readback:true,daily_values_verified:report.daily.length,source_days:new Set(report.daily.map(r=>r.day)).size,snapshot_posts:report.snapshot.posts.length,sheet_written:false}
  writeFileSync(join(out,'db-sync-receipt.json'),JSON.stringify(receipt,null,2)+'\n');console.log(JSON.stringify(receipt))
-}catch(error){writeFileSync(join(out,'db-sync-failed.json'),JSON.stringify({status:'failed',attempted_at:new Date().toISOString(),message:error.message,previous_report:previous,sheet_written:false},null,2)+'\n');throw error}
+}catch(error){
+ try{run('pnpm',['exec','wrangler','d1','execute','INSIGHTS_DB','--remote','--config',config,'--command',`INSERT INTO business_suite_sync_runs VALUES ('630',${sqlString(started)},${sqlString(new Date().toISOString())},'error','Business Suite capture or import failed. Check the private refresh receipt; the last good report is retained.') ON CONFLICT (account,started_at) DO NOTHING`,'--yes','--json'])}catch{}
+ writeFileSync(join(out,'db-sync-failed.json'),JSON.stringify({status:'failed',attempted_at:new Date().toISOString(),message:error.message,previous_report:previous,sheet_written:false},null,2)+'\n');throw error}
