@@ -371,3 +371,37 @@ The existing Overview, Posts, Stories and Audience pages retain API definitions.
 Native period reach is read from its source card; it is never calculated by summing
  daily reach. Handle comparisons use complete dated owner exports on `/followers`. Partial browser
 observations cannot establish absences and are not imported as complete snapshots.
+
+## Shared counting rules
+
+`analytics-contract.mjs` owns the first shared Instagram and website definitions,
+calendar windows, calculations, and operator answers. The dashboard imports it
+at build time. The private 630 scorecard uses a byte-identical copy pinned to a
+letspepper commit and SHA-256; its verifier rejects edits to that copy.
+
+Instagram daily follows and unfollows are summed only when their respective
+period is complete. Net follows needs both complete flows. Typical reach is the
+median daily reach, never the sum of unique daily audiences. The seven-day
+window follows the Pacific calendar and leaves out two recently completed days;
+a stopped collector does not move those dates backward. Native Business Suite
+periods remain separate observations, with their source and dates visible.
+
+Website visits are distinct anonymous sessions containing a canonical-host
+pageview during seven complete Central-time days. A registration handoff is a
+subsequent `registration_link_clicked` event to a LeagueApps program route or
+program ID, in the same session and reporting window. Instagram arrivals use
+the session's entry referrer or `instagram`/`ig` campaign source. Missing data
+stays unavailable; a zero denominator has no rate. These observations do not
+identify people or prove registrations, causes, or follower identities.
+
+The existing PostHog dashboard is linked from Audience. Its shared query and the
+weekly scorecard use the same definitions. The help drawer explains the date,
+source, and counting differences under “The same counting rules in each report.”
+
+Verification: `pnpm social:dashboard:test` includes missing, invalid, conflicting,
+zero, calendar, and query-response cases. The browser suite checks the compiled
+Worker on desktop and phone, including the shared help drawer. For real-source
+parity, `verify-shared-analytics.mjs` accepts an explicit private scorecard module
+and a private receipt path. It compares both consumers and independently checks
+D1 flow sums and coverage. Supply the existing D1/PostHog read credentials through
+1Password environment injection; never put them in a command argument or file.

@@ -247,4 +247,5 @@ td{overflow-wrap:anywhere}
 }
 
 
+.help-links{display:flex;flex-wrap:wrap;gap:12px 24px}
 `

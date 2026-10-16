@@ -17,7 +17,7 @@ execFileSync(process.execPath,[require.resolve('wrangler/bin/wrangler.js'),'depl
 const built=readFileSync(resolve(bundle,'index.js'),'utf8')
 // Only the server's fixture clock is replaced after production packaging.
 const clock=/now = (?:\/\* @__PURE__ \*\/ )?new Date\(\)/g
-assert.equal((built.match(clock)??[]).length,2) // API window and native report freshness clocks
+assert.equal((built.match(clock)??[]).length,4) // Shared calendar helpers, API window and native report freshness clocks
 const script=built.replace(clock,`now = new Date('${NOW.toISOString()}')`)
 const mf=new Miniflare({modules:true,script,compatibilityDate:'2026-01-01',bindings:{DASHBOARD_PASSPHRASE:PASSPHRASE},d1Databases:['INSIGHTS_DB'],host:'127.0.0.1',port:0})
 const browser=await chromium.launch({headless:true})
@@ -78,6 +78,7 @@ try {
   await page.getByLabel('Compare by').selectOption('reach');await capture('desktop-posts')
   await page.locator('#nav').getByRole('button',{name:'Stories',exact:true}).click();await capture('desktop-stories');await page.locator('[data-post="s1"]').click();assert.equal(await page.locator('#post-body dt').filter({hasText:'Next slide'}).count(),1);assert.match(await page.locator('#post-body').innerText(),/Not reported/);assert.match(await page.locator('#post-body').innerText(),/12/);await capture('desktop-story-detail');await page.keyboard.press('Escape')
   await page.locator('#nav').getByRole('button',{name:'Audience',exact:true}).click();await capture('desktop-audience')
+  await page.getByRole('button',{name:'Compare with the weekly scorecard',exact:true}).click();await page.getByRole('heading',{name:'The same counting rules in each report'}).waitFor();assert.match(await page.locator('#help-body').innerText(),/630-analytics-v1/);await capture('desktop-shared-help');await page.keyboard.press('Escape')
   await page.locator('.rail-bottom').getByRole('button',{name:'Data status',exact:true}).click();await capture('desktop-status')
   await page.locator('#nav').getByRole('button',{name:'Overview',exact:true}).click();await page.locator('[data-question="followers"]').click();await capture('desktop-followers')
   await page.getByRole('button',{name:'Help with this page'}).click();assert.equal(await page.locator('#topic').inputValue(),'followers');await page.getByRole('heading',{name:'Follows, unfollows, and net change'}).waitFor();await capture('desktop-help')
@@ -86,7 +87,7 @@ try {
   await page.setViewportSize({width:390,height:844})
   for(const q of ['reach','posts','followers']){await page.getByLabel('Your question').selectOption(q);await capture(`phone-question-${q}`)}
   for(const label of ['Posts','Stories','Audience']){await page.locator('#nav').getByRole('button',{name:label,exact:true}).click();await capture(`phone-${label.toLowerCase()}`)}
-  await page.getByRole('button',{name:'Help with this page'}).click();await capture('phone-help');await page.locator('#topic').selectOption('snapshots');await page.getByRole('heading',{name:'Track handles across dated exports'}).waitFor();await capture('phone-handle-help');await page.keyboard.press('Escape')
+  await page.getByRole('button',{name:'Help with this page'}).click();await capture('phone-help');await page.locator('#topic').selectOption('definitions');await capture('phone-shared-help');await page.locator('#topic').selectOption('snapshots');await page.getByRole('heading',{name:'Track handles across dated exports'}).waitFor();await capture('phone-handle-help');await page.keyboard.press('Escape')
   await page.locator('.mobile-status').click();await capture('phone-status')
   await db.prepare("DELETE FROM account_metric_days WHERE day='2026-10-10' AND metric IN ('reach','follows_and_unfollows:NON_FOLLOWER')").run()
   await page.goto(base+'?page=overview');await page.getByRole('heading',{name:'We can’t compare this period yet.'}).waitFor();assert.match(await page.locator('.chart-line').getAttribute('d'),/M.*M/);await capture('phone-missing')

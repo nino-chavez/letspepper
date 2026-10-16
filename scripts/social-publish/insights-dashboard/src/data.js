@@ -1,11 +1,12 @@
 /** Read-only view of Graph API observations. Business Suite has a different scope. */
 import { reportDay, addDays, dayRange, reportMidnight } from '../../worker/src/insights.js'
-import { followerInsight } from './follower-insight.js'
+import { ANALYTICS_VERSION, INSTAGRAM_SETTLING_DAYS, instagramWindow, summarizeInstagramDays } from '../../analytics-contract.mjs'
+export { median } from '../../analytics-contract.mjs'
 
 export const ACCOUNT = '630'
 export const PERIODS = { 7: '7 days', 30: '30 days', all: 'All recorded' }
 export const DEFAULT_PERIOD = '7'
-export const PROVISIONAL_DAYS = 2
+export const PROVISIONAL_DAYS = INSTAGRAM_SETTLING_DAYS
 export const STORY_DAYS = 7
 const METRICS = { reach: 'reach', views: 'views', interactions: 'total_interactions', follows: 'follows_and_unfollows:FOLLOWER', unfollows: 'follows_and_unfollows:NON_FOLLOWER' }
 export const QUERIES = {
@@ -29,16 +30,11 @@ const latest = (values) => values.filter(v => Number.isFinite(metaTime(v))).sort
 
 /** Calendar dates never retreat just because collection stopped. */
 export function periodWindow(period, bounds, today = reportDay(new Date())) {
-  const end = addDays(today, -(PROVISIONAL_DAYS + 1))
+  const end = instagramWindow({ now: new Date(today + 'T20:00:00Z') }).end
   const start = period === 'all' ? bounds?.first_day : addDays(end, -(Number(period) - 1))
   if (!start || start > end) return null
   const days = dayRange(start, end)
   return { start, end, days, previous: period === 'all' ? null : { start: addDays(start, -days.length), end: addDays(start, -1) } }
-}
-export function median(values) {
-  if (!values.length) return null
-  const sorted = [...values].sort((a,b) => a-b), mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2
 }
 function shapePosts(rows, now) {
   const posts = new Map()
@@ -88,15 +84,14 @@ export async function loadDashboard(db, { period = DEFAULT_PERIOD, postsPeriod =
   const seriesOn = days => days.map(day => ({ day, ...Object.fromEntries(Object.keys(METRICS).map(k=>[k,values.get(day)?.[k] ?? null])) }))
   const series = seriesOn(window?.days ?? [])
   const previous = seriesOn(window?.previous ? dayRange(window.previous.start,window.previous.end) : [])
+  const canonical = summarizeInstagramDays({ rows: dayRows.results, days: window?.days ?? [], previousDays: window?.previous ? dayRange(window.previous.start,window.previous.end) : [] })
+  series.forEach((row, i) => Object.assign(row, canonical.series[i]))
+  previous.forEach((row, i) => Object.assign(row, canonical.previous[i]))
   const coverage = Object.fromEntries(Object.keys(METRICS).map(key=>{
     const missing = series.filter(d=>!Number.isFinite(d[key])).map(d=>d.day)
     return [key,{ recorded:series.length-missing.length, expected:series.length, missing, complete:series.length>0 && missing.length===0 }]
   }))
-  const comparable = coverage.reach.complete && previous.length > 0 && previous.every(d=>Number.isFinite(d.reach))
-  const typical = coverage.reach.complete ? median(series.map(d=>d.reach)) : null
-  const previousTypical = comparable ? median(previous.map(d=>d.reach)) : null
-  const total = key => coverage[key].complete ? series.reduce((s,d)=>s+d[key],0) : null
-  const follows = total('follows'), unfollows = total('unfollows')
+  Object.assign(coverage, canonical.coverage)
   const allPosts = shapePosts([...feed.results,...reels.results],now.getTime())
   const inWindow = (p,w) => w && metaTime(p.publishedAt)>=reportMidnight(w.start)*1000 && metaTime(p.publishedAt)<reportMidnight(addDays(w.end,1))*1000
   const runs = {}
@@ -112,8 +107,8 @@ export async function loadDashboard(db, { period = DEFAULT_PERIOD, postsPeriod =
   return {
     period, postsPeriod, today, window, postsWindow, storiesWindow, historyStart:bounds?.first_day??null,
     empty: !series.some(d=>Object.keys(METRICS).some(k=>Number.isFinite(d[k]))),
-    series, previous, coverage, summary:{ typical,previousTypical,comparable,ratio:comparable&&previousTypical>0?typical/previousTypical:null,follows,unfollows,net:Number.isFinite(follows)&&Number.isFinite(unfollows)?follows-unfollows:null },
-    followerInsight:followerInsight(series,previous),
+    series, previous, coverage, summary:canonical.summary,
+    analyticsVersion:ANALYTICS_VERSION, followerInsight:canonical.followerInsight,
     runs, dailyThrough:bounds?.last_day??null, dailyReadAt:bounds?.observed_at??null,
     followers:followerRows[0]??null, posts:allPosts.filter(p=>inWindow(p,postsWindow)), overviewPosts:allPosts.filter(p=>inWindow(p,window)),
     stories:shapePosts(stories.results,now.getTime()), storiesSince:storySinceRows[0]?.since??null,
