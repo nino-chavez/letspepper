@@ -62,8 +62,8 @@ export function postSnapshot(capture, previous=[]) {
   if(u.origin!=='https://business.facebook.com'||u.searchParams.get('asset_id')!==ASSET||u.searchParams.get('business_id')!==BUSINESS)throw Error('Wrong content account')
   const range=JSON.parse(decodeURIComponent(u.searchParams.get('time_range')))
   if(capture.sort!=='descending'||capture.filter!=='Instagram Feed'||!clean(capture.text).includes(dateLabel(range.start))||!clean(capture.text).includes(dateLabel(range.end)))throw Error('Post filter, dates or sort not verified')
-  const rows=capture.rows.filter(r=>count(r.cells[2])!==null).slice(0,12)
-  if(rows.length!==12)throw Error('Expected top twelve displayed posts')
+  const rows=capture.rows.slice(0,12)
+  if(rows.length!==12 || rows.some((r,i)=>count(r.cells[2])===null || (r.index!=null&&Number(r.index)!==i)))throw Error('Expected top twelve displayed posts with numeric views')
   const posts=rows.map((row,rank)=>{
     const c=row.cells,caption=c[0].split('\n')[0],m=/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d+),/.exec(c[1])
     if(!m)throw Error('Unrecognized published date')
@@ -78,8 +78,9 @@ export function postSnapshot(capture, previous=[]) {
     const identity_key=createHash('sha256').update(JSON.stringify([published_day,c[1],caption,author])).digest('hex')
     const old=previous.find(p=>p.identity_key===identity_key)
     const permalink=(row.links??[]).find(s=>/^https:\/\/(www\.)?instagram\.com\/(p|reel)\/[\w-]+\/?$/.test(s))??old?.permalink??null
-    const metrics=Object.fromEntries(Object.entries({views:2,reach:3,interactions:5,likes:6,comments:7,shares:8,saves:9,follows:12}).map(([k,j])=>[k,count(c[j])??old?.metrics?.[k]??null]))
-    return {identity_key,rank:rank+1,published_day,caption,format,permalink,ownership:c[0].includes('\n630volleyball')||c[0].includes('630 Volleyball, 630volleyball')?'account shown':'shared author; ownership unverified',metrics,observed_at:capture.captured_at,source_url:capture.url}
+    const metric_observed_at={},retained_metrics=[]
+    const metrics=Object.fromEntries(Object.entries({views:2,reach:3,interactions:5,likes:6,comments:7,shares:8,saves:9,follows:12}).map(([k,j])=>{const fresh=count(c[j]),value=fresh??old?.metrics?.[k]??null;metric_observed_at[k]=fresh!==null?capture.captured_at:old?.metric_observed_at?.[k]??old?.observed_at??null;if(fresh===null&&value!==null)retained_metrics.push(k);return [k,value]}))
+    return {identity_key,rank:rank+1,published_day,caption,format,permalink,metric_observed_at,retained_metrics,ownership:c[0].includes('\n630volleyball')||c[0].includes('630 Volleyball, 630volleyball')?'account shown':'shared author; ownership unverified',metrics,observed_at:capture.captured_at,source_url:capture.url}
   })
   if(new Set(posts.map(p=>p.identity_key)).size!==12||posts.some((p,i)=>i&&p.metrics.views>posts[i-1].metrics.views))throw Error('Snapshot uniqueness or sort failed')
   return {start:range.start,end:range.end,scope:'top 12 lifetime performance; not a complete inventory',observed_at:capture.captured_at,posts}

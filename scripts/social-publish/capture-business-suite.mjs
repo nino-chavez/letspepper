@@ -56,7 +56,7 @@ try{
  evaluate('const v=[...document.querySelectorAll("[role=button]")].find(e=>e.innerText.replaceAll("\u200b","").trim()==="Views");if(!v)throw Error("Views heading missing");v.click();return true');await pause()
  let content
  for(let i=0;i<12;i++){
-  content=evaluate('return {url:location.href,captured_at:new Date().toISOString(),text:document.body.innerText,sort:document.querySelector("[aria-sort]")?.getAttribute("aria-sort"),rows:[...document.querySelectorAll("tr[data-index]")].map(e=>({cells:[...e.querySelectorAll("td")].map(c=>c.innerText),links:[...e.querySelectorAll("a[href]")].map(a=>a.href)}))}')
+  content=evaluate('return {url:location.href,captured_at:new Date().toISOString(),text:document.body.innerText,sort:document.querySelector("[aria-sort]")?.getAttribute("aria-sort"),rows:[...document.querySelectorAll("tr[data-index]")].map(e=>({index:e.getAttribute("data-index"),cells:[...e.querySelectorAll("td")].map(c=>c.innerText),links:[...e.querySelectorAll("a[href]")].map(a=>a.href)}))}')
   content.filter='Instagram Feed'
   try{postSnapshot(content,previous.snapshot.posts);break}catch(err){if(i===11)throw err;evaluate('document.querySelector("table").scrollTop+=350;return true');await pause()}
  }
