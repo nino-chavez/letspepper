@@ -1,7 +1,7 @@
 /**
  * letspepper-reels-worker — cloud cron drip for owned Instagram and Facebook Pages.
  *
- * Three crons (wrangler.jsonc). The daily INSIGHTS_CRON and the hourly STORIES_CRON run only
+ * Four crons (wrangler.jsonc). The daily REGISTRATIONS_CRON reads LeagueApps and sends aggregates to PostHog. The daily INSIGHTS_CRON and the hourly STORIES_CRON run only
  * the read-only Instagram insights jobs in ./insights.js (../../INSIGHTS.md). Every other
  * tick is the hourly publisher below, followed by the engagement sweep when SWEEP_ENABLED
  * (../../SWEEP.md).
@@ -85,6 +85,7 @@
  * written by whoever writes KV.
  */
 
+import { REGISTRATIONS_CRON, runRegistrations, registrationsStatus } from './registrations.js'
 import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route-shape.mjs'
 import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
 import { collabBlock, decideCollab } from '../../collab-shape.mjs'
@@ -1145,9 +1146,14 @@ ${secondaryHtml}
 
 export default {
   async scheduled(controller, env, ctx) {
-    // Three crons share this Worker (wrangler.jsonc). The daily insights cron and the hourly
+    // Four crons share this Worker (wrangler.jsonc). The daily insights cron and the hourly
     // Stories cron run ONLY their read-only insights job; every other tick is the hourly
     // publisher. Branching on the cron string is what keeps an insights tick from publishing.
+    if (controller.cron === REGISTRATIONS_CRON) {
+      ctx.waitUntil(runRegistrations(env, { trigger: 'cron' })
+        .catch(() => console.error('registration refresh failed')))
+      return
+    }
     if (controller.cron === INSIGHTS_CRON) {
       ctx.waitUntil(runInsights(env, { accounts: ACCOUNTS, graph: GRAPH, trigger: 'cron' })
         .catch((e) => console.error('insights failed', e)))
@@ -1168,6 +1174,15 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url)
     const authed = url.searchParams.get('key') && url.searchParams.get('key') === env.TRIGGER_KEY
+    if (url.pathname === '/registrations/run' || url.pathname === '/registrations/status') {
+      // Use a header so the integration key never enters URLs or access logs.
+      if (!env.TRIGGER_KEY || req.headers.get('Authorization') !== `Bearer ${env.TRIGGER_KEY}`) return new Response('forbidden', { status: 403 })
+      if (url.pathname.endsWith('/run')) {
+        if (req.method !== 'POST') return new Response('method not allowed', { status: 405 })
+        return Response.json(await runRegistrations(env), { headers: { 'Cache-Control': 'no-store' } })
+      }
+      return Response.json(await registrationsStatus(env), { headers: { 'Cache-Control': 'no-store' } })
+    }
     if (url.pathname === '/insights/run') {
       if (!authed) return new Response('forbidden', { status: 403 })
       const p = url.searchParams

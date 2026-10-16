@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 import worker from '../src/index.js'
+import { REGISTRATIONS_CRON } from '../src/registrations.js'
 import {
   INSIGHTS_CRON, STORIES_CRON, RUN_BUDGET, MAX_RANGE_DAYS, GRAPH_TIMEOUT_MS, DAY_METRICS, FOLLOW_METRIC, MEDIA_METRICS,
   reportDay, dayWindow, lookbackDays, readInsights, readAudience, readOnlineFollowers, classify, GraphError, alertFor,
@@ -137,7 +138,7 @@ const stories = (env, fetchImpl, opts = {}) => runStories(env, { accounts: ACCOU
 test('the insights crons in wrangler.jsonc match INSIGHTS_CRON and STORIES_CRON', () => {
   const config = readFileSync(here('../wrangler.jsonc'), 'utf8')
   const crons = JSON.parse(config.match(/"crons":\s*(\[[^\]]*\])/)[1])
-  assert.deepEqual(crons, ['0 * * * *', INSIGHTS_CRON, STORIES_CRON])
+  assert.deepEqual(crons, ['0 * * * *', INSIGHTS_CRON, STORIES_CRON, REGISTRATIONS_CRON])
   assert.match(config, /"binding":\s*"INSIGHTS_DB"/)
   assert.match(config, /"migrations_dir":\s*"migrations"/)
 })

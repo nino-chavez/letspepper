@@ -405,3 +405,65 @@ parity, `verify-shared-analytics.mjs` accepts an explicit private scorecard modu
 and a private receipt path. It compares both consumers and independently checks
 D1 flow sums and coverage. Supply the existing D1/PostHog read credentials through
 1Password environment injection; never put them in a command argument or file.
+
+## LeagueApps registration outcomes
+
+The same cloud Worker also refreshes 630 registration totals daily at **11:15 UTC**
+(6:15 a.m. Central during daylight saving time; 5:15 a.m. in winter). Its separate
+`REGISTRATIONS_CRON` in `worker/src/registrations.js` never invokes the publisher
+or the Instagram collectors. A failed export does not stop either of those jobs.
+
+The job reads the LeagueApps private registration export with the existing
+`LeagueApps 630volleyball` credential. It follows the inclusive cursor until an
+empty page, even after a short page. It fails closed on incomplete pagination,
+invalid participant fields, or provider errors. A run has a 35-page / 45-request
+ceiling. If the export grows beyond that ceiling, increase capacity deliberately;
+never publish a partial total.
+
+Only aggregate snapshots go to the 630 PostHog project, using event
+`630_leagueapps_registration_snapshot`. There are no names, emails, birthdays,
+athlete IDs, registration IDs, program breakdowns, or raw exports in that event,
+KV, logs, or this repository. Raw pages exist only in memory. Each capture gets a
+random run ID and disables person-profile processing. Website visit queries use
+pageviews and handoff events, so these snapshots do not count as website visits.
+
+Definitions, privacy allowlist, question/answer copy, and the saved SQL table live
+in `analytics-contract.mjs`. The private 630 repository pins that file for its
+weekly scorecard and native PostHog provisioner. Both use seven complete Central
+days based on registration creation time, plus the previous seven days. Status is
+current at refresh, not a historical completion time. Non-staff `PLAYER` and
+`FREEAGENT` entries count once per registration ID. `SPOT_RESERVED` counts as a
+reserved spot; `SPOT_PENDING` and `WAITING_LIST` are separate. Deleted entries,
+`VOID`/`REFUND` payment states, and other roles do not count as reserved spots.
+This is not a count of unique athletes, paid places, season commitments, or
+registrations caused by the website or Instagram. Roster imports and
+staff-created entries may change the totals.
+
+The PostHog table requires a complete snapshot for the expected reporting dates,
+less than 36 hours old. Missing, failed, or stale snapshots display unavailable,
+never zero. Before the daily refresh, yesterday's rolling dates can be out of
+date. The table displays its observation time. The on-demand scorecard reads
+LeagueApps again, so status changes between refreshes can produce different
+counts; compare the same dates and observation times.
+
+Required Worker secrets (all already owned by 1Password):
+
+- `LEAGUEAPPS_PRIVATE_KEY`: `LeagueApps 630volleyball/credential`.
+- `LEAGUEAPPS_CLIENT_ID`: `LeagueApps 630volleyball/key_id`.
+- `POSTHOG_630_PROJECT_TOKEN`: `PostHog 630volleyball/credential`, the ingestion
+  token for project 579364, not its personal API key.
+
+`POST /registrations/run` triggers only this refresh. `GET /registrations/status`
+returns the most recent aggregate receipt from KV key
+`analytics:630:registrations:status`. Both require `Authorization: Bearer` with the
+existing `TRIGGER_KEY` in the header, not the URL. Responses disable caching.
+A receipt marked `delivery: accepted` proves ingestion accepted the request;
+query the saved PostHog table to verify the values became visible. Missing
+credentials or rejected delivery leave an explicit failure receipt. Do not call
+`/run` to test analytics: that endpoint publishes social posts.
+
+Deployment uses the existing Social scheduler workflow on merge. No separate
+laptop job is required. Validate with the registration tests, the existing social
+suites, Wrangler's dry run, the protected live registration endpoint, and the
+PostHog query/readback. An explicit manual trigger verifies the collector; it is
+not evidence that a future scheduled tick has run.
