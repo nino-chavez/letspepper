@@ -374,3 +374,21 @@ The [screen-review record](../evidence/screen-reviews/instagram-study-20261016/r
 names the independent findings, repairs, and verification limits. The study implements
 navigation, sorting, filtering, post detail, and contextual help. Dates are fixed;
 sign-in, loading, real Instagram links, and production data mapping are specified only.
+
+## Production implementation, 16 October 2026
+
+The selected blend now owns the dashboard implementation in
+`scripts/social-publish/insights-dashboard/src`. Navigation, questions, evidence, next
+inspection, and contextual help follow the selected direction above. Posts has an
+independent publication window; an Overview action retains the exact Overview dates.
+Stories and Audience label their separate capture/snapshot dates. Production contains
+no concept selector, fixture state control, or synthetic data.
+
+The reading model uses calendar-anchored reporting windows, complete-period coverage,
+per-metric post timestamps, separate run attempt/success records, and explicit missing
+values. The current schema supports these fixes without a migration or collector change.
+The publishing Worker and its queues are outside this implementation.
+
+The canonical behavior and local verification commands are in
+`../../scripts/social-publish/INSIGHTS.md`, “The dashboard.” Real-data captures are private
+local artifacts; committed test data and review frames are synthetic.
