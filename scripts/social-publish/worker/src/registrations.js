@@ -33,7 +33,9 @@ export async function runRegistrations(env, { trigger = 'manual', now = new Date
   // Isolated cron: never shares Instagram's request budget or the publisher's queue.
   const request = async (url, options = {}) => {
     if (++requests > 45) throw new Error('Registration refresh request limit exceeded')
-    return fetchImpl(url, { ...options, redirect: 'error', signal: AbortSignal.timeout(20000) })
+    // Workers supports manual redirects; Node also accepts an unsupported-at-edge "error" mode.
+    // Every caller rejects non-2xx, so a redirect cannot forward provider credentials.
+    return fetchImpl(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(20000) })
   }
   const record = async value => { await env.QUEUE.put(REGISTRATIONS_STATUS_KEY, JSON.stringify(value)); return value }
   if (!env.LEAGUEAPPS_PRIVATE_KEY || !env.LEAGUEAPPS_CLIENT_ID || !env.POSTHOG_630_PROJECT_TOKEN) {
