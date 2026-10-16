@@ -1,6 +1,6 @@
 /** Read-only view of Graph API observations. Business Suite has a different scope. */
 import { reportDay, addDays, dayRange, reportMidnight } from '../../worker/src/insights.js'
-import { ANALYTICS_VERSION, INSTAGRAM_SETTLING_DAYS, instagramWindow, summarizeInstagramDays, median } from '../../analytics-contract.mjs'
+import { ANALYTICS_VERSION, INSTAGRAM_SETTLING_DAYS, instagramWindow, summarizeInstagramDays } from '../../analytics-contract.mjs'
 export { median } from '../../analytics-contract.mjs'
 
 export const ACCOUNT = '630'
@@ -85,6 +85,8 @@ export async function loadDashboard(db, { period = DEFAULT_PERIOD, postsPeriod =
   const series = seriesOn(window?.days ?? [])
   const previous = seriesOn(window?.previous ? dayRange(window.previous.start,window.previous.end) : [])
   const canonical = summarizeInstagramDays({ rows: dayRows.results, days: window?.days ?? [], previousDays: window?.previous ? dayRange(window.previous.start,window.previous.end) : [] })
+  series.forEach((row, i) => Object.assign(row, canonical.series[i]))
+  previous.forEach((row, i) => Object.assign(row, canonical.previous[i]))
   const coverage = Object.fromEntries(Object.keys(METRICS).map(key=>{
     const missing = series.filter(d=>!Number.isFinite(d[key])).map(d=>d.day)
     return [key,{ recorded:series.length-missing.length, expected:series.length, missing, complete:series.length>0 && missing.length===0 }]
