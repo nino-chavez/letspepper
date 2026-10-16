@@ -93,26 +93,29 @@ export function followerInsight(current, previous = []) {
 }
 
 /** One row per visit before counting: handoff visits are a subset of pageview visits. */
-export function websiteSummaryQuery(window = null) {
+export function websiteVisitsQuery(window = null, { channels = false } = {}) {
   if (window) dayRange(window.start, window.end)
   const at = day => `toDateTime('${day} 00:00:00', '${WEBSITE_TIMEZONE}')`
   const midnight = `toStartOfDay(now(), '${WEBSITE_TIMEZONE}')`
   const start = window ? at(window.start) : `${midnight} - INTERVAL 7 DAY`
   const end = window ? at(addDays(window.end, 1)) : midnight
   const handoff = `event = '${WEBSITE_HANDOFF_EVENT}' AND (properties.destination_host = '630volleyball.leagueapps.com') AND (match(toString(properties.destination_path), '^/[a-z-]+/[0-9]+(/|$|-)') OR match(toString(properties.program_id), '^[0-9]+$'))`
-  return `SELECT count() AS visits, countIf(handoff) AS handoff_visits, countIf(instagram) AS instagram_visits, countIf(instagram AND handoff) AS instagram_handoff_visits
-FROM (
-  SELECT $session_id AS visit,
+  return `SELECT $session_id AS visit,
     countIf(${handoff}) > 0 AND maxIf(timestamp, ${handoff}) >= minIf(timestamp, event = '$pageview') AS handoff,
-    max(lower(coalesce(session.$entry_utm_source, '')) IN ('instagram', 'ig') OR lower(coalesce(session.$entry_referring_domain, '')) = 'instagram.com' OR endsWith(lower(coalesce(session.$entry_referring_domain, '')), '.instagram.com')) AS instagram
+    max(lower(coalesce(session.$entry_utm_source, '')) IN ('instagram', 'ig') OR lower(coalesce(session.$entry_referring_domain, '')) = 'instagram.com' OR endsWith(lower(coalesce(session.$entry_referring_domain, '')), '.instagram.com')) AS instagram${channels ? `,\n    max(coalesce(session.$channel_type, '')) AS channel,\n    max(lower(coalesce(session.$entry_utm_source, '')) IN ('facebook', 'fb') OR lower(coalesce(session.$entry_referring_domain, '')) = 'facebook.com' OR endsWith(lower(coalesce(session.$entry_referring_domain, '')), '.facebook.com')) AS facebook` : ''}
   FROM events
   WHERE timestamp >= ${start} AND timestamp < ${end}
     AND properties.$host = '630volleyball.com'
     AND notEmpty(toString($session_id))
     AND event IN ('$pageview', '${WEBSITE_HANDOFF_EVENT}')
   GROUP BY visit
-  HAVING countIf(event = '$pageview') > 0
-)`
+  HAVING countIf(event = '$pageview') > 0`
+}
+export function websiteSummaryQuery(window = null) {
+  return `SELECT count() AS visits, countIf(handoff) AS handoff_visits, countIf(instagram) AS instagram_visits, countIf(instagram AND handoff) AS instagram_handoff_visits\nFROM (\n${websiteVisitsQuery(window)}\n)`
+}
+export function websiteEntryChannelQuery(window) {
+  return `SELECT channel, multiIf(instagram, 'Instagram', facebook, 'Facebook', '') AS network, count() AS visits, countIf(handoff) AS handoff_visits\nFROM (\n${websiteVisitsQuery(window, {channels:true})}\n) GROUP BY channel, network`
 }
 export function readWebsiteSummary(data) {
   const keys = ['visits', 'handoff_visits', 'instagram_visits', 'instagram_handoff_visits']
