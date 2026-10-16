@@ -6,3 +6,6 @@ compatibility_date = "2024-09-23"
 [vars]
 SUPABASE_URL = "https://skywzpcekhntecegyjoj.supabase.co"
 NEXT_PUBLIC_CF_STREAM_SUBDOMAIN = "mztsxz382jswgq00"
+# Use a fresh npm cache during Pages' Corepack bootstrap. Keep this in the
+# Wrangler source of truth; Pages replaces dashboard plain-text variables.
+NPM_CONFIG_CACHE = "/tmp/letspepper-npm-cache"
