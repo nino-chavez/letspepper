@@ -283,7 +283,7 @@ const cohortText = (c, noun = 'bookings') => `${c.reserved} ${c.reserved === 1 ?
 function programContext(current, previous) {
   const parts = []
   if (previous.endedBeforeCurrent) parts.push(`${previous.endedBeforeCurrent} earlier booking${previous.endedBeforeCurrent === 1 ? ' was' : 's were'} for sessions that ended before this week.`)
-  if (!current.datesMissing && !previous.datesMissing && (current.future || previous.future)) parts.push(`For dates still ahead: ${current.future} bookings, previously ${previous.future}.`)
+  if (!current.datesMissing && !previous.datesMissing && (current.future || previous.future)) parts.push(`For dates still ahead: ${current.future} booking${current.future === 1 ? '' : 's'}, previously ${previous.future}.`)
   if (current.openedInPeriod || previous.openedInPeriod) parts.push('A recorded program opening overlaps this comparison; check launch timing.')
   if (current.datesMissing || previous.datesMissing) parts.push('Some session dates are missing; check the program calendar.')
   if (current.pending) parts.push(`${current.pending} pending; review in LeagueApps.`)
@@ -342,7 +342,43 @@ export function registrationSnapshotProperties(snapshot, trigger) {
     answer: answer.heading, context: answer.detail, next_step: answer.action,
     commitments: answer.commitments || '', classification: answer.classification || '', totals: answer.totals || '', waiting: answer.waiting || '',
     program_breakdown_json: JSON.stringify(registrationProgramRows(snapshot)),
+    // Numeric source for independent report verification. Explicit keys prevent
+    // accidentally enriched source objects from carrying identities into analytics.
+    registration_counts_json: verified ? JSON.stringify(Object.fromEntries(['groups', 'families'].map(kind => [kind,
+      Object.fromEntries(Object.keys(kind === 'groups' ? REGISTRATION_GROUPS : REGISTRATION_FAMILIES).map(id => [id,
+        Object.fromEntries(['current', 'previous'].map(period => [period, Object.fromEntries([...registrationBuckets, 'athletes', 'missingIdentity', 'endedBeforeCurrent', 'future', 'datesMissing', 'openedInPeriod'].map(key => [key, snapshot[kind][id][period][key]]))]))
+      ]))
+    ]))) : null,
   }
+}
+export function registrationVerificationQuery() {
+  return `SELECT properties.status AS status, properties.period_start AS period_start, properties.period_end AS period_end,
+    properties.registration_counts_json AS counts,
+    formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS observed_at
+    FROM events WHERE event = '${REGISTRATION_EVENT}' AND properties.registration_version = '${REGISTRATION_VERSION}'
+    AND properties.club = '630volleyball' AND timestamp >= now() - INTERVAL 7 DAY ORDER BY timestamp DESC LIMIT 1`
+}
+export function registrationExpectedTables(source = null, now = new Date()) {
+  const window = reportingWindow({ now }), unavailable = registrationAnswer(null)
+  const fresh = source?.status === 'verified' && source.period_start === window.start && source.period_end === window.end
+    && Date.parse(source.observed_at) >= new Date(now).getTime() - 36 * 3600000
+  let snapshot = null
+  if (fresh) {
+    const counts = JSON.parse(source.counts)
+    snapshot = { version: REGISTRATION_VERSION, status: 'verified', window, ...counts }
+    for (const period of ['current', 'previous']) snapshot[period] = Object.fromEntries(registrationBuckets.map(key => [key, Object.keys(REGISTRATION_GROUPS).reduce((sum, group) => sum + (counts.groups?.[group]?.[period]?.[key] ?? NaN), 0)]))
+    if (!validRegistrationSnapshot(snapshot)) throw new Error('Registration numeric source is invalid')
+  }
+  const a = snapshot ? registrationAnswer(snapshot) : unavailable
+  const values = [
+    `${window.start} through ${window.end} (Central). Previous: ${window.previous.start} through ${window.previous.end}. Dashboard filters do not change these dates.`,
+    a.heading, a.detail, a.commitments || unavailable.detail, a.classification || unavailable.detail, a.totals || unavailable.detail, a.action, a.waiting || unavailable.detail,
+    REGISTRATION_ATHLETE_HELP, REGISTRATION_COUNT_HELP, REGISTRATION_SPLIT_HELP,
+    source ? `${source.observed_at.replace('T', ' ').replace('Z', '')} (UTC). Refreshes daily at 11:15 UTC. ${snapshot ? 'Complete export recorded.' : 'Unavailable or out of date; do not treat these totals as zero.'}` : 'No refresh recorded yet.',
+  ]
+  const programs = snapshot ? registrationProgramRows(snapshot).map(row => [row.program, row.current, row.previous, row.context]) : [['Program bookings unavailable', 'Unavailable', 'Unavailable', 'Check the LeagueApps refresh; missing data does not mean zero.']]
+  if (!programs.length) programs.push(['No program bookings in either period', '0 bookings; 0 athletes', '0 bookings; 0 athletes', 'Complete export recorded. Team setup and season commitments appear in the summary.'])
+  return { summary: REGISTRATION_QUESTIONS.map((q, i) => [q, values[i]]), programs }
 }
 const sqlQuote = value => `'${value.replaceAll("'", "''")}'`
 const registrationMidnight = `toStartOfDay(now(), '${WEBSITE_TIMEZONE}')`

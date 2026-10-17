@@ -147,9 +147,22 @@ test('calendar context separates elapsed sessions and future dates without inven
   assert.equal(s.families.girls_ms.previous.endedBeforeCurrent,1)
   assert.equal(s.families.girls_ms.current.future,1,'midnight Eastern label must not become October 15')
   assert.match(row.context,/1 earlier booking was for sessions that ended/)
-  assert.match(row.context,/For dates still ahead: 1 bookings, previously 1/)
+  assert.match(row.context,/For dates still ahead: 1 booking, previously 1/)
   assert.match(registrations.registrationAnswer(s).action,/Review Girls middle-school/)
   assert.doesNotMatch(registrations.registrationAnswer(s).action,/caused|imported|checkout failure/)
   assert.equal(registrations.REGISTRATION_QUESTIONS.length,12)
   assert.match(registrations.registrationProgramsQuery(),/Program bookings unavailable/)
+})
+test('display verification reconstructs answers from numeric aggregates', () => {
+  const now = new Date('2026-10-16T17:00:00Z'), r = registrations.createRegistrationRollup(registrationWindow)
+  r.add(participant(1)); r.add(participant(2,{userId:1}))
+  const s=r.finish(now.toISOString()),p=registrations.registrationSnapshotProperties(s,'manual')
+  const source={status:p.status,period_start:p.period_start,period_end:p.period_end,counts:p.registration_counts_json,observed_at:'2026-10-16T17:00:00Z'}
+  const expected=registrations.registrationExpectedTables(source,now)
+  assert.equal(expected.summary[1][1],registrations.registrationAnswer(s).heading)
+  assert.deepEqual(expected.programs[0],Object.values(registrations.registrationProgramRows(s)[0]))
+  const broken=JSON.parse(source.counts);broken.groups.bookings.current.reserved++
+  assert.throws(()=>registrations.registrationExpectedTables({...source,counts:JSON.stringify(broken)},now),/numeric source is invalid/)
+  assert.match(registrations.registrationExpectedTables(null,now).summary[1][1],/unavailable/)
+  assert.match(registrations.registrationExpectedTables({...source,observed_at:'2026-10-14T00:00:00Z'},now).summary[1][1],/unavailable/)
 })

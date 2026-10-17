@@ -38,11 +38,12 @@ export async function runRegistrations(env, { trigger = 'manual', now = new Date
     return fetchImpl(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(20000) })
   }
   const record = async value => { await env.QUEUE.put(REGISTRATIONS_STATUS_KEY, JSON.stringify(value)); return value }
-  if (!env.LEAGUEAPPS_PRIVATE_KEY || !env.LEAGUEAPPS_CLIENT_ID || !env.POSTHOG_630_PROJECT_TOKEN) {
+  if (!env.POSTHOG_630_PROJECT_TOKEN) {
     return record({ status: 'unavailable', trigger, checkedAt: now.toISOString(), reason: 'Registration refresh credentials are missing' })
   }
   let snapshot, diagnostic
   try {
+    if (!env.LEAGUEAPPS_PRIVATE_KEY || !env.LEAGUEAPPS_CLIENT_ID) throw new Error('LeagueApps credentials missing')
     let token = await leagueAppsAccessToken(env, request, now)
     let renewed = false
     const rollup = createRegistrationRollup(window)
