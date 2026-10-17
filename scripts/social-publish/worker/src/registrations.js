@@ -38,11 +38,12 @@ export async function runRegistrations(env, { trigger = 'manual', now = new Date
     return fetchImpl(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(20000) })
   }
   const record = async value => { await env.QUEUE.put(REGISTRATIONS_STATUS_KEY, JSON.stringify(value)); return value }
-  if (!env.LEAGUEAPPS_PRIVATE_KEY || !env.LEAGUEAPPS_CLIENT_ID || !env.POSTHOG_630_PROJECT_TOKEN) {
+  if (!env.POSTHOG_630_PROJECT_TOKEN) {
     return record({ status: 'unavailable', trigger, checkedAt: now.toISOString(), reason: 'Registration refresh credentials are missing' })
   }
   let snapshot, diagnostic
   try {
+    if (!env.LEAGUEAPPS_PRIVATE_KEY || !env.LEAGUEAPPS_CLIENT_ID) throw new Error('LeagueApps credentials missing')
     let token = await leagueAppsAccessToken(env, request, now)
     let renewed = false
     const rollup = createRegistrationRollup(window)
@@ -74,8 +75,8 @@ export async function runRegistrations(env, { trigger = 'manual', now = new Date
     if (!response.ok) throw new Error('Capture rejected')
     const receipt = await response.json()
     if (receipt.status !== 1 && receipt.status !== 'Ok') throw new Error('Capture not accepted')
-    return record({ status: snapshot.status, delivery: 'accepted', trigger, runId, checkedAt: snapshot.asOf, requests, ...diagnostic,
-      window: { start: window.start, end: window.end }, ...(snapshot.status === 'verified' ? { current: snapshot.current, previous: snapshot.previous } : { reason: 'LeagueApps refresh incomplete; no totals published' }) })
+    return record({ status: properties.status, version: REGISTRATION_VERSION, delivery: 'accepted', trigger, runId, checkedAt: snapshot.asOf, requests, ...diagnostic,
+      window: { start: window.start, end: window.end }, ...(properties.status === 'verified' ? { current: snapshot.current, previous: snapshot.previous, groups: snapshot.groups } : { reason: 'LeagueApps refresh incomplete; no totals published' }) })
   } catch {
     return record({ status: 'unavailable', delivery: 'failed', trigger, runId, checkedAt: snapshot.asOf, requests, reason: 'PostHog did not accept the registration refresh' })
   }

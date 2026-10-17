@@ -9,7 +9,7 @@ import { runRegistrations, leagueAppsAccessToken, REGISTRATIONS_CRON, REGISTRATI
 const pair = await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify'])
 const pem = `-----BEGIN PRIVATE KEY-----\n${Buffer.from(await crypto.subtle.exportKey('pkcs8',pair.privateKey)).toString('base64')}\n-----END PRIVATE KEY-----` // pragma: allowlist secret - ephemeral generated test key
 const now = new Date('2026-10-16T17:00:00Z')
-const row = (id,extra={}) => ({id,registrationId:id,lastUpdated:id,created:Date.parse('2026-10-10T06:00:00Z'),role:'FREEAGENT',isStaff:0,deleted:false,registrationStatus:'SPOT_RESERVED',paymentStatus:'PAID',email:'never-publish@example.invalid',...extra})
+const row = (id,extra={}) => ({id,registrationId:id,userId:id,programId:5121761,masterProgramId:5121753,programType:'CLASS',lastUpdated:id,created:Date.parse('2026-10-10T06:00:00Z'),role:'FREEAGENT',isStaff:0,deleted:false,registrationStatus:'SPOT_RESERVED',paymentStatus:'PAID',email:'never-publish@example.invalid',...extra})
 function env() {
   const records=new Map()
   return {LEAGUEAPPS_PRIVATE_KEY:pem,LEAGUEAPPS_CLIENT_ID:'test-client',POSTHOG_630_PROJECT_TOKEN:'test-project-token',TRIGGER_KEY:'test-trigger',QUEUE:{async put(k,v){records.set(k,v)},async get(k){return records.has(k)?JSON.parse(records.get(k)):null}},records}
@@ -40,6 +40,10 @@ test('signed auth, complete multi-page read and aggregate-only capture',async()=
   assert.equal(captured.properties.$process_person_profile,false)
   assert.equal(captured.properties.trigger,'cron')
   assert.equal(captured.properties.current_reserved,1)
+  assert.equal(captured.properties.current_bookings_reserved,1)
+  assert.equal(captured.properties.current_bookings_athletes,1)
+  assert.equal(result.groups.bookings.current.athletes,1)
+  assert.equal(result.version,'630-registrations-v2')
   assert.notEqual(captured.distinct_id,'test-client')
   assert.doesNotMatch(JSON.stringify(captured),/never-publish|registrationId|test-access/)
   assert.doesNotMatch(JSON.stringify(await e.QUEUE.get(REGISTRATIONS_STATUS_KEY)),/never-publish|registrationId|test-access/)
@@ -60,9 +64,17 @@ test('incomplete export never publishes partial counts',async()=>{
 test('capture rejection and missing credentials are visible failures',async()=>{
   const e=env(),h=harness([[]],{captureStatus:400})
   assert.equal((await runRegistrations(e,{now,fetch:h.fetch})).delivery,'failed')
-  delete e.LEAGUEAPPS_PRIVATE_KEY
+  delete e.POSTHOG_630_PROJECT_TOKEN
   const r=await runRegistrations(e,{now,fetch:()=>{throw Error('must not fetch')}})
   assert.equal(r.status,'unavailable');assert.match(r.reason,/credentials/)
+})
+test('missing LeagueApps credentials publish unavailable when capture is available',async()=>{
+  const e=env(),h=harness([])
+  delete e.LEAGUEAPPS_PRIVATE_KEY
+  const r=await runRegistrations(e,{now,fetch:h.fetch})
+  assert.equal(r.status,'unavailable');assert.equal(r.delivery,'accepted')
+  assert.equal(h.calls.length,1);assert.equal(h.captures[0].properties.status,'unavailable')
+  assert.equal(h.captures[0].properties.current_reserved,null)
 })
 test('401 renews once, repeated rejection stays unavailable',async()=>{
   const e=env(),h=harness([],{exportStatus:401})
@@ -75,7 +87,7 @@ test('registration cron is isolated from publishing and matches deployed schedul
   const config=readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8')
   const crons=JSON.parse(config.match(/"crons":\s*(\[[^\]]*\])/)[1])
   assert.ok(crons.includes(REGISTRATIONS_CRON))
-  const e=env();delete e.LEAGUEAPPS_PRIVATE_KEY
+  const e=env();delete e.POSTHOG_630_PROJECT_TOKEN
   const jobs=[]
   await worker.scheduled({cron:REGISTRATIONS_CRON},e,{waitUntil(p){jobs.push(p)}})
   await Promise.all(jobs)
@@ -91,7 +103,7 @@ test('manual refresh is POST-only and header-authenticated; wrong key is rejecte
   assert.equal((await worker.fetch(new Request('https://example.invalid/registrations/run?key=test-trigger',{method:'POST'}),e)).status,403)
   const headers={Authorization:'Bearer test-trigger'}
   assert.equal((await worker.fetch(new Request('https://example.invalid/registrations/run',{headers}),e)).status,405)
-  delete e.LEAGUEAPPS_PRIVATE_KEY
+  delete e.POSTHOG_630_PROJECT_TOKEN
   const response=await worker.fetch(new Request('https://example.invalid/registrations/run',{method:'POST',headers}),e)
   assert.equal(response.headers.get('Cache-Control'),'no-store')
   assert.equal((await response.json()).status,'unavailable')

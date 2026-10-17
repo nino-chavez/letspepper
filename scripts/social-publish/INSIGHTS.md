@@ -422,7 +422,7 @@ never publish a partial total.
 
 Only aggregate snapshots go to the 630 PostHog project, using event
 `630_leagueapps_registration_snapshot`. There are no names, emails, birthdays,
-athlete IDs, registration IDs, program breakdowns, or raw exports in that event,
+athlete IDs, registration IDs, or raw exports in that event,
 KV, logs, or this repository. Raw pages exist only in memory. Each capture gets a
 random run ID and disables person-profile processing. Website visit queries use
 pageviews and handoff events, so these snapshots do not count as website visits.
@@ -435,11 +435,32 @@ current at refresh, not a historical completion time. Non-staff `PLAYER` and
 `FREEAGENT` entries count once per registration ID. `SPOT_RESERVED` counts as a
 reserved spot; `SPOT_PENDING` and `WAITING_LIST` are separate. Deleted entries,
 `VOID`/`REFUND` payment states, and other roles do not count as reserved spots.
-This is not a count of unique athletes, paid places, season commitments, or
-registrations caused by the website or Instagram. Roster imports and
-staff-created entries may change the totals.
+The `630-registrations-v2` snapshot keeps that total and splits it into program
+bookings (clinics, camps, and tryouts), team/roster setup, season acceptances and
+commitments, and unclassified records. `REGISTRATION_FAMILIES` owns the checked
+630 program IDs and labels. Classes and camps have type-based fallback groups;
+unrecognized club-team programs remain unclassified rather than silently becoming
+bookings. When a new season opens, review its program IDs against LeagueApps and
+update this one registry; do not classify by a name containing “tryout” or “team”.
 
-The PostHog table requires a complete snapshot for the expected reporting dates,
+Each group and program also counts distinct LeagueApps athlete accounts among
+reserved records. IDs stay in memory; only the counts leave the collector. Missing
+IDs make that athlete count unavailable while preserving the registration count.
+Athletes can appear in more than one group or program and both periods, so those
+counts must not be summed or described as new customers. Commitments are records
+in the acceptance programs, not proof of full payment.
+
+The summary and program-booking table share deterministic guidance with the
+scorecard. Program rows show bookings, athletes, elapsed-session context and
+bookings for dates after the reporting window. Program metadata uses its native
+calendar labels, not a Central conversion of an Eastern-midnight timestamp. The
+action highlights the largest drop in athletes among programs with future dates
+or missing dates, breaking ties by relative change, and flags pending bookings.
+It asks operators to check capacity and timing; it does not diagnose a cause.
+No import method or website/Instagram attribution is inferred. Approved labels
+and aggregate program context may be published; raw program names never are.
+
+Both PostHog tables require a complete v2 snapshot for the expected reporting dates,
 less than 36 hours old. Missing, failed, or stale snapshots display unavailable,
 never zero. Before the daily refresh, yesterday's rolling dates can be out of
 date. The table displays its observation time. The on-demand scorecard reads

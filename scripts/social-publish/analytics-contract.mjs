@@ -154,9 +154,46 @@ export function websiteAnswer(summary) {
 
 // Aggregates only. Never persist the input rows, identifiers, or this in-memory map.
 export const REGISTRATION_EVENT = '630_leagueapps_registration_snapshot'
-export const REGISTRATION_VERSION = '630-registrations-v1'
+export const REGISTRATION_VERSION = '630-registrations-v2'
 export const REGISTRATION_HELP = METRIC_DEFINITIONS['leagueapps.reserved_registrations']
 const registrationBuckets = ['reserved', 'pending', 'waitlist', 'excluded', 'other']
+export const REGISTRATION_GROUPS = Object.freeze({ bookings: 'Clinics, camps & tryouts', setup: 'Team & roster setup', commitments: 'Season acceptances & commitments', unclassified: 'Needs classification' })
+// Program IDs, not editable names, distinguish a tryout from a team acceptance.
+// LeagueApps metadata and program descriptions checked 2026-10-16. New classes
+// and camps have a safe type fallback; ambiguous club teams remain unclassified.
+export const REGISTRATION_FAMILIES = Object.freeze({
+  girls_ms: { label: 'Girls middle-school fall clinics', group: 'bookings', masters: [5121753] },
+  girls_hs: { label: 'Girls high-school fall clinics', group: 'bookings', masters: [5121283] },
+  tryouts: { label: 'Season tryouts', group: 'bookings', masters: [4937480] },
+  breeze_tryout: { label: 'Breeze women’s tryout', group: 'bookings', programs: [5123249] },
+  volleykids: { label: 'VolleyKids', group: 'bookings', masters: [5121892] },
+  thanksgiving_hs_boys: { label: 'Thanksgiving: high-school boys', group: 'bookings', programs: [5171727] },
+  thanksgiving_ms_boys: { label: 'Thanksgiving: middle-school boys', group: 'bookings', programs: [5171697] },
+  thanksgiving_hs_girls: { label: 'Thanksgiving: high-school girls', group: 'bookings', programs: [5171728] },
+  boys_hs_team: { label: 'Boys high-school team acceptance', group: 'setup', programs: [5156173] },
+  boys_ms_team: { label: 'Boys middle-school team acceptance', group: 'setup', programs: [5156174] },
+  team_setup: { label: 'Other season team setup', group: 'setup', masters: [5156167] },
+  season_invoices: { label: 'Season invoices, including strength training', group: 'setup', masters: [5184029] },
+  season_acceptance: { label: 'Season acceptance', group: 'commitments', masters: [4937433] },
+  breeze_commitment: { label: 'Breeze commitment fee', group: 'commitments', programs: [5123247] },
+  other_clinics: { label: 'Other classes and clinics', group: 'bookings', types: ['CLASS'] },
+  other_camps: { label: 'Other camps', group: 'bookings', types: ['CAMP'] },
+  unclassified: { label: 'Programs needing classification', group: 'unclassified' },
+})
+export function registrationFamily(row) {
+  for (const field of ['programs', 'masters', 'types']) {
+    const value = field === 'programs' ? row.programId : field === 'masters' ? row.masterProgramId : row.programType
+    const found = Object.entries(REGISTRATION_FAMILIES).find(([, family]) => family[field]?.includes(value))
+    if (found) return found[0]
+  }
+  return 'unclassified'
+}
+// LeagueApps program dates are calendar labels encoded at midnight Eastern.
+// Converting those labels to Central incorrectly moves them to the previous day.
+const programDay = value => Number.isSafeInteger(value) && value > 0 ? new Date(value).toISOString().slice(0, 10) : null
+const emptyRegistrationCounts = () => Object.fromEntries(registrationBuckets.map(key => [key, 0]))
+const cohort = () => ({ ...emptyRegistrationCounts(), people: new Set(), missingIdentity: 0, endedBeforeCurrent: 0, future: 0, datesMissing: 0, openedInPeriod: 0 })
+const finishCohort = ({ people, ...values }) => ({ ...values, athletes: values.missingIdentity ? null : people.size })
 export function createRegistrationRollup(window = reportingWindow()) {
   const rows = new Map()
   const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: WEBSITE_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -176,13 +213,33 @@ export function createRegistrationRollup(window = reportingWindow()) {
           : ({ SPOT_RESERVED: 'reserved', SPOT_PENDING: 'pending', WAITING_LIST: 'waitlist' })[row.registrationStatus] || 'other'
       }
       // Store only the minimum needed to reconcile duplicate IDs and newer statuses.
-      rows.set(row.registrationId, { updated: row.lastUpdated, period, bucket })
+      rows.set(row.registrationId, { updated: row.lastUpdated, period, bucket,
+        family: registrationFamily(row),
+        athlete: Number.isSafeInteger(row.userId) && row.userId > 0 ? row.userId : null,
+        start: programDay(row.programStartDate), end: programDay(row.programEndDate), open: programDay(row.registrationStartDate),
+      })
     },
     finish(asOf = new Date().toISOString()) {
       if (!Number.isFinite(Date.parse(asOf))) throw new Error('Invalid LeagueApps observation time')
-      const totals = () => Object.fromEntries(registrationBuckets.map(key => [key, 0]))
-      const result = { version: REGISTRATION_VERSION, status: 'verified', window, asOf, current: totals(), previous: totals() }
-      for (const row of rows.values()) if (row.period && row.bucket) result[row.period][row.bucket]++
+      const result = { version: REGISTRATION_VERSION, status: 'verified', window, asOf, current: emptyRegistrationCounts(), previous: emptyRegistrationCounts() }
+      const groups = Object.fromEntries(Object.keys(REGISTRATION_GROUPS).map(key => [key, { current: cohort(), previous: cohort() }]))
+      const families = Object.fromEntries(Object.keys(REGISTRATION_FAMILIES).map(key => [key, { current: cohort(), previous: cohort() }]))
+      for (const row of rows.values()) if (row.period && row.bucket) {
+        result[row.period][row.bucket]++
+        const group = REGISTRATION_FAMILIES[row.family].group
+        for (const target of [groups[group][row.period], families[row.family][row.period]]) {
+          target[row.bucket]++
+          if (row.bucket !== 'reserved') continue
+          if (row.athlete) target.people.add(row.athlete)
+          else target.missingIdentity++
+          if (row.end && row.end < window.start) target.endedBeforeCurrent++
+          if (row.start && row.start > window.end) target.future++
+          if (!row.start || !row.end) target.datesMissing++
+          const period = row.period === 'current' ? window : window.previous
+          if (row.open && row.open >= period.start && row.open <= period.end) target.openedInPeriod++
+        }
+      }
+      for (const [key, values] of Object.entries({ groups, families })) result[key] = Object.fromEntries(Object.entries(values).map(([id, periods]) => [id, Object.fromEntries(Object.entries(periods).map(([period, values]) => [period, finishCohort(values)]))]))
       return result
     },
   }
@@ -207,66 +264,154 @@ export async function walkLeagueAppsExport(fetchPage, onRow, { maxPages = 35 } =
   throw new Error('LeagueApps export exceeded its page limit; totals are incomplete')
 }
 
+export const REGISTRATION_COUNT_HELP = 'Counts reserved participant registrations created in the stated dates. Staff, team-only, deleted, voided and refunded entries are excluded. Statuses are current at refresh. One athlete can book several sessions.'
+export const REGISTRATION_ATHLETE_HELP = 'Distinct LeagueApps athlete accounts with reserved spots, counted once within each group or program and period. The same athlete can appear in several rows or both weeks. These are not necessarily new athletes. Missing athlete IDs make the athlete count unavailable.'
+export const REGISTRATION_SPLIT_HELP = 'Team invitations and season-invoice records are setup. Season acceptances and commitment fees are shown separately. Program IDs distinguish these from tryouts; classes and camps use their program type. Unknown club-team programs need classification. Setup does not prove an import, and bookings do not establish website or Instagram attribution.'
+
+function validRegistrationSnapshot(snapshot) {
+  if (snapshot?.status !== 'verified' || snapshot.version !== REGISTRATION_VERSION || !snapshot.groups || !snapshot.families) return false
+  const validCohort = c => c && registrationBuckets.every(k => count(c[k])) && ['missingIdentity', 'endedBeforeCurrent', 'future', 'datesMissing', 'openedInPeriod'].every(k => count(c[k]) && c[k] <= c.reserved)
+    && (c.missingIdentity ? c.athletes === null : count(c.athletes) && c.athletes <= c.reserved)
+  return ['current', 'previous'].every(period => registrationBuckets.every(key => count(snapshot[period]?.[key])
+    && Object.keys(REGISTRATION_GROUPS).reduce((sum, group) => sum + (snapshot.groups[group]?.[period]?.[key] ?? NaN), 0) === snapshot[period][key])
+    && Object.keys(REGISTRATION_GROUPS).every(group => validCohort(snapshot.groups[group]?.[period])
+      && registrationBuckets.every(key => Object.entries(REGISTRATION_FAMILIES).filter(([, family]) => family.group === group).reduce((sum, [id]) => sum + (snapshot.families[id]?.[period]?.[key] ?? NaN), 0) === snapshot.groups[group][period][key]))
+    && Object.keys(REGISTRATION_FAMILIES).every(id => validCohort(snapshot.families[id]?.[period])))
+}
+const athleteText = value => value === null ? 'athlete count unavailable' : `${value} distinct athlete${value === 1 ? '' : 's'}`
+const cohortText = (c, noun = 'bookings') => `${c.reserved} ${c.reserved === 1 ? noun.replace(/s$/, '') : noun}; ${athleteText(c.athletes)}`
+function programContext(current, previous) {
+  const parts = []
+  if (previous.endedBeforeCurrent) parts.push(`${previous.endedBeforeCurrent} earlier booking${previous.endedBeforeCurrent === 1 ? ' was' : 's were'} for sessions that ended before this week.`)
+  if (!current.datesMissing && !previous.datesMissing && (current.future || previous.future)) parts.push(`For dates still ahead: ${current.future} booking${current.future === 1 ? '' : 's'}, previously ${previous.future}.`)
+  if (current.openedInPeriod || previous.openedInPeriod) parts.push('A recorded program opening overlaps this comparison; check launch timing.')
+  if (current.datesMissing || previous.datesMissing) parts.push('Some session dates are missing; check the program calendar.')
+  if (current.pending) parts.push(`${current.pending} pending; review in LeagueApps.`)
+  if (current.athletes === null || previous.athletes === null) parts.push('Some athlete IDs are missing; do not read this as zero athletes.')
+  if (!parts.length) parts.push('Compare remaining places and program timing before changing outreach.')
+  return parts.join(' ')
+}
+export function registrationProgramRows(snapshot) {
+  if (!validRegistrationSnapshot(snapshot)) return []
+  return Object.entries(REGISTRATION_FAMILIES).filter(([, family]) => family.group === 'bookings').flatMap(([id, family]) => {
+    const { current, previous } = snapshot.families[id]
+    if (![current, previous].some(c => c.reserved || c.pending || c.waitlist || c.excluded || c.other)) return []
+    return [{ program: family.label, current: cohortText(current), previous: cohortText(previous), context: programContext(current, previous) }]
+  })
+}
 export function registrationAnswer(snapshot) {
-  const valid = snapshot?.status === 'verified' && snapshot.version === REGISTRATION_VERSION
-    && ['current', 'previous'].every(period => registrationBuckets.every(key => count(snapshot[period]?.[key])))
-  if (!valid) return { state: 'unavailable', heading: 'Registration totals are unavailable.', detail: 'A complete LeagueApps refresh is needed. Missing data does not mean zero registrations.', action: 'Check the LeagueApps refresh, then reload this report.' }
-  const { current: c, previous: p } = snapshot
+  if (!validRegistrationSnapshot(snapshot)) return { state: 'unavailable', heading: 'Registration totals are unavailable.', detail: 'A complete LeagueApps refresh is needed. Missing data does not mean zero registrations.', action: 'Check the LeagueApps refresh, then reload this report.' }
+  const { current: c, previous: p, groups, families } = snapshot
+  const compare = (key, noun) => `${cohortText(groups[key].current, noun)}. Previous period: ${cohortText(groups[key].previous, noun)}.`
+  const candidates = Object.entries(REGISTRATION_FAMILIES).filter(([id, family]) => {
+    const { current, previous } = families[id]
+    return family.group === 'bookings' && current.athletes !== null && previous.athletes > 0 && current.athletes < previous.athletes && (current.future || previous.future || current.datesMissing || previous.datesMissing)
+  }).sort(([a], [b]) => (families[b].previous.athletes - families[b].current.athletes) - (families[a].previous.athletes - families[a].current.athletes) || families[a].current.athletes / families[a].previous.athletes - families[b].current.athletes / families[b].previous.athletes)
+  const priority = candidates[0]
+  const actions = []
+  if (groups.unclassified.current.reserved || groups.unclassified.previous.reserved || groups.unclassified.current.pending) actions.push('Classify the unassigned programs with the report owner before comparing demand.')
+  if (priority) {
+    const [id, family] = priority, { current, previous } = families[id]
+    actions.push(`Review ${family.label}: ${current.athletes} athletes booked, previously ${previous.athletes}. Check remaining places and session timing before changing outreach.`)
+  } else actions.push('Review remaining places by program; this comparison alone does not establish a demand problem.')
+  if (groups.bookings.current.pending) actions.push(`Review ${groups.bookings.current.pending} pending program booking${groups.bookings.current.pending === 1 ? '' : 's'} in LeagueApps.`)
   return {
-    state: 'recorded',
-    heading: `${c.reserved} registrations have reserved spots; the previous seven days had ${p.reserved}.`,
-    detail: `${c.pending} pending; ${c.waitlist} waitlisted. ${c.excluded} voided or refunded and ${c.other} with other statuses are excluded from reserved spots.`,
-    action: REGISTRATION_HELP.action,
+    state: 'recorded', heading: compare('bookings', 'bookings'), detail: compare('setup', 'setup records'),
+    commitments: compare('commitments', 'commitment records'), classification: compare('unclassified', 'unclassified records'),
+    totals: `${c.reserved} total reserved records; previous period: ${p.reserved}. Team and roster setup: ${groups.setup.current.reserved}, previously ${groups.setup.previous.reserved}. Read program bookings separately from setup.`,
+    waiting: `${groups.bookings.current.pending} program booking${groups.bookings.current.pending === 1 ? '' : 's'} pending; ${groups.bookings.current.waitlist} waitlisted. Across all groups: ${c.pending} pending, ${c.waitlist} waitlisted, ${c.excluded} voided or refunded, ${c.other} other statuses. Pending and excluded records are outside the booking and athlete totals.`,
+    action: actions.join(' '),
   }
 }
 
 /** An explicit allowlist; even an accidentally enriched snapshot cannot publish PII. */
 export function registrationSnapshotProperties(snapshot, trigger) {
-  const answer = registrationAnswer(snapshot)
+  const answer = registrationAnswer(snapshot), verified = answer.state === 'recorded'
   return {
     $process_person_profile: false, $geoip_disable: true, $ip: null,
     registration_version: REGISTRATION_VERSION, source: 'leagueapps', club: '630volleyball',
-    status: answer.state === 'recorded' ? 'verified' : 'unavailable',
+    status: verified ? 'verified' : 'unavailable',
     period_start: snapshot.window.start, period_end: snapshot.window.end,
     as_of: snapshot.asOf, trigger: trigger === 'cron' ? 'cron' : 'manual',
     ...Object.fromEntries(['current', 'previous'].flatMap(period => registrationBuckets.map(key => [
-      `${period}_${key}`, answer.state === 'recorded' ? snapshot[period][key] : null,
+      `${period}_${key}`, verified ? snapshot[period][key] : null,
     ]))),
+    ...Object.fromEntries(Object.keys(REGISTRATION_GROUPS).flatMap(group => ['current', 'previous'].flatMap(period => ['reserved', 'athletes', 'missingIdentity'].map(key => [
+      `${period}_${group}_${key}`, verified ? snapshot.groups[group][period][key] : null,
+    ])))),
     answer: answer.heading, context: answer.detail, next_step: answer.action,
+    commitments: answer.commitments || '', classification: answer.classification || '', totals: answer.totals || '', waiting: answer.waiting || '',
+    program_breakdown_json: JSON.stringify(registrationProgramRows(snapshot)),
+    // Numeric source for independent report verification. Explicit keys prevent
+    // accidentally enriched source objects from carrying identities into analytics.
+    registration_counts_json: verified ? JSON.stringify(Object.fromEntries(['groups', 'families'].map(kind => [kind,
+      Object.fromEntries(Object.keys(kind === 'groups' ? REGISTRATION_GROUPS : REGISTRATION_FAMILIES).map(id => [id,
+        Object.fromEntries(['current', 'previous'].map(period => [period, Object.fromEntries([...registrationBuckets, 'athletes', 'missingIdentity', 'endedBeforeCurrent', 'future', 'datesMissing', 'openedInPeriod'].map(key => [key, snapshot[kind][id][period][key]]))]))
+      ]))
+    ]))) : null,
   }
 }
-
-// The published wording comes from registrationAnswer(), also used by the scorecard.
-// One aggregate row means a failed/missing refresh still renders an explicit answer.
-export function registrationInsightQuery() {
-  const q = value => `'${value.replaceAll("'", "''")}'`
-  const midnight = `toStartOfDay(now(), '${WEBSITE_TIMEZONE}')`
-  const unavailable = registrationAnswer(null)
-  return `SELECT row.1 AS Question, row.2 AS Answer
-FROM (
-  SELECT count() AS snapshots,
-    argMax(properties.status, timestamp) AS status,
-    argMax(properties.period_start, timestamp) AS period_start,
-    argMax(properties.period_end, timestamp) AS period_end,
-    argMax(properties.answer, timestamp) AS answer,
-    argMax(properties.context, timestamp) AS context,
-    argMax(properties.next_step, timestamp) AS next_step,
+export function registrationVerificationQuery() {
+  return `SELECT properties.status AS status, properties.period_start AS period_start, properties.period_end AS period_end,
+    properties.registration_counts_json AS counts,
+    formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS observed_at
+    FROM events WHERE event = '${REGISTRATION_EVENT}' AND properties.registration_version = '${REGISTRATION_VERSION}'
+    AND properties.club = '630volleyball' AND timestamp >= now() - INTERVAL 7 DAY ORDER BY timestamp DESC LIMIT 1`
+}
+export function registrationExpectedTables(source = null, now = new Date()) {
+  const window = reportingWindow({ now }), unavailable = registrationAnswer(null)
+  const fresh = source?.status === 'verified' && source.period_start === window.start && source.period_end === window.end
+    && Date.parse(source.observed_at) >= new Date(now).getTime() - 36 * 3600000
+  let snapshot = null
+  if (fresh) {
+    const counts = JSON.parse(source.counts)
+    snapshot = { version: REGISTRATION_VERSION, status: 'verified', window, ...counts }
+    for (const period of ['current', 'previous']) snapshot[period] = Object.fromEntries(registrationBuckets.map(key => [key, Object.keys(REGISTRATION_GROUPS).reduce((sum, group) => sum + (counts.groups?.[group]?.[period]?.[key] ?? NaN), 0)]))
+    if (!validRegistrationSnapshot(snapshot)) throw new Error('Registration numeric source is invalid')
+  }
+  const a = snapshot ? registrationAnswer(snapshot) : unavailable
+  const values = [
+    `${window.start} through ${window.end} (Central). Previous: ${window.previous.start} through ${window.previous.end}. Dashboard filters do not change these dates.`,
+    a.heading, a.detail, a.commitments || unavailable.detail, a.classification || unavailable.detail, a.totals || unavailable.detail, a.action, a.waiting || unavailable.detail,
+    REGISTRATION_ATHLETE_HELP, REGISTRATION_COUNT_HELP, REGISTRATION_SPLIT_HELP,
+    source ? `${source.observed_at.replace('T', ' ').replace('Z', '')} (UTC). Refreshes daily at 11:15 UTC. ${snapshot ? 'Complete export recorded.' : 'Unavailable or out of date; do not treat these totals as zero.'}` : 'No refresh recorded yet.',
+  ]
+  const programs = snapshot ? registrationProgramRows(snapshot).map(row => [row.program, row.current, row.previous, row.context]) : [['Program bookings unavailable', 'Unavailable', 'Unavailable', 'Check the LeagueApps refresh; missing data does not mean zero.']]
+  if (!programs.length) programs.push(['No program bookings in either period', '0 bookings; 0 athletes', '0 bookings; 0 athletes', 'Complete export recorded. Team setup and season commitments appear in the summary.'])
+  return { summary: REGISTRATION_QUESTIONS.map((q, i) => [q, values[i]]), programs }
+}
+const sqlQuote = value => `'${value.replaceAll("'", "''")}'`
+const registrationMidnight = `toStartOfDay(now(), '${WEBSITE_TIMEZONE}')`
+function latestRegistrationQuery() {
+  return `SELECT count() AS snapshots,
+    ${['status', 'period_start', 'period_end', 'answer', 'context', 'next_step', 'commitments', 'classification', 'totals', 'waiting', 'program_breakdown_json'].map(key => `argMax(properties.${key}, timestamp) AS ${key}`).join(',\n    ')},
     formatDateTime(max(timestamp), '%Y-%m-%d %H:%i:%S', 'UTC') AS as_of,
     snapshots > 0 AND status = 'verified'
-      AND period_start = toString(toDate(${midnight} - INTERVAL 7 DAY))
-      AND period_end = toString(toDate(${midnight} - INTERVAL 1 DAY))
+      AND period_start = toString(toDate(${registrationMidnight} - INTERVAL 7 DAY))
+      AND period_end = toString(toDate(${registrationMidnight} - INTERVAL 1 DAY))
       AND max(timestamp) >= now() - INTERVAL 36 HOUR AS usable
   FROM events
   WHERE event = '${REGISTRATION_EVENT}' AND properties.registration_version = '${REGISTRATION_VERSION}'
-    AND properties.club = '630volleyball' AND timestamp >= now() - INTERVAL 7 DAY
-)
-ARRAY JOIN [
-  tuple('Which dates?', concat(toString(toDate(${midnight} - INTERVAL 7 DAY)), ' through ', toString(toDate(${midnight} - INTERVAL 1 DAY)), ' (Central time). Based on creation date; statuses are current at refresh. Dashboard filters do not change this table.')),
-  tuple('How many registrations have reserved spots?', if(usable, toString(answer), ${q(unavailable.heading)})),
-  tuple('How many are waiting?', if(usable, toString(context), ${q(unavailable.detail)})),
-  tuple('What should we do?', if(usable, toString(next_step), ${q(unavailable.action)})),
-  tuple('What counts?', ${q(REGISTRATION_HELP.definition)}),
-  tuple('What can this tell us?', ${q(REGISTRATION_HELP.limit)}),
-  tuple('When did this refresh?', if(snapshots > 0, concat(toString(as_of), ' (UTC). Refreshes daily at 11:15 UTC. ', if(usable, 'Complete export recorded.', 'Unavailable or out of date; do not treat these totals as zero.')), 'No refresh recorded yet.'))
-] AS row`
+    AND properties.club = '630volleyball' AND timestamp >= now() - INTERVAL 7 DAY`
+}
+export const REGISTRATION_QUESTIONS = Object.freeze(['Which dates?', 'Clinics, camps & tryouts', 'Team & roster setup', 'Season acceptances & commitments', 'Needs classification', 'Why did the total change?', 'What needs action?', 'Anything waiting?', 'How are athletes counted?', 'What counts?', 'How is the split decided?', 'When did this refresh?'])
+export function registrationInsightQuery() {
+  const unavailable = registrationAnswer(null)
+  const values = [
+    `concat(toString(toDate(${registrationMidnight} - INTERVAL 7 DAY)), ' through ', toString(toDate(${registrationMidnight} - INTERVAL 1 DAY)), ' (Central). Previous: ', toString(toDate(${registrationMidnight} - INTERVAL 14 DAY)), ' through ', toString(toDate(${registrationMidnight} - INTERVAL 8 DAY)), '. Dashboard filters do not change these dates.')`,
+    `if(usable, toString(answer), ${sqlQuote(unavailable.heading)})`,
+    ...['context', 'commitments', 'classification', 'totals'].map(key => `if(usable, toString(${key}), ${sqlQuote(unavailable.detail)})`),
+    `if(usable, toString(next_step), ${sqlQuote(unavailable.action)})`,
+    `if(usable, toString(waiting), ${sqlQuote(unavailable.detail)})`,
+    sqlQuote(REGISTRATION_ATHLETE_HELP), sqlQuote(REGISTRATION_COUNT_HELP), sqlQuote(REGISTRATION_SPLIT_HELP),
+    `if(snapshots > 0, concat(toString(as_of), ' (UTC). Refreshes daily at 11:15 UTC. ', if(usable, 'Complete export recorded.', 'Unavailable or out of date; do not treat these totals as zero.')), 'No refresh recorded yet.')`,
+  ]
+  return `SELECT row.1 AS Question, row.2 AS Answer FROM (\n${latestRegistrationQuery()}\n) ARRAY JOIN [\n${REGISTRATION_QUESTIONS.map((question, i) => `tuple(${sqlQuote(question)}, ${values[i]})`).join(',\n')}\n] AS row`
+}
+export function registrationProgramsQuery() {
+  const unavailable = JSON.stringify([{ program: 'Program bookings unavailable', current: 'Unavailable', previous: 'Unavailable', context: 'Check the LeagueApps refresh; missing data does not mean zero.' }])
+  const empty = JSON.stringify([{ program: 'No program bookings in either period', current: '0 bookings; 0 athletes', previous: '0 bookings; 0 athletes', context: 'Complete export recorded. Team setup and season commitments appear in the summary.' }])
+  return `SELECT JSONExtractString(item, 'program') AS Program, JSONExtractString(item, 'current') AS Current, JSONExtractString(item, 'previous') AS Previous, JSONExtractString(item, 'context') AS Context
+FROM (\n${latestRegistrationQuery()}\n)
+ARRAY JOIN JSONExtractArrayRaw(coalesce(if(usable, if(toString(program_breakdown_json) = '[]', ${sqlQuote(empty)}, toString(program_breakdown_json)), ${sqlQuote(unavailable)}), ${sqlQuote(unavailable)})) AS item`
 }
