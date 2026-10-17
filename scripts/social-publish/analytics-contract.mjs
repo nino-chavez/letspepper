@@ -390,7 +390,7 @@ export function pendingPaymentAction(value) {
   const operations = safeSessionOperations(value)
   if (!operations) return 'Pending-payment details are unavailable. Open LeagueApps to review pending bookings.'
   if (!operations.payments.length) return 'No pending bookings found for programs whose end date is still ahead.'
-  return operations.payments.map(r => `${REGISTRATION_FAMILIES[r.family].label}${r.pass ? ' (all-session pass)' : ''}${r.date ? ` — ${shortDay(r.date)}${r.time ? `, ${r.time} Central` : ''}` : r.pass ? ' — confirm remaining clinic dates' : ' — session date needs confirmation'}: ${r.count} pending; ${r.missingBalance ? 'balance partly unavailable' : `${dollars(r.balance)} outstanding`}. Oldest booking: ${r.oldest}. ${r.unpaid ? 'Privately confirm the intended session and help complete payment; unpaid does not prove a failed card.' : 'Check the pending status in LeagueApps before confirming a place.'}`).join(' ')
+  return 'Current pending bookings for active or upcoming programs, including older bookings: ' + operations.payments.map(r => `${REGISTRATION_FAMILIES[r.family].label}${r.pass ? ' (all-session pass)' : ''}${r.date ? ` — ${shortDay(r.date)}${r.time ? `, ${r.time} Central` : ''}` : r.pass ? ' — confirm remaining clinic dates' : ' — session date needs confirmation'}: ${r.count} pending; ${r.missingBalance ? 'balance partly unavailable' : `${dollars(r.balance)} outstanding`}. Oldest booking: ${r.oldest}. ${r.unpaid ? 'Privately confirm the intended session and help complete payment; unpaid does not prove a failed card.' : 'Check the pending status in LeagueApps before confirming a place.'}`).join(' ')
 }
 export function sessionRows(value) {
   const operations = safeSessionOperations(value)
@@ -461,7 +461,7 @@ export function registrationAnswer(snapshot) {
     state: 'recorded', heading: compare('bookings', 'bookings'), detail: compare('setup', 'setup records'),
     commitments: compare('commitments', 'commitment records'), classification: compare('unclassified', 'unclassified records'),
     totals: `${c.reserved} total reserved records; previous period: ${p.reserved}. Team and roster setup: ${groups.setup.current.reserved}, previously ${groups.setup.previous.reserved}. Read program bookings separately from setup.`,
-    waiting: `${groups.bookings.current.pending} program booking${groups.bookings.current.pending === 1 ? '' : 's'} pending; ${groups.bookings.current.waitlist} waitlisted. Across all groups: ${c.pending} pending, ${c.waitlist} waitlisted, ${c.excluded} voided or refunded, ${c.other} other statuses. Pending and excluded records are outside the booking and athlete totals.`,
+    waiting: `Created in the reporting week: ${groups.bookings.current.pending} program booking${groups.bookings.current.pending === 1 ? '' : 's'} pending; ${groups.bookings.current.waitlist} waitlisted. Across all groups: ${c.pending} pending, ${c.waitlist} waitlisted, ${c.excluded} voided or refunded, ${c.other} other statuses. Pending and excluded records are outside the booking and athlete totals.`,
     action: actions.join(' '),
     payments: pendingPaymentAction(operations),
   }
