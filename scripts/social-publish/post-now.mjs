@@ -17,6 +17,8 @@
  * Story or a video, where Meta has no alt text field, rather than silently dropped.
  *
  * --prepare-only uploads and waits for Meta to finish an unpublished container.
+ * --audio-id <numeric-id> attaches selected Instagram catalog music to a Reel;
+ * --audio-volume / --video-volume are optional integers 1–100. See SETUP.md.
  * It saves the queue item ID. Publish or retry that item with post-reels.mjs --id;
  * re-running post-now creates another item and can duplicate the post.
  *
@@ -44,6 +46,7 @@ import { fileURLToPath } from 'node:url'
 import { assertRouteBeforeBuild } from './route-gate.mjs'
 import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { updateQueueFile } from './queue-store.mjs'
+import { audioFromArgs } from './reel-audio.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'adhoc'
@@ -91,6 +94,9 @@ if (altText && media_type !== 'IMAGE') {
   process.exit(1)
 }
 if (story && caption) console.warn('Note: the caption will not appear on a Story; render its text into the media.')
+let audio
+try { audio = audioFromArgs(args, media_type) }
+catch (error) { console.error(error.message); process.exit(1) }
 
 const queuePath = join(queueDir(), `${EVENT}.json`)
 const q = existsSync(queuePath)
@@ -109,6 +115,7 @@ const item = {
   ...(coverFile ? { cover_file: coverFile, cover_url: null } : {}),
   caption: story ? '' : caption,
   ...(altText ? { alt_text: altText } : {}),
+  ...(audio ? { audio_configuration: audio } : {}),
   video_url: null,
   image_url: null,
   user_tags: list(args.tag),

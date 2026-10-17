@@ -60,6 +60,7 @@ import { createHash } from 'node:crypto'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { filled, standingEntry, entryCovers, coversMediaType } from './route-shape.mjs'
+import { audioConfiguration } from './reel-audio.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 // Fixed path, no env override: an override would be a way to point the
@@ -134,7 +135,10 @@ export function digestOf(item, account, event = '') {
     ? [item?.facebook_caption || null, item?.facebook_alt_text || null]
     : null
   const cover = type === 'REELS' && item?.cover_url ? [item.cover_url] : []
-  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, ...cover, ...(facebook ? [facebook] : [])]
+  const audio = audioConfiguration(item)
+  // Do not invalidate legacy receipts or prepared containers without audio.
+  // A selected track or changed mix DOES invalidate approval/container reuse.
+  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, ...cover, ...(facebook ? [facebook] : []), ...(audio ? [audio] : [])]
   return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
 }
 

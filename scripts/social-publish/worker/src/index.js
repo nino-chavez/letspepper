@@ -89,6 +89,7 @@ import { REGISTRATIONS_CRON, runRegistrations, registrationsStatus } from './reg
 import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route-shape.mjs'
 import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
 import { collabBlock, decideCollab } from '../../collab-shape.mjs'
+import { audioParams } from '../../reel-audio.mjs'
 import { collaboratorParams, userTagsParams, tagParams } from '../../tag-params.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
@@ -231,6 +232,7 @@ async function pollStatus(token, containerId, maxMs = 75000, budget) {
 // per created child, so a deferred or interrupted build picks up at childIds.length on its
 // next attempt instead of re-creating children the account already holds.
 async function buildContainer(token, ig, it, budget, persist) {
+  const audio = audioParams(it)
   if (it.media_type === 'CAROUSEL') {
     if (!Array.isArray(it.ig_child_container_ids)) it.ig_child_container_ids = []
     const childIds = it.ig_child_container_ids
@@ -315,7 +317,7 @@ async function buildContainer(token, ig, it, budget, persist) {
     : { thumb_offset: String(it.thumb_offset ?? (500 + Math.floor(Math.random() * 5500))) }
   const { id } = await api(token, `${ig}/media`, {
     media_type: 'REELS', video_url: it.video_url, caption: it.caption,
-    share_to_feed: 'true', ...cover, ...tagParams(it),
+    share_to_feed: 'true', ...cover, ...tagParams(it), ...audio,
   })
   return id
 }
@@ -428,11 +430,16 @@ async function publishInstagramItem(env, ev, q, item, budget) {
   const tokenBinding = acct.ig_token_binding || 'IG_ACCESS_TOKEN'
   const token = env[tokenBinding]
   try {
+    const audio = audioParams(item)
+    if (item.ig_container_id && JSON.stringify(item.ig_container_audio_configuration ?? null) !== JSON.stringify(audio.audio_configuration ?? null)) {
+      throw new Error('Saved container uses different Instagram audio; reconcile the saved container before changing the track or mix')
+    }
     if (!token) throw new Error(`missing ${tokenBinding} for ${item.account}`)
     let containerId = item.ig_container_id
     if (!containerId) {
       containerId = await buildContainer(token, acct.ig_user_id, item, budget, () => persistQueue(env, ev, q))
       item.ig_container_id = containerId; item.status = 'building'
+      if (audio.audio_configuration) item.ig_container_audio_configuration = audio.audio_configuration
       await persistQueue(env, ev, q) // persist before the slow poll/publish
     }
     if (item.media_type !== 'IMAGE') {
@@ -651,6 +658,7 @@ async function publishFacebookItem(env, ev, q, item, budget) {
   }
 
   try {
+    audioParams(item) // Instagram catalog music has no Facebook attachment here
     const token = await pageAccessToken(env, acct)
     let postId
 
