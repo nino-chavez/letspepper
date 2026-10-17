@@ -1,5 +1,5 @@
 /** Read LeagueApps privately; publish only the canonical aggregate allowlist. */
-import { createRegistrationRollup, createSessionOperations, walkLeagueAppsExport, reportingWindow, registrationSnapshotProperties, REGISTRATION_EVENT, REGISTRATION_VERSION } from '../../analytics-contract.mjs'
+import { createRegistrationRollup, createSessionOperations, readLeagueAppsPrograms, walkLeagueAppsExport, reportingWindow, registrationSnapshotProperties, REGISTRATION_EVENT, REGISTRATION_VERSION } from '../../analytics-contract.mjs'
 
 export const REGISTRATIONS_CRON = '15 11 * * *'
 export const REGISTRATIONS_STATUS_KEY = 'analytics:630:registrations:status'
@@ -50,11 +50,11 @@ export async function runRegistrations(env, { trigger = 'manual', now = new Date
     let programs = null
     if (env.LEAGUEAPPS_PUBLIC_API_KEY) {
       try {
-        const response = await request('https://public.leagueapps.io/v1/sites/54390/programs?includeState=LIVE,UPCOMING,COMPLETED&includePrivate=true', { headers: { 'la-api-key': env.LEAGUEAPPS_PUBLIC_API_KEY } })
-        if (response.ok) {
-          const result = await response.json()
-          if (Array.isArray(result) && result.every(p => Number.isSafeInteger(p.programId))) programs = result
-        }
+        programs = await readLeagueAppsPrograms(async (page, size) => {
+          const response = await request(`https://public.leagueapps.io/v1/sites/54390/programs?includeState=LIVE,UPCOMING,COMPLETED&includePrivate=true&pageSize=${size}&pageNum=${page}`, { headers: { 'la-api-key': env.LEAGUEAPPS_PUBLIC_API_KEY } })
+          if (!response.ok) throw new Error('LeagueApps program read failed')
+          return response.json()
+        })
       } catch { /* Private totals remain usable; session metadata is unavailable. */ }
     }
     const operations = createSessionOperations({ programs })

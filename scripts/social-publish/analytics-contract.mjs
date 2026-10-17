@@ -264,6 +264,21 @@ export async function walkLeagueAppsExport(fetchPage, onRow, { maxPages = 35 } =
   throw new Error('LeagueApps export exceeded its page limit; totals are incomplete')
 }
 
+/** Read every public program page, including completed programs. Fail closed on drift. */
+export async function readLeagueAppsPrograms(fetchPage, { maxPages = 5 } = {}) {
+  const programs = [], seen = new Set()
+  for (let page = 1; page <= maxPages; page++) {
+    const rows = await fetchPage(page, 1000)
+    if (!Array.isArray(rows) || !rows.every(p => Number.isSafeInteger(p.programId))) throw new Error('LeagueApps program page is invalid')
+    if (!rows.length) return programs
+    for (const program of rows) {
+      if (seen.has(program.programId)) throw new Error('LeagueApps program pages overlap; metadata is incomplete')
+      seen.add(program.programId); programs.push(program)
+    }
+  }
+  throw new Error('LeagueApps programs exceeded the page limit; metadata is incomplete')
+}
+
 export const REGISTRATION_COUNT_HELP = 'Counts reserved participant registrations created in the stated dates. Staff, team-only, deleted, voided and refunded entries are excluded. Statuses are current at refresh. One athlete can book several sessions.'
 export const REGISTRATION_ATHLETE_HELP = 'Distinct LeagueApps athlete accounts with reserved spots, counted once within each group or program and period. The same athlete can appear in several rows or both weeks. These are not necessarily new athletes. Missing athlete IDs make the athlete count unavailable.'
 export const REGISTRATION_SPLIT_HELP = 'Team invitations and season-invoice records are setup. Season acceptances and commitment fees are shown separately. Program IDs distinguish these from tryouts; classes and camps use their program type. Unknown club-team programs need classification. Setup does not prove an import, and bookings do not establish website or Instagram attribution.'

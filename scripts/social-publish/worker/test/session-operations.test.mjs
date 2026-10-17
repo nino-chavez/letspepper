@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createSessionOperations, safeSessionOperations, sessionDayTimeRows, registrationDayTimeQuery, sessionRows, pendingPaymentAction, createRegistrationRollup, registrationSnapshotProperties, registrationExpectedTables, reportingWindow } from '../../analytics-contract.mjs'
+import { createSessionOperations, safeSessionOperations, readLeagueAppsPrograms, sessionDayTimeRows, registrationDayTimeQuery, sessionRows, pendingPaymentAction, createRegistrationRollup, registrationSnapshotProperties, registrationExpectedTables, reportingWindow } from '../../analytics-contract.mjs'
 // Synthetic registrations only. These IDs, people and balances are invented.
 const ts=day=>Date.parse(day+'T04:00:00Z')
 const program=(id,date,extra={})=>({programId:id,masterProgramId:5121283,isMaster:false,deleted:false,startTime:ts(date),endTime:ts(date),scheduleTimes:'5:00PM to 7:00PM',...extra})
@@ -116,4 +116,13 @@ test('day/time display is regenerated from numeric aggregates and queried with m
  assert.match(registrationDayTimeQuery(),/session_day_time_json/)
  assert.match(registrationDayTimeQuery(),/Unavailable — no verified check-ins/)
  assert.match(registrationExpectedTables(null,now).dayTime[0][2],/Unavailable/)
+})
+
+test('program pagination reaches an empty page and refuses repeated or incomplete results',async()=>{
+ const calls=[]
+ const all=await readLeagueAppsPrograms(async(page,size)=>{calls.push([page,size]);return page===1?[program(1,'2026-09-14')]:page===2?[program(2,'2026-09-18')]:[]})
+ assert.equal(all.length,2);assert.deepEqual(calls,[[1,1000],[2,1000],[3,1000]])
+ await assert.rejects(readLeagueAppsPrograms(async()=>[program(1,'2026-09-14')]),/overlap/)
+ await assert.rejects(readLeagueAppsPrograms(async page=>[program(page,'2026-09-14')],{maxPages:2}),/page limit/)
+ await assert.rejects(readLeagueAppsPrograms(async()=>({programs:[]})),/invalid/)
 })
