@@ -275,12 +275,13 @@ export const SESSION_COHORT = Object.freeze({ master: 5121283, passes: [5121284]
 // pass holders. Each entry needs { limit, countPending, checkedOn, validThrough }.
 // This is not inferred from a waitlist flag or from the number of registrations.
 export const SESSION_CAPACITIES = Object.freeze({})
+const ALL_SESSION_PASSES = [5121284, 5121754]
 export const SESSION_HELP = 'Booked athletes are distinct reserved athlete accounts for that date, including eligible all-session pass holders once. Pending, staff, deleted, voided and refunded entries are excluded. These are bookings, not attendance or necessarily new athletes.'
-export const SESSION_PACE_HELP = 'Compare the latest eight earlier clinics in this series on the same weekday and at the same time. Count their currently reserved bookings created by the same number of days before the clinic and the same Central time of day. This reconstructs booking pace, not historical registration status. Fewer than three earlier clinics is a limited baseline. A difference does not prove a cause.'
+export const SESSION_PACE_HELP = 'Compare the latest eight clinics on earlier calendar days in this series on the same weekday and at the same time. Count their currently reserved bookings created by the same number of days before the clinic and the same Central time of day. This reconstructs booking pace, not historical registration status. Fewer than three earlier clinics is a limited baseline. A difference does not prove a cause.'
 export const SESSION_CAPACITY_HELP = 'Places left uses a verified, dated total capacity that includes pass holders. Pending athletes count only when the verified rule includes them. Not set means remaining capacity is unknown, not unlimited. Confirm the desired group size with the coach before outreach.'
 export const ATTENDANCE_HELP = 'Attendance is not yet verified for these clinics. A booking, payment or all-session pass does not prove the athlete attended. Use recorded check-ins separately; missing attendance must never appear as zero.'
 const dayDifference = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / 86400000)
-const timeLabel = value => typeof value === 'string' && /^\d{1,2}:\d{2}(AM|PM) to \d{1,2}:\d{2}(AM|PM)$/.test(value) ? value : null
+const timeLabel = value => typeof value === 'string' && /^(?:[1-9]|1[0-2]):[0-5]\d(AM|PM) to (?:[1-9]|1[0-2]):[0-5]\d(AM|PM)$/.test(value) ? value : null
 const endClock = time => { const [, h, m, half] = time.match(/to (\d{1,2}):(\d{2})(AM|PM)$/); return `${String(Number(h) % 12 + (half === 'PM' ? 12 : 0)).padStart(2, '0')}:${m}:00` }
 const localClock = value => new Intl.DateTimeFormat('en-GB', { timeZone: WEBSITE_TIMEZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(value))
 const weekday = day => new Date(`${day}T12:00:00Z`).getUTCDay()
@@ -311,10 +312,11 @@ export function createSessionOperations({ programs = null, capacities = SESSION_
       const start = programDay(row.programStartDate), end = programDay(row.programEndDate)
       const eligible = !row.deleted && !row.isStaff && ['PLAYER', 'FREEAGENT'].includes(row.role) && !['VOID', 'REFUND'].includes(row.paymentStatus)
       const selected = requestedTryout(row, start, end)
+      const program = programs?.find(p => p.programId === row.programId)
       records.set(row.registrationId, { updated: row.lastUpdated, eligible, program: row.programId, master: row.masterProgramId,
         family: registrationFamily(row), athlete: Number.isSafeInteger(row.userId) && row.userId > 0 ? row.userId : null,
         created: row.created, status: row.registrationStatus, start, end,
-        date: selected?.date || (start === end ? start : null), time: selected?.time || null,
+        date: selected?.date || (start === end ? start : null), time: selected?.time || (start === end ? timeLabel(program?.scheduleTimes) : null),
         balance: money(row.outstandingBalance) ? row.outstandingBalance : null,
       })
     },
@@ -353,7 +355,7 @@ export function createSessionOperations({ programs = null, capacities = SESSION_
       const paymentGroups = new Map()
       for (const r of rows.filter(r => REGISTRATION_FAMILIES[r.family].group === 'bookings' && r.status === 'SPOT_PENDING' && r.end && r.end >= today)) {
         const key = `${r.program}/${r.date}/${r.time}`
-        const group = paymentGroups.get(key) || { program: r.program, family: r.family, date: r.date, time: r.time, count: 0, unpaid: 0, balance: 0, missingBalance: 0, oldest: calendarDay(r.created, WEBSITE_TIMEZONE), pass: SESSION_COHORT.passes.includes(r.program) }
+        const group = paymentGroups.get(key) || { program: r.program, family: r.family, date: r.date, time: r.time, count: 0, unpaid: 0, balance: 0, missingBalance: 0, oldest: calendarDay(r.created, WEBSITE_TIMEZONE), pass: ALL_SESSION_PASSES.includes(r.program) }
         group.count++
         if (r.balance === null) group.missingBalance++
         else if (r.balance > 0) { group.unpaid++; group.balance = Math.round((group.balance + r.balance) * 100) / 100 }
@@ -388,14 +390,14 @@ export function pendingPaymentAction(value) {
   const operations = safeSessionOperations(value)
   if (!operations) return 'Pending-payment details are unavailable. Open LeagueApps to review pending bookings.'
   if (!operations.payments.length) return 'No pending bookings found for programs whose end date is still ahead.'
-  return operations.payments.map(r => `${REGISTRATION_FAMILIES[r.family].label}${r.pass ? ' (all-session pass)' : ''}${r.date ? ` — ${shortDay(r.date)}${r.time ? `, ${r.time} Central` : ''}` : ' — session date needs confirmation'}: ${r.count} pending; ${r.missingBalance ? 'balance partly unavailable' : `${dollars(r.balance)} outstanding`}. Oldest booking: ${r.oldest}. ${r.unpaid ? 'Privately confirm the intended session and help complete payment; unpaid does not prove a failed card.' : 'Check the pending status in LeagueApps before confirming a place.'}`).join(' ')
+  return operations.payments.map(r => `${REGISTRATION_FAMILIES[r.family].label}${r.pass ? ' (all-session pass)' : ''}${r.date ? ` — ${shortDay(r.date)}${r.time ? `, ${r.time} Central` : ''}` : r.pass ? ' — confirm remaining clinic dates' : ' — session date needs confirmation'}: ${r.count} pending; ${r.missingBalance ? 'balance partly unavailable' : `${dollars(r.balance)} outstanding`}. Oldest booking: ${r.oldest}. ${r.unpaid ? 'Privately confirm the intended session and help complete payment; unpaid does not prove a failed card.' : 'Check the pending status in LeagueApps before confirming a place.'}`).join(' ')
 }
 export function sessionRows(value) {
   const operations = safeSessionOperations(value)
   if (!operations || operations.sessionsStatus !== 'verified') return [{ session: 'Girls high-school clinics', booked: 'Unavailable', pace: 'Session details unavailable', capacity: 'Unknown', action: 'Check the LeagueApps refresh. Missing is not zero.' }]
   if (!operations.sessions.length) return [{ session: 'Girls high-school clinics', booked: 'No upcoming dates', pace: 'Not applicable', capacity: 'Not applicable', action: 'No future dated clinics in the current program list.' }]
   return operations.sessions.map(r => ({
-    session: `${shortDay(r.date)} · ${r.time} Central`, booked: r.booked === null ? 'Unavailable — missing athlete IDs' : `${r.booked} athletes`,
+    session: `${shortDay(r.date)} · ${r.time} Central`, booked: r.booked === null ? 'Unavailable — missing athlete IDs' : `${r.booked} athlete${r.booked === 1 ? '' : 's'}`,
     pace: r.baselineCount ? `${r.baselineMin === r.baselineMax ? r.baselineMin : `${r.baselineMin}–${r.baselineMax}`} at ${r.leadDays} days out · ${r.baselineCount} earlier clinics${r.baselineCount < 3 ? ' (limited)' : ''}` : 'No comparable baseline',
     capacity: r.capacity === null ? 'Not set — places left unknown' : r.remaining === null ? `${r.capacity} maximum; occupancy unavailable` : `${r.remaining} left of ${r.capacity}${r.overCapacity ? `; ${r.overCapacity} over capacity` : ''}. ${r.countPending ? 'Pending included' : 'Reserved only'}. Checked ${r.capacityCheckedOn}.`,
     action: r.overCapacity ? 'Resolve capacity with the coach before outreach.' : r.booked === null || r.baselineCount < 3 ? 'Check the coach’s target; comparison is incomplete.' : r.booked < r.baselineMin ? 'Below earlier pace. Confirm places and coach’s target before outreach.' : 'At or above earlier pace. No urgent outreach signal from bookings alone.',
