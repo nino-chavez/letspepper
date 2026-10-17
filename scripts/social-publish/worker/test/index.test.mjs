@@ -556,6 +556,37 @@ test('630 scheduler refuses changed music on a saved container before Graph', as
   assert.match(result.items[0].error, /different Instagram audio/)
 })
 
+test('scheduler resumes a CLI music container explicitly handed off as building, without recreating it', async () => {
+  const q = partnerReel()
+  const audio = { audio_id: '123456789', audio_volume: 60, video_volume: 35 }
+  Object.assign(q.items[0], { status: 'building', ig_container_id: 'partner-container', ig_container_audio_configuration: JSON.stringify(audio), audio_configuration: audio })
+  const requests = []
+  const result = await runQueue(q, partnerGraphFetch(requests), { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(result.items[0].status, 'posted')
+  assert.equal(requests.filter(r => r.path.endsWith('/17841411569230130/media')).length, 0)
+  assert.equal(requests.filter(r => r.path.endsWith('/17841411569230130/media_publish')).length, 1)
+})
+
+test('CLI prepared status remains an unpublished hold, even with a valid music marker', async () => {
+  const q = partnerReel()
+  const audio = { audio_id: '123456789' }
+  Object.assign(q.items[0], { status: 'prepared', ig_container_id: 'partner-container', ig_container_audio_configuration: JSON.stringify(audio), audio_configuration: audio })
+  let calls = 0
+  const result = await runQueue(q, async () => { calls++; throw new Error('must not call Graph') }, { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(calls, 0)
+  assert.equal(result.items[0].status, 'prepared')
+})
+
+test('building a fresh silent-catalog container clears an obsolete music marker', async () => {
+  const q = partnerReel()
+  q.items[0].ig_container_audio_configuration = JSON.stringify({ audio_id: 'old-track' })
+  const requests = []
+  const result = await runQueue(q, partnerGraphFetch(requests), { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(result.items[0].status, 'posted')
+  assert.equal(result.items[0].ig_container_audio_configuration, undefined)
+  assert.equal(requests.find(r => r.path.endsWith('/17841411569230130/media')).params.audio_configuration, undefined)
+})
+
 test('catalog music cannot silently disappear on a Facebook crosspost', async () => {
   const q = partnerReel()
   q.meta.route.accounts = ['letspepper']

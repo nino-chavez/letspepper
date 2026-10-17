@@ -299,7 +299,11 @@ for (const it of batch) {
     }
     if (!containerId) {
       containerId = await buildContainer(ig, it)
-      it.ig_container_id = containerId; it.ig_container_digest = payload; save()
+      it.ig_container_id = containerId; it.ig_container_digest = payload
+      const audio = audioParams(it)
+      if (audio.audio_configuration) it.ig_container_audio_configuration = audio.audio_configuration
+      else delete it.ig_container_audio_configuration
+      save()
     }
     await waitFinished(containerId)
     if (prepareOnly) {

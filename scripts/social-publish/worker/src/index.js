@@ -440,6 +440,7 @@ async function publishInstagramItem(env, ev, q, item, budget) {
       containerId = await buildContainer(token, acct.ig_user_id, item, budget, () => persistQueue(env, ev, q))
       item.ig_container_id = containerId; item.status = 'building'
       if (audio.audio_configuration) item.ig_container_audio_configuration = audio.audio_configuration
+      else delete item.ig_container_audio_configuration
       await persistQueue(env, ev, q) // persist before the slow poll/publish
     }
     if (item.media_type !== 'IMAGE') {

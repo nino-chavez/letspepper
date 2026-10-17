@@ -80,7 +80,7 @@ export function seedPayload(queue, event, routes, now = new Date()) {
 // tick that runs out of budget mid-build resumes from where it stopped instead of
 // re-creating children next tick. Without it here, --replace could drop that partial
 // progress from KV and the next tick would recreate every child from scratch.
-const PUBLISH_STATE = ['status', 'ig_container_id', 'ig_media_id', 'ig_child_container_ids', 'facebook_status',
+const PUBLISH_STATE = ['status', 'ig_container_id', 'ig_container_audio_configuration', 'ig_media_id', 'ig_child_container_ids', 'facebook_status',
   'facebook_video_id', 'facebook_uploaded', 'facebook_post_id', 'facebook_photo_ids']
 // "vetoed" counts as started even though nothing was ever built or published: without
 // it, --replace from a local file where the item is still "held" would silently flip a

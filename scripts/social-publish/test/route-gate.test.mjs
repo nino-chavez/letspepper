@@ -538,6 +538,7 @@ test('prepare-only validates one saved container without publishing; finishing r
     const saved = JSON.parse(readFileSync(sb.queuePath())).items[0]
     assert.equal(saved.status, 'prepared')
     assert.ok(saved.ig_container_id)
+    assert.equal(saved.ig_container_audio_configuration, JSON.stringify(audio))
     assert.deepEqual(JSON.parse(graph.payloads.find(p => p.path.endsWith('/media')).params.audio_configuration), audio)
     assert.ok(!graph.seen.some((r) => r.includes('/media_publish')))
     const finished = await run(join(sb.social, 'post-reels.mjs'), args, { cwd: sb.root, base: graph.base })
