@@ -150,7 +150,7 @@ test('calendar context separates elapsed sessions and future dates without inven
   assert.match(row.context,/For dates still ahead: 1 booking, previously 1/)
   assert.match(registrations.registrationAnswer(s).action,/Review Girls middle-school/)
   assert.doesNotMatch(registrations.registrationAnswer(s).action,/caused|imported|checkout failure/)
-  assert.equal(registrations.REGISTRATION_QUESTIONS.length,12)
+  assert.equal(registrations.REGISTRATION_QUESTIONS.length,14)
   assert.match(registrations.registrationProgramsQuery(),/Program bookings unavailable/)
 })
 test('display verification reconstructs answers from numeric aggregates', () => {

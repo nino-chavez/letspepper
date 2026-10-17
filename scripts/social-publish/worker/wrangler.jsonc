@@ -94,7 +94,7 @@
     "SUBREQUEST_BUDGET": "40"
   },
   "observability": { "enabled": true }
-  // LeagueApps reporting: LEAGUEAPPS_PRIVATE_KEY, LEAGUEAPPS_CLIENT_ID,
+  // LeagueApps reporting: LEAGUEAPPS_PRIVATE_KEY, LEAGUEAPPS_PUBLIC_API_KEY, LEAGUEAPPS_CLIENT_ID,
   // POSTHOG_630_PROJECT_TOKEN. Existing 1Password LeagueApps/PostHog 630volleyball items.
   // secrets (set via `wrangler secret put`): IG_ACCESS_TOKEN, FB_ACCESS_TOKEN,
   // TRIGGER_KEY. Meta exposes Instagram content and Facebook Page management

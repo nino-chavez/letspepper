@@ -467,10 +467,29 @@ date. The table displays its observation time. The on-demand scorecard reads
 LeagueApps again, so status changes between refreshes can produce different
 counts; compare the same dates and observation times.
 
+The upcoming-clinics table uses `SESSION_COHORT` for girls high-school clinics.
+It reads current program dates/times from the public API, then joins all reserved
+registrations in memory, including eligible all-session pass holders once per
+session. Today’s ended sessions are removed. `SESSION_PACE_HELP` owns the exact
+same-weekday, same-time, same-lead-day and Central-clock comparison. Statuses are
+current, so this is reconstructed pace, not historical status or attendance.
+A missing public API response hides session results without erasing valid weekly
+totals. No check-in count is inferred from a booking or payment.
+
+`SESSION_CAPACITIES` starts empty. A verified total must cover pass holders and
+specify whether pending athletes occupy places, its check date, and expiry date.
+Expired or absent limits show unknown. Pending actions cover current programs,
+including older unresolved bookings. Only a strict date/time-shaped make-up-tryout
+answer is accepted; arbitrary family form text never leaves memory. Balances are
+summed by program/date; no invoice, athlete or registration identifiers leave.
+The numeric snapshot independently regenerates all three registration tables,
+including pending-payment guidance, before dashboard or email updates can apply.
+
 Required Worker secrets (all already owned by 1Password):
 
 - `LEAGUEAPPS_PRIVATE_KEY`: `LeagueApps 630volleyball/credential`.
 - `LEAGUEAPPS_CLIENT_ID`: `LeagueApps 630volleyball/key_id`.
+- `LEAGUEAPPS_PUBLIC_API_KEY`: `LeagueApps 630volleyball/public_api_key` for session dates and times.
 - `POSTHOG_630_PROJECT_TOKEN`: `PostHog 630volleyball/credential`, the ingestion
   token for project 579364, not its personal API key.
 
