@@ -162,3 +162,9 @@ test('session metadata joins the complete export and a metadata failure preserve
   assert.equal(bad.captures[0].properties.status,'verified')
   assert.match(bad.captures[0].properties.session_breakdown_json,/unavailable/)
 })
+
+test('session metadata includes completed programs so past clinics remain comparable', async()=>{
+ const e=env();e.LEAGUEAPPS_PUBLIC_API_KEY='public-test';const h=harness([[]]);
+ await runRegistrations(e,{now,fetch:h.fetch});
+ assert.ok(h.calls.some(url=>url.includes('includeState=LIVE,UPCOMING,COMPLETED&includePrivate=true')));
+})

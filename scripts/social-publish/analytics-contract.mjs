@@ -371,7 +371,7 @@ export function createSessionOperations({ programs = null, capacities = SESSION_
         group.oldest = [group.oldest, calendarDay(r.created, WEBSITE_TIMEZONE)].sort()[0]
         paymentGroups.set(key, group)
       }
-      return { version: '630-session-operations-v1', asOf, day: today, sessionsStatus: catalog && dated.length === catalog.length ? 'verified' : 'unavailable', sessions, completed,
+      return { version: '630-session-operations-v1', asOf, day: today, sessionsStatus: catalog?.length > 0 && dated.length === catalog.length ? 'verified' : 'unavailable', sessions, completed,
         payments: [...paymentGroups.values()].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.program - b.program) }
     },
   }

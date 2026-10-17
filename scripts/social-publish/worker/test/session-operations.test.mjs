@@ -94,6 +94,8 @@ test('missing identities, metadata, old snapshots and corrupted completed data f
  assert.match(sessionDayTimeRows(result)[0].booked,/Unavailable/)
  assert.match(sessionDayTimeRows(result)[0].fill,/Unavailable/)
  assert.match(sessionDayTimeRows(build([],{programs:null}))[0].sessions,/Unavailable/)
+ assert.match(sessionDayTimeRows(build([],{programs:[]}))[0].sessions,/Unavailable/)
+ assert.equal(build([],{programs:[]}).sessionsStatus,'unavailable')
  const old={...result};delete old.completed
  assert.match(sessionDayTimeRows(old)[0].sessions,/Unavailable/)
  result.completed[0].email='PRIVATE'

@@ -50,7 +50,7 @@ export async function runRegistrations(env, { trigger = 'manual', now = new Date
     let programs = null
     if (env.LEAGUEAPPS_PUBLIC_API_KEY) {
       try {
-        const response = await request('https://public.leagueapps.io/v1/sites/54390/programs?includeState=LIVE,UPCOMING&includePrivate=true', { headers: { 'la-api-key': env.LEAGUEAPPS_PUBLIC_API_KEY } })
+        const response = await request('https://public.leagueapps.io/v1/sites/54390/programs?includeState=LIVE,UPCOMING,COMPLETED&includePrivate=true', { headers: { 'la-api-key': env.LEAGUEAPPS_PUBLIC_API_KEY } })
         if (response.ok) {
           const result = await response.json()
           if (Array.isArray(result) && result.every(p => Number.isSafeInteger(p.programId))) programs = result
