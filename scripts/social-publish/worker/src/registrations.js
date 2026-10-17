@@ -1,5 +1,5 @@
 /** Read LeagueApps privately; publish only the canonical aggregate allowlist. */
-import { createRegistrationRollup, walkLeagueAppsExport, reportingWindow, registrationSnapshotProperties, REGISTRATION_EVENT, REGISTRATION_VERSION } from '../../analytics-contract.mjs'
+import { createRegistrationRollup, createSessionOperations, walkLeagueAppsExport, reportingWindow, registrationSnapshotProperties, REGISTRATION_EVENT, REGISTRATION_VERSION } from '../../analytics-contract.mjs'
 
 export const REGISTRATIONS_CRON = '15 11 * * *'
 export const REGISTRATIONS_STATUS_KEY = 'analytics:630:registrations:status'
@@ -47,6 +47,17 @@ export async function runRegistrations(env, { trigger = 'manual', now = new Date
     let token = await leagueAppsAccessToken(env, request, now)
     let renewed = false
     const rollup = createRegistrationRollup(window)
+    let programs = null
+    if (env.LEAGUEAPPS_PUBLIC_API_KEY) {
+      try {
+        const response = await request('https://public.leagueapps.io/v1/sites/54390/programs?includeState=LIVE,UPCOMING&includePrivate=true', { headers: { 'la-api-key': env.LEAGUEAPPS_PUBLIC_API_KEY } })
+        if (response.ok) {
+          const result = await response.json()
+          if (Array.isArray(result) && result.every(p => Number.isSafeInteger(p.programId))) programs = result
+        }
+      } catch { /* Private totals remain usable; session metadata is unavailable. */ }
+    }
+    const operations = createSessionOperations({ programs })
     diagnostic = await walkLeagueAppsExport(async cursor => {
       const url = new URL(EXPORT_URL)
       url.searchParams.set('last-updated', String(cursor.lastUpdated))
@@ -59,8 +70,9 @@ export async function runRegistrations(env, { trigger = 'manual', now = new Date
       }
       if (!response.ok) throw new Error('LeagueApps export read failed')
       return response.json()
-    }, row => rollup.add(row))
-    snapshot = rollup.finish(new Date().toISOString())
+    }, row => { rollup.add(row); operations.add(row) })
+    snapshot = rollup.finish(now.toISOString())
+    snapshot.sessionOperations = operations.finish(snapshot.asOf)
   } catch {
     // Provider bodies and exception messages can contain records or credentials.
     snapshot = { version: REGISTRATION_VERSION, status: 'unavailable', window, asOf: new Date().toISOString() }

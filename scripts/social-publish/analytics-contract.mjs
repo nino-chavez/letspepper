@@ -268,6 +268,140 @@ export const REGISTRATION_COUNT_HELP = 'Counts reserved participant registration
 export const REGISTRATION_ATHLETE_HELP = 'Distinct LeagueApps athlete accounts with reserved spots, counted once within each group or program and period. The same athlete can appear in several rows or both weeks. These are not necessarily new athletes. Missing athlete IDs make the athlete count unavailable.'
 export const REGISTRATION_SPLIT_HELP = 'Team invitations and season-invoice records are setup. Season acceptances and commitment fees are shown separately. Program IDs distinguish these from tryouts; classes and camps use their program type. Unknown club-team programs need classification. Setup does not prove an import, and bookings do not establish website or Instagram attribution.'
 
+// The first session-level cohort is intentionally explicit. A season date range
+// or an all-session pass must never masquerade as a single dated clinic.
+export const SESSION_COHORT = Object.freeze({ master: 5121283, passes: [5121284], label: 'Girls high-school clinics' })
+// Add a limit only after operations verifies the total coached capacity, including
+// pass holders. Each entry needs { limit, countPending, checkedOn, validThrough }.
+// This is not inferred from a waitlist flag or from the number of registrations.
+export const SESSION_CAPACITIES = Object.freeze({})
+export const SESSION_HELP = 'Booked athletes are distinct reserved athlete accounts for that date, including eligible all-session pass holders once. Pending, staff, deleted, voided and refunded entries are excluded. These are bookings, not attendance or necessarily new athletes.'
+export const SESSION_PACE_HELP = 'Compare the latest eight earlier clinics in this series on the same weekday and at the same time. Count their currently reserved bookings created by the same number of days before the clinic and the same Central time of day. This reconstructs booking pace, not historical registration status. Fewer than three earlier clinics is a limited baseline. A difference does not prove a cause.'
+export const SESSION_CAPACITY_HELP = 'Places left uses a verified, dated total capacity that includes pass holders. Pending athletes count only when the verified rule includes them. Not set means remaining capacity is unknown, not unlimited. Confirm the desired group size with the coach before outreach.'
+export const ATTENDANCE_HELP = 'Attendance is not yet verified for these clinics. A booking, payment or all-session pass does not prove the athlete attended. Use recorded check-ins separately; missing attendance must never appear as zero.'
+const dayDifference = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / 86400000)
+const timeLabel = value => typeof value === 'string' && /^\d{1,2}:\d{2}(AM|PM) to \d{1,2}:\d{2}(AM|PM)$/.test(value) ? value : null
+const endClock = time => { const [, h, m, half] = time.match(/to (\d{1,2}):(\d{2})(AM|PM)$/); return `${String(Number(h) % 12 + (half === 'PM' ? 12 : 0)).padStart(2, '0')}:${m}:00` }
+const localClock = value => new Intl.DateTimeFormat('en-GB', { timeZone: WEBSITE_TIMEZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(value))
+const weekday = day => new Date(`${day}T12:00:00Z`).getUTCDay()
+const money = value => Number.isFinite(value) && value >= 0
+const dollars = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value)
+const shortDay = day => new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`))
+
+// Accept only the known date/time-shaped form answer, never arbitrary family text.
+function requestedTryout(row, start, end) {
+  if (registrationFamily(row) !== 'tryouts' || !start || !end) return null
+  const match = String(row['Please choose a make-up tryout date'] || '').match(/^(\d{1,2})\/(\d{1,2})\s*\/\s*(\d{1,2}(?::\d{2})?)\s*-\s*(\d{1,2}(?::\d{2})?)\s*(am|pm)$/i)
+  if (!match) return null
+  const candidates = [...new Set([start.slice(0, 4), end.slice(0, 4)])].map(year => `${year}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`).filter(day => validDay(day) && day >= start && day <= end)
+  if (candidates.length !== 1) return null
+  const clock = value => { const [h, m = '00'] = value.split(':'); return Number(h) >= 1 && Number(h) <= 12 && Number(m) < 60 ? `${Number(h)}:${m}${match[5].toUpperCase()}` : null }
+  const from = clock(match[3]), to = clock(match[4])
+  return from && to ? { date: candidates[0], time: `${from} to ${to}` } : null
+}
+
+/** All source records stay in memory. Only the explicit aggregate shape leaves. */
+export function createSessionOperations({ programs = null, capacities = SESSION_CAPACITIES } = {}) {
+  const records = new Map()
+  return {
+    add(row) {
+      // The registration rollup validates the export schema before this consumer.
+      const prior = records.get(row.registrationId)
+      if (prior && prior.updated > row.lastUpdated) return
+      const start = programDay(row.programStartDate), end = programDay(row.programEndDate)
+      const eligible = !row.deleted && !row.isStaff && ['PLAYER', 'FREEAGENT'].includes(row.role) && !['VOID', 'REFUND'].includes(row.paymentStatus)
+      const selected = requestedTryout(row, start, end)
+      records.set(row.registrationId, { updated: row.lastUpdated, eligible, program: row.programId, master: row.masterProgramId,
+        family: registrationFamily(row), athlete: Number.isSafeInteger(row.userId) && row.userId > 0 ? row.userId : null,
+        created: row.created, status: row.registrationStatus, start, end,
+        date: selected?.date || (start === end ? start : null), time: selected?.time || null,
+        balance: money(row.outstandingBalance) ? row.outstandingBalance : null,
+      })
+    },
+    finish(asOf = new Date().toISOString()) {
+      const today = calendarDay(asOf, WEBSITE_TIMEZONE), clock = localClock(asOf)
+      const rows = [...records.values()].filter(r => r.eligible)
+      const sessions = []
+      const catalog = Array.isArray(programs) ? programs.filter(p => p.masterProgramId === SESSION_COHORT.master && !p.isMaster && !p.deleted && !SESSION_COHORT.passes.includes(p.programId)) : null
+      const dated = catalog?.map(p => ({ id: p.programId, date: programDay(p.startTime), end: programDay(p.endTime), time: timeLabel(p.scheduleTimes) })).filter(p => p.date && p.date === p.end && p.time) || []
+      const unique = (list, status, cutoff = null) => {
+        const selected = list.filter(r => r.status === status && (!cutoff || calendarDay(r.created, WEBSITE_TIMEZONE) < cutoff || (calendarDay(r.created, WEBSITE_TIMEZONE) === cutoff && localClock(r.created) <= clock)))
+        return selected.some(r => !r.athlete) ? null : new Set(selected.map(r => r.athlete)).size
+      }
+      const forSession = p => rows.filter(r => r.program === p.id || (SESSION_COHORT.passes.includes(r.program) && r.start <= p.date && r.end >= p.date))
+      for (const p of dated.filter(p => p.date > today || (p.date === today && clock <= endClock(p.time))).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)) {
+        const leadDays = dayDifference(p.date, today), own = forSession(p)
+        const booked = unique(own, 'SPOT_RESERVED'), pending = unique(own, 'SPOT_PENDING')
+        const earlier = dated.filter(b => b.date < today && weekday(b.date) === weekday(p.date) && b.time === p.time).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8)
+        const baseline = earlier.map(b => unique(forSession(b), 'SPOT_RESERVED', addDays(b.date, -leadDays)))
+        const comparable = booked !== null && baseline.every(count)
+        const cap = capacities[p.id]
+        const known = cap && count(cap.limit) && typeof cap.countPending === 'boolean' && validDay(cap.checkedOn) && validDay(cap.validThrough) && cap.checkedOn <= today && cap.validThrough >= p.date
+        // Union pending and reserved identities: duplicate registrations do not
+        // occupy two places, including a pending pass plus a reserved day ticket.
+        const occupants = own.filter(r => r.status === 'SPOT_RESERVED' || (known && cap.countPending && r.status === 'SPOT_PENDING'))
+        const occupied = occupants.some(r => !r.athlete) ? null : new Set(occupants.map(r => r.athlete)).size
+        sessions.push({ id: p.id, date: p.date, time: p.time, leadDays, booked, pending,
+          baselineCount: comparable ? baseline.length : 0, baselineMin: comparable && baseline.length ? Math.min(...baseline) : null,
+          baselineMax: comparable && baseline.length ? Math.max(...baseline) : null,
+          capacity: known ? cap.limit : null, occupied: known ? occupied : null,
+          remaining: known && occupied !== null ? Math.max(0, cap.limit - occupied) : null,
+          overCapacity: known && occupied !== null ? Math.max(0, occupied - cap.limit) : null,
+          countPending: known ? cap.countPending : null, capacityCheckedOn: known ? cap.checkedOn : null,
+        })
+      }
+      const paymentGroups = new Map()
+      for (const r of rows.filter(r => REGISTRATION_FAMILIES[r.family].group === 'bookings' && r.status === 'SPOT_PENDING' && r.end && r.end >= today)) {
+        const key = `${r.program}/${r.date}/${r.time}`
+        const group = paymentGroups.get(key) || { program: r.program, family: r.family, date: r.date, time: r.time, count: 0, unpaid: 0, balance: 0, missingBalance: 0, oldest: calendarDay(r.created, WEBSITE_TIMEZONE), pass: SESSION_COHORT.passes.includes(r.program) }
+        group.count++
+        if (r.balance === null) group.missingBalance++
+        else if (r.balance > 0) { group.unpaid++; group.balance = Math.round((group.balance + r.balance) * 100) / 100 }
+        group.oldest = [group.oldest, calendarDay(r.created, WEBSITE_TIMEZONE)].sort()[0]
+        paymentGroups.set(key, group)
+      }
+      return { version: '630-session-operations-v1', asOf, day: today, sessionsStatus: catalog && dated.length === catalog.length ? 'verified' : 'unavailable', sessions,
+        payments: [...paymentGroups.values()].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.program - b.program) }
+    },
+  }
+}
+
+/** Validate and select every property; enriched source objects cannot leak PII. */
+export function safeSessionOperations(value) {
+  if (!value || value.version !== '630-session-operations-v1' || !Number.isFinite(Date.parse(value.asOf)) || value.day !== calendarDay(value.asOf, WEBSITE_TIMEZONE) || !['verified', 'unavailable'].includes(value.sessionsStatus) || !Array.isArray(value.sessions) || !Array.isArray(value.payments)) return null
+  const sessions = [], payments = []
+  for (const r of value.sessions) {
+    if (!count(r.id) || !validDay(r.date) || !timeLabel(r.time) || !count(r.leadDays) || r.leadDays !== dayDifference(r.date, value.day)
+      || !['booked', 'pending', 'baselineMin', 'baselineMax', 'capacity', 'occupied', 'remaining', 'overCapacity'].every(k => r[k] === null || count(r[k])) || !count(r.baselineCount)
+      || (r.baselineCount ? r.baselineMin === null || r.baselineMax === null || r.baselineMin > r.baselineMax : r.baselineMin !== null || r.baselineMax !== null)
+      || (r.capacity === null ? r.countPending !== null || r.capacityCheckedOn !== null || r.remaining !== null || r.occupied !== null || r.overCapacity !== null : typeof r.countPending !== 'boolean' || !validDay(r.capacityCheckedOn)
+        || (r.occupied === null ? r.remaining !== null || r.overCapacity !== null : r.remaining !== Math.max(0, r.capacity-r.occupied) || r.overCapacity !== Math.max(0, r.occupied-r.capacity)))) return null
+    sessions.push(Object.fromEntries(['id','date','time','leadDays','booked','pending','baselineCount','baselineMin','baselineMax','capacity','occupied','remaining','overCapacity','countPending','capacityCheckedOn'].map(k=>[k,r[k]])))
+  }
+  for (const r of value.payments) {
+    if (!count(r.program) || !Object.hasOwn(REGISTRATION_FAMILIES, r.family) || REGISTRATION_FAMILIES[r.family].group !== 'bookings' || ![r.count, r.unpaid, r.missingBalance].every(count) || r.unpaid + r.missingBalance > r.count || !money(r.balance) || !validDay(r.oldest) || (r.date !== null && !validDay(r.date)) || (r.time !== null && !timeLabel(r.time)) || typeof r.pass !== 'boolean') return null
+    payments.push(Object.fromEntries(['program','family','date','time','count','unpaid','balance','missingBalance','oldest','pass'].map(k=>[k,r[k]])))
+  }
+  return { version: value.version, asOf: value.asOf, day: value.day, sessionsStatus: value.sessionsStatus, sessions, payments }
+}
+export function pendingPaymentAction(value) {
+  const operations = safeSessionOperations(value)
+  if (!operations) return 'Pending-payment details are unavailable. Open LeagueApps to review pending bookings.'
+  if (!operations.payments.length) return 'No pending bookings found for programs whose end date is still ahead.'
+  return operations.payments.map(r => `${REGISTRATION_FAMILIES[r.family].label}${r.pass ? ' (all-session pass)' : ''}${r.date ? ` — ${shortDay(r.date)}${r.time ? `, ${r.time} Central` : ''}` : ' — session date needs confirmation'}: ${r.count} pending; ${r.missingBalance ? 'balance partly unavailable' : `${dollars(r.balance)} outstanding`}. Oldest booking: ${r.oldest}. ${r.unpaid ? 'Privately confirm the intended session and help complete payment; unpaid does not prove a failed card.' : 'Check the pending status in LeagueApps before confirming a place.'}`).join(' ')
+}
+export function sessionRows(value) {
+  const operations = safeSessionOperations(value)
+  if (!operations || operations.sessionsStatus !== 'verified') return [{ session: 'Girls high-school clinics', booked: 'Unavailable', pace: 'Session details unavailable', capacity: 'Unknown', action: 'Check the LeagueApps refresh. Missing is not zero.' }]
+  if (!operations.sessions.length) return [{ session: 'Girls high-school clinics', booked: 'No upcoming dates', pace: 'Not applicable', capacity: 'Not applicable', action: 'No future dated clinics in the current program list.' }]
+  return operations.sessions.map(r => ({
+    session: `${shortDay(r.date)} · ${r.time} Central`, booked: r.booked === null ? 'Unavailable — missing athlete IDs' : `${r.booked} athletes`,
+    pace: r.baselineCount ? `${r.baselineMin === r.baselineMax ? r.baselineMin : `${r.baselineMin}–${r.baselineMax}`} at ${r.leadDays} days out · ${r.baselineCount} earlier clinics${r.baselineCount < 3 ? ' (limited)' : ''}` : 'No comparable baseline',
+    capacity: r.capacity === null ? 'Not set — places left unknown' : r.remaining === null ? `${r.capacity} maximum; occupancy unavailable` : `${r.remaining} left of ${r.capacity}${r.overCapacity ? `; ${r.overCapacity} over capacity` : ''}. ${r.countPending ? 'Pending included' : 'Reserved only'}. Checked ${r.capacityCheckedOn}.`,
+    action: r.overCapacity ? 'Resolve capacity with the coach before outreach.' : r.booked === null || r.baselineCount < 3 ? 'Check the coach’s target; comparison is incomplete.' : r.booked < r.baselineMin ? 'Below earlier pace. Confirm places and coach’s target before outreach.' : 'At or above earlier pace. No urgent outreach signal from bookings alone.',
+  }))
+}
+
 function validRegistrationSnapshot(snapshot) {
   if (snapshot?.status !== 'verified' || snapshot.version !== REGISTRATION_VERSION || !snapshot.groups || !snapshot.families) return false
   const validCohort = c => c && registrationBuckets.every(k => count(c[k])) && ['missingIdentity', 'endedBeforeCurrent', 'future', 'datesMissing', 'openedInPeriod'].every(k => count(c[k]) && c[k] <= c.reserved)
@@ -303,30 +437,38 @@ export function registrationAnswer(snapshot) {
   if (!validRegistrationSnapshot(snapshot)) return { state: 'unavailable', heading: 'Registration totals are unavailable.', detail: 'A complete LeagueApps refresh is needed. Missing data does not mean zero registrations.', action: 'Check the LeagueApps refresh, then reload this report.' }
   const { current: c, previous: p, groups, families } = snapshot
   const compare = (key, noun) => `${cohortText(groups[key].current, noun)}. Previous period: ${cohortText(groups[key].previous, noun)}.`
+  const operations = safeSessionOperations(snapshot.sessionOperations)
   const candidates = Object.entries(REGISTRATION_FAMILIES).filter(([id, family]) => {
     const { current, previous } = families[id]
-    return family.group === 'bookings' && current.athletes !== null && previous.athletes > 0 && current.athletes < previous.athletes && (current.future || previous.future || current.datesMissing || previous.datesMissing)
+    return !(id === 'girls_hs' && operations?.sessionsStatus === 'verified') && family.group === 'bookings' && current.athletes !== null && previous.athletes > 0 && current.athletes < previous.athletes && (current.future || previous.future || current.datesMissing || previous.datesMissing)
   }).sort(([a], [b]) => (families[b].previous.athletes - families[b].current.athletes) - (families[a].previous.athletes - families[a].current.athletes) || families[a].current.athletes / families[a].previous.athletes - families[b].current.athletes / families[b].previous.athletes)
   const priority = candidates[0]
   const actions = []
+  if (operations?.sessionsStatus === 'verified' && operations.sessions.length) {
+    const next = operations.sessions.slice(0, 2)
+    actions.push(`${SESSION_COHORT.label}: ${next.map(r => `${shortDay(r.date)} has ${r.booked === null ? 'an unavailable athlete count' : `${r.booked} booked athletes`}`).join('; ')}. ${next.every(r => r.booked !== null && r.baselineCount >= 3 && r.booked >= r.baselineMin) ? 'These clinics are at or above earlier booking pace; the weekly drop alone is not an urgent outreach signal.' : 'Check the upcoming-clinics table before changing outreach.'} Confirm the coach’s target and capacity.`)
+  }
   if (groups.unclassified.current.reserved || groups.unclassified.previous.reserved || groups.unclassified.current.pending) actions.push('Classify the unassigned programs with the report owner before comparing demand.')
   if (priority) {
     const [id, family] = priority, { current, previous } = families[id]
     actions.push(`Review ${family.label}: ${current.athletes} athletes booked, previously ${previous.athletes}. Check remaining places and session timing before changing outreach.`)
-  } else actions.push('Review remaining places by program; this comparison alone does not establish a demand problem.')
-  if (groups.bookings.current.pending) actions.push(`Review ${groups.bookings.current.pending} pending program booking${groups.bookings.current.pending === 1 ? '' : 's'} in LeagueApps.`)
+  } else if (!operations?.sessions.length) actions.push('Review remaining places by program; this comparison alone does not establish a demand problem.')
+  if (operations?.payments.length) actions.push(`Review the pending-payment follow-up below for ${operations.payments.reduce((n, r) => n + r.count, 0)} pending bookings.`)
+  else if (groups.bookings.current.pending) actions.push(`Review ${groups.bookings.current.pending} pending program booking${groups.bookings.current.pending === 1 ? '' : 's'} in LeagueApps.`)
   return {
     state: 'recorded', heading: compare('bookings', 'bookings'), detail: compare('setup', 'setup records'),
     commitments: compare('commitments', 'commitment records'), classification: compare('unclassified', 'unclassified records'),
     totals: `${c.reserved} total reserved records; previous period: ${p.reserved}. Team and roster setup: ${groups.setup.current.reserved}, previously ${groups.setup.previous.reserved}. Read program bookings separately from setup.`,
     waiting: `${groups.bookings.current.pending} program booking${groups.bookings.current.pending === 1 ? '' : 's'} pending; ${groups.bookings.current.waitlist} waitlisted. Across all groups: ${c.pending} pending, ${c.waitlist} waitlisted, ${c.excluded} voided or refunded, ${c.other} other statuses. Pending and excluded records are outside the booking and athlete totals.`,
     action: actions.join(' '),
+    payments: pendingPaymentAction(operations),
   }
 }
 
 /** An explicit allowlist; even an accidentally enriched snapshot cannot publish PII. */
 export function registrationSnapshotProperties(snapshot, trigger) {
   const answer = registrationAnswer(snapshot), verified = answer.state === 'recorded'
+  const operations = verified ? safeSessionOperations(snapshot.sessionOperations) : null
   return {
     $process_person_profile: false, $geoip_disable: true, $ip: null,
     registration_version: REGISTRATION_VERSION, source: 'leagueapps', club: '630volleyball',
@@ -342,13 +484,15 @@ export function registrationSnapshotProperties(snapshot, trigger) {
     answer: answer.heading, context: answer.detail, next_step: answer.action,
     commitments: answer.commitments || '', classification: answer.classification || '', totals: answer.totals || '', waiting: answer.waiting || '',
     program_breakdown_json: JSON.stringify(registrationProgramRows(snapshot)),
+    session_breakdown_json: JSON.stringify(sessionRows(operations)),
+    pending_payments: pendingPaymentAction(operations),
     // Numeric source for independent report verification. Explicit keys prevent
     // accidentally enriched source objects from carrying identities into analytics.
-    registration_counts_json: verified ? JSON.stringify(Object.fromEntries(['groups', 'families'].map(kind => [kind,
+    registration_counts_json: verified ? JSON.stringify({ sessionOperations: operations, ...Object.fromEntries(['groups', 'families'].map(kind => [kind,
       Object.fromEntries(Object.keys(kind === 'groups' ? REGISTRATION_GROUPS : REGISTRATION_FAMILIES).map(id => [id,
         Object.fromEntries(['current', 'previous'].map(period => [period, Object.fromEntries([...registrationBuckets, 'athletes', 'missingIdentity', 'endedBeforeCurrent', 'future', 'datesMissing', 'openedInPeriod'].map(key => [key, snapshot[kind][id][period][key]]))]))
       ]))
-    ]))) : null,
+    ])) }) : null,
   }
 }
 export function registrationVerificationQuery() {
@@ -373,18 +517,19 @@ export function registrationExpectedTables(source = null, now = new Date()) {
   const values = [
     `${window.start} through ${window.end} (Central). Previous: ${window.previous.start} through ${window.previous.end}. Dashboard filters do not change these dates.`,
     a.heading, a.detail, a.commitments || unavailable.detail, a.classification || unavailable.detail, a.totals || unavailable.detail, a.action, a.waiting || unavailable.detail,
+    pendingPaymentAction(snapshot?.sessionOperations), ATTENDANCE_HELP,
     REGISTRATION_ATHLETE_HELP, REGISTRATION_COUNT_HELP, REGISTRATION_SPLIT_HELP,
     source ? `${source.observed_at.replace('T', ' ').replace('Z', '')} (UTC). Refreshes daily at 11:15 UTC. ${snapshot ? 'Complete export recorded.' : 'Unavailable or out of date; do not treat these totals as zero.'}` : 'No refresh recorded yet.',
   ]
   const programs = snapshot ? registrationProgramRows(snapshot).map(row => [row.program, row.current, row.previous, row.context]) : [['Program bookings unavailable', 'Unavailable', 'Unavailable', 'Check the LeagueApps refresh; missing data does not mean zero.']]
   if (!programs.length) programs.push(['No program bookings in either period', '0 bookings; 0 athletes', '0 bookings; 0 athletes', 'Complete export recorded. Team setup and season commitments appear in the summary.'])
-  return { summary: REGISTRATION_QUESTIONS.map((q, i) => [q, values[i]]), programs }
+  return { summary: REGISTRATION_QUESTIONS.map((q, i) => [q, values[i]]), programs, sessions: sessionRows(snapshot?.sessionOperations).map(r => [r.session, r.booked, r.pace, r.capacity, r.action]) }
 }
 const sqlQuote = value => `'${value.replaceAll("'", "''")}'`
 const registrationMidnight = `toStartOfDay(now(), '${WEBSITE_TIMEZONE}')`
 function latestRegistrationQuery() {
   return `SELECT count() AS snapshots,
-    ${['status', 'period_start', 'period_end', 'answer', 'context', 'next_step', 'commitments', 'classification', 'totals', 'waiting', 'program_breakdown_json'].map(key => `argMax(properties.${key}, timestamp) AS ${key}`).join(',\n    ')},
+    ${['status', 'period_start', 'period_end', 'answer', 'context', 'next_step', 'commitments', 'classification', 'totals', 'waiting', 'program_breakdown_json', 'session_breakdown_json', 'pending_payments'].map(key => `argMax(properties.${key}, timestamp) AS ${key}`).join(',\n    ')},
     formatDateTime(max(timestamp), '%Y-%m-%d %H:%i:%S', 'UTC') AS as_of,
     snapshots > 0 AND status = 'verified'
       AND period_start = toString(toDate(${registrationMidnight} - INTERVAL 7 DAY))
@@ -394,7 +539,7 @@ function latestRegistrationQuery() {
   WHERE event = '${REGISTRATION_EVENT}' AND properties.registration_version = '${REGISTRATION_VERSION}'
     AND properties.club = '630volleyball' AND timestamp >= now() - INTERVAL 7 DAY`
 }
-export const REGISTRATION_QUESTIONS = Object.freeze(['Which dates?', 'Clinics, camps & tryouts', 'Team & roster setup', 'Season acceptances & commitments', 'Needs classification', 'Why did the total change?', 'What needs action?', 'Anything waiting?', 'How are athletes counted?', 'What counts?', 'How is the split decided?', 'When did this refresh?'])
+export const REGISTRATION_QUESTIONS = Object.freeze(['Which dates?', 'Clinics, camps & tryouts', 'Team & roster setup', 'Season acceptances & commitments', 'Needs classification', 'Why did the total change?', 'What needs action?', 'Anything waiting?', 'Pending-payment follow-up', 'Bookings or attendance?', 'How are athletes counted?', 'What counts?', 'How is the split decided?', 'When did this refresh?'])
 export function registrationInsightQuery() {
   const unavailable = registrationAnswer(null)
   const values = [
@@ -403,6 +548,7 @@ export function registrationInsightQuery() {
     ...['context', 'commitments', 'classification', 'totals'].map(key => `if(usable, toString(${key}), ${sqlQuote(unavailable.detail)})`),
     `if(usable, toString(next_step), ${sqlQuote(unavailable.action)})`,
     `if(usable, toString(waiting), ${sqlQuote(unavailable.detail)})`,
+    `if(usable AND notEmpty(toString(pending_payments)), toString(pending_payments), ${sqlQuote(pendingPaymentAction(null))})`, sqlQuote(ATTENDANCE_HELP),
     sqlQuote(REGISTRATION_ATHLETE_HELP), sqlQuote(REGISTRATION_COUNT_HELP), sqlQuote(REGISTRATION_SPLIT_HELP),
     `if(snapshots > 0, concat(toString(as_of), ' (UTC). Refreshes daily at 11:15 UTC. ', if(usable, 'Complete export recorded.', 'Unavailable or out of date; do not treat these totals as zero.')), 'No refresh recorded yet.')`,
   ]
@@ -414,4 +560,11 @@ export function registrationProgramsQuery() {
   return `SELECT JSONExtractString(item, 'program') AS Program, JSONExtractString(item, 'current') AS Current, JSONExtractString(item, 'previous') AS Previous, JSONExtractString(item, 'context') AS Context
 FROM (\n${latestRegistrationQuery()}\n)
 ARRAY JOIN JSONExtractArrayRaw(coalesce(if(usable, if(toString(program_breakdown_json) = '[]', ${sqlQuote(empty)}, toString(program_breakdown_json)), ${sqlQuote(unavailable)}), ${sqlQuote(unavailable)})) AS item`
+}
+
+export function registrationSessionsQuery() {
+  const unavailable = sqlQuote(JSON.stringify(sessionRows(null)))
+  return `SELECT JSONExtractString(item, 'session') AS Session, JSONExtractString(item, 'booked') AS Booked, JSONExtractString(item, 'pace') AS Earlier, JSONExtractString(item, 'capacity') AS Capacity, JSONExtractString(item, 'action') AS Action
+FROM (\n${latestRegistrationQuery()}\n)
+ARRAY JOIN JSONExtractArrayRaw(coalesce(if(usable AND notEmpty(toString(session_breakdown_json)), toString(session_breakdown_json), ${unavailable}), ${unavailable})) AS item`
 }

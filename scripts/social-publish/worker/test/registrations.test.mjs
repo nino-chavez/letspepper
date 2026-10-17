@@ -14,7 +14,7 @@ function env() {
   const records=new Map()
   return {LEAGUEAPPS_PRIVATE_KEY:pem,LEAGUEAPPS_CLIENT_ID:'test-client',POSTHOG_630_PROJECT_TOKEN:'test-project-token',TRIGGER_KEY:'test-trigger',QUEUE:{async put(k,v){records.set(k,v)},async get(k){return records.has(k)?JSON.parse(records.get(k)):null}},records}
 }
-function harness(pages, { exportStatus=200, captureStatus=200 }={}) {
+function harness(pages, { exportStatus=200, captureStatus=200, programs=[] }={}) {
   const calls=[], captures=[]
   return {calls,captures,fetch:async(url,opts)=>{
     calls.push(String(url))
@@ -24,6 +24,7 @@ function harness(pages, { exportStatus=200, captureStatus=200 }={}) {
       assert.equal(await crypto.subtle.verify('RSASSA-PKCS1-v1_5',pair.publicKey,Buffer.from(parts[2],'base64url'),new TextEncoder().encode(parts.slice(0,2).join('.'))),true)
       return Response.json({access_token:'test-access'})
     }
+    if(String(url).includes('public.leagueapps.io')) return Response.json(programs)
     if(String(url).includes('/export/'))return Response.json(exportStatus===200?pages.shift():{private:'never-publish@example.invalid'},{status:exportStatus})
     captures.push(JSON.parse(opts.body))
     return Response.json({status:captureStatus===200?1:0},{status:captureStatus})
@@ -124,7 +125,8 @@ test('outbound requests work in the actual Workers runtime and reject redirects'
           const outbound=new Request(url,options);
           calls.push({url:String(url),redirect:outbound.redirect});
           if(String(url).includes('/auth/token')) return redirect ? new Response(null,{status:302,headers:{Location:'https://untrusted.invalid'}}) : Response.json({access_token:'test-token'});
-          if(String(url).includes('/export/')) return Response.json([]);
+          if(String(url).includes('public.leagueapps.io')) return Response.json(programs)
+    if(String(url).includes('/export/')) return Response.json([]);
           return Response.json({status:1});
         }});
         return Response.json({result,calls});
@@ -144,4 +146,19 @@ test('outbound requests work in the actual Workers runtime and reject redirects'
     assert.equal(rejected.result.delivery,'accepted')
     assert.equal(rejected.calls.length,2)
   } finally { await mf.dispose() }
+})
+
+
+test('session metadata joins the complete export and a metadata failure preserves only private totals',async()=>{
+  const e=env(); e.LEAGUEAPPS_PUBLIC_API_KEY='test-public';
+  const programs=[{programId:5121761,masterProgramId:5121283,startTime:Date.parse('2026-10-19T04:00:00Z'),endTime:Date.parse('2026-10-19T04:00:00Z'),scheduleTimes:'5:00PM to 7:00PM'}]
+  const h=harness([[row(1,{masterProgramId:5121283})],[]],{programs})
+  await runRegistrations(e,{now,fetch:h.fetch})
+  const p=h.captures[0].properties
+  assert.equal(JSON.parse(p.registration_counts_json).sessionOperations.sessions[0].booked,1)
+  assert.match(p.session_breakdown_json,/Mon, Oct 19/)
+  const bad=harness([[row(1)],[]],{programs:{error:'private'}})
+  await runRegistrations(e,{now,fetch:bad.fetch})
+  assert.equal(bad.captures[0].properties.status,'verified')
+  assert.match(bad.captures[0].properties.session_breakdown_json,/unavailable/)
 })
