@@ -280,8 +280,11 @@ export const SESSION_HELP = 'Booked athletes are distinct reserved athlete accou
 export const SESSION_PACE_HELP = 'Compare the latest eight clinics on earlier calendar days in this series on the same weekday and at the same time. Count their currently reserved bookings created by the same number of days before the clinic and the same Central time of day. This reconstructs booking pace, not historical registration status. Fewer than three earlier clinics is a limited baseline. A difference does not prove a cause.'
 export const SESSION_CAPACITY_HELP = 'Places left uses a verified, dated total capacity that includes pass holders. Pending athletes count only when the verified rule includes them. Not set means remaining capacity is unknown, not unlimited. Confirm the desired group size with the coach before outreach.'
 export const ATTENDANCE_HELP = 'Attendance is not yet verified for these clinics. A booking, payment or all-session pass does not prove the athlete attended. Use recorded check-ins separately; missing attendance must never appear as zero.'
+export const DAY_TIME_HELP = 'Girls high-school clinics in the current LeagueApps program list, grouped by weekday and exact Central time. Completed means the scheduled end has passed. Booked by start counts currently reserved athletes whose booking existed by that session’s start, including eligible passes once per session. The average is athlete-session bookings divided by completed clinics; one athlete can count in several clinics. Current statuses reconstruct bookings, not historical snapshots or attendance. Small samples and a shared time slot cannot establish a weekday or time-of-day effect.'
+export const FILL_SHOWUP_HELP = 'Fill rate = booked athletes by start divided by verified total athlete capacity, including pass holders. Every completed clinic in a row needs a dated capacity; partial or zero capacity leaves the rate unavailable. Show-up rate = booked athletes with an actual check-in divided by booked athletes for the same sessions. No verified clinic check-in feed is connected. RSVPs are plans, not attendance. Confirm total capacity with the coach and record actual check-ins in LeagueApps, then provide the Attendance Report export. Missing data is not zero.'
 const dayDifference = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / 86400000)
 const timeLabel = value => typeof value === 'string' && /^(?:[1-9]|1[0-2]):[0-5]\d(AM|PM) to (?:[1-9]|1[0-2]):[0-5]\d(AM|PM)$/.test(value) ? value : null
+const startClock = time => { const [, h, m, half] = time.match(/^(\d{1,2}):(\d{2})(AM|PM)/); return `${String(Number(h) % 12 + (half === 'PM' ? 12 : 0)).padStart(2, '0')}:${m}:00` }
 const endClock = time => { const [, h, m, half] = time.match(/to (\d{1,2}):(\d{2})(AM|PM)$/); return `${String(Number(h) % 12 + (half === 'PM' ? 12 : 0)).padStart(2, '0')}:${m}:00` }
 const localClock = value => new Intl.DateTimeFormat('en-GB', { timeZone: WEBSITE_TIMEZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(value))
 const weekday = day => new Date(`${day}T12:00:00Z`).getUTCDay()
@@ -326,8 +329,8 @@ export function createSessionOperations({ programs = null, capacities = SESSION_
       const sessions = []
       const catalog = Array.isArray(programs) ? programs.filter(p => p.masterProgramId === SESSION_COHORT.master && !p.isMaster && !p.deleted && !SESSION_COHORT.passes.includes(p.programId)) : null
       const dated = catalog?.map(p => ({ id: p.programId, date: programDay(p.startTime), end: programDay(p.endTime), time: timeLabel(p.scheduleTimes) })).filter(p => p.date && p.date === p.end && p.time) || []
-      const unique = (list, status, cutoff = null) => {
-        const selected = list.filter(r => r.status === status && (!cutoff || calendarDay(r.created, WEBSITE_TIMEZONE) < cutoff || (calendarDay(r.created, WEBSITE_TIMEZONE) === cutoff && localClock(r.created) <= clock)))
+      const unique = (list, status, cutoff = null, cutoffClock = clock) => {
+        const selected = list.filter(r => r.status === status && (!cutoff || calendarDay(r.created, WEBSITE_TIMEZONE) < cutoff || (calendarDay(r.created, WEBSITE_TIMEZONE) === cutoff && localClock(r.created) <= cutoffClock)))
         return selected.some(r => !r.athlete) ? null : new Set(selected.map(r => r.athlete)).size
       }
       const forSession = p => rows.filter(r => r.program === p.id || (SESSION_COHORT.passes.includes(r.program) && r.start <= p.date && r.end >= p.date))
@@ -352,6 +355,12 @@ export function createSessionOperations({ programs = null, capacities = SESSION_
           countPending: known ? cap.countPending : null, capacityCheckedOn: known ? cap.checkedOn : null,
         })
       }
+      const completed = dated.filter(p => p.date < today || (p.date === today && clock > endClock(p.time))).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id).map(p => {
+        const cap = capacities[p.id]
+        // A later observation must not silently become a historical capacity.
+        const known = cap && count(cap.limit) && validDay(cap.checkedOn) && validDay(cap.validThrough) && cap.checkedOn <= p.date && cap.validThrough >= p.date
+        return { id: p.id, date: p.date, time: p.time, booked: unique(forSession(p), 'SPOT_RESERVED', p.date, startClock(p.time)), capacity: known ? cap.limit : null }
+      })
       const paymentGroups = new Map()
       for (const r of rows.filter(r => REGISTRATION_FAMILIES[r.family].group === 'bookings' && r.status === 'SPOT_PENDING' && r.end && r.end >= today)) {
         const key = `${r.program}/${r.date}/${r.time}`
@@ -362,7 +371,7 @@ export function createSessionOperations({ programs = null, capacities = SESSION_
         group.oldest = [group.oldest, calendarDay(r.created, WEBSITE_TIMEZONE)].sort()[0]
         paymentGroups.set(key, group)
       }
-      return { version: '630-session-operations-v1', asOf, day: today, sessionsStatus: catalog && dated.length === catalog.length ? 'verified' : 'unavailable', sessions,
+      return { version: '630-session-operations-v1', asOf, day: today, sessionsStatus: catalog && dated.length === catalog.length ? 'verified' : 'unavailable', sessions, completed,
         payments: [...paymentGroups.values()].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.program - b.program) }
     },
   }
@@ -371,7 +380,7 @@ export function createSessionOperations({ programs = null, capacities = SESSION_
 /** Validate and select every property; enriched source objects cannot leak PII. */
 export function safeSessionOperations(value) {
   if (!value || value.version !== '630-session-operations-v1' || !Number.isFinite(Date.parse(value.asOf)) || value.day !== calendarDay(value.asOf, WEBSITE_TIMEZONE) || !['verified', 'unavailable'].includes(value.sessionsStatus) || !Array.isArray(value.sessions) || !Array.isArray(value.payments)) return null
-  const sessions = [], payments = []
+  const sessions = [], payments = [], completed = []
   for (const r of value.sessions) {
     if (!count(r.id) || !validDay(r.date) || !timeLabel(r.time) || !count(r.leadDays) || r.leadDays !== dayDifference(r.date, value.day)
       || !['booked', 'pending', 'baselineMin', 'baselineMax', 'capacity', 'occupied', 'remaining', 'overCapacity'].every(k => r[k] === null || count(r[k])) || !count(r.baselineCount)
@@ -380,11 +389,20 @@ export function safeSessionOperations(value) {
         || (r.occupied === null ? r.remaining !== null || r.overCapacity !== null : r.remaining !== Math.max(0, r.capacity-r.occupied) || r.overCapacity !== Math.max(0, r.occupied-r.capacity)))) return null
     sessions.push(Object.fromEntries(['id','date','time','leadDays','booked','pending','baselineCount','baselineMin','baselineMax','capacity','occupied','remaining','overCapacity','countPending','capacityCheckedOn'].map(k=>[k,r[k]])))
   }
+  // Older snapshots remain readable, but cannot invent a completed-session series.
+  if (value.completed !== undefined && !Array.isArray(value.completed)) return null
+  for (const r of value.completed || []) {
+    if (!count(r.id) || !validDay(r.date) || !timeLabel(r.time) || r.date > value.day
+      || (r.date === value.day && localClock(value.asOf) <= endClock(r.time))
+      || !['booked', 'capacity'].every(k => r[k] === null || count(r[k]))
+      || completed.some(p => p.id === r.id)) return null
+    completed.push(Object.fromEntries(['id', 'date', 'time', 'booked', 'capacity'].map(k => [k, r[k]])))
+  }
   for (const r of value.payments) {
     if (!count(r.program) || !Object.hasOwn(REGISTRATION_FAMILIES, r.family) || REGISTRATION_FAMILIES[r.family].group !== 'bookings' || ![r.count, r.unpaid, r.missingBalance].every(count) || r.unpaid + r.missingBalance > r.count || !money(r.balance) || !validDay(r.oldest) || (r.date !== null && !validDay(r.date)) || (r.time !== null && !timeLabel(r.time)) || typeof r.pass !== 'boolean') return null
     payments.push(Object.fromEntries(['program','family','date','time','count','unpaid','balance','missingBalance','oldest','pass'].map(k=>[k,r[k]])))
   }
-  return { version: value.version, asOf: value.asOf, day: value.day, sessionsStatus: value.sessionsStatus, sessions, payments }
+  return { version: value.version, asOf: value.asOf, day: value.day, sessionsStatus: value.sessionsStatus, sessions, payments, ...(value.completed === undefined ? {} : { completed }) }
 }
 export function pendingPaymentAction(value) {
   const operations = safeSessionOperations(value)
@@ -402,6 +420,32 @@ export function sessionRows(value) {
     capacity: r.capacity === null ? 'Not set — places left unknown' : r.remaining === null ? `${r.capacity} maximum; occupancy unavailable` : `${r.remaining} left of ${r.capacity}${r.overCapacity ? `; ${r.overCapacity} over capacity` : ''}. ${r.countPending ? 'Pending included' : 'Reserved only'}. Checked ${r.capacityCheckedOn}.`,
     action: r.overCapacity ? 'Resolve capacity with the coach before outreach.' : r.booked === null || r.baselineCount < 3 ? 'Check the coach’s target; comparison is incomplete.' : r.booked < r.baselineMin ? 'Below earlier pace. Confirm places and coach’s target before outreach.' : 'At or above earlier pace. No urgent outreach signal from bookings alone.',
   }))
+}
+
+export function sessionDayTimeRows(value) {
+  const operations = safeSessionOperations(value)
+  if (!operations || operations.sessionsStatus !== 'verified' || !operations.completed) return [{ schedule: SESSION_COHORT.label, sessions: 'Unavailable', booked: 'Unavailable', fill: 'Unavailable — verify total capacity', showup: 'Unavailable — no verified check-ins' }]
+  if (!operations.completed.length) return [{ schedule: SESSION_COHORT.label, sessions: 'No completed clinics', booked: 'Not applicable', fill: 'Not applicable', showup: 'Not applicable' }]
+  const groups = new Map()
+  for (const session of operations.completed) {
+    const key = `${weekday(session.date)}/${session.time}`
+    const group = groups.get(key) || []
+    group.push(session); groups.set(key, group)
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, group]) => {
+    const dates = group.map(r => r.date).sort(), knownBookings = group.every(r => count(r.booked))
+    const total = knownBookings ? group.reduce((n, r) => n + r.booked, 0) : null
+    const capacities = group.filter(r => count(r.capacity) && r.capacity > 0)
+    const capacityTotal = capacities.reduce((n, r) => n + r.capacity, 0)
+    const day = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${dates[0]}T12:00:00Z`))
+    return {
+      schedule: `${day} · ${group[0].time} Central`,
+      sessions: `${group.length} clinics · ${dates[0]} through ${dates.at(-1)}`,
+      booked: total === null ? 'Unavailable — missing athlete IDs' : `${(total / group.length).toFixed(1)} athletes per clinic · ${total} bookings across ${group.length} clinics`,
+      fill: total === null || capacities.length !== group.length ? `Unavailable — verified capacity for ${capacities.length}/${group.length} clinics` : `${(100 * total / capacityTotal).toFixed(1)}% · ${total} booked / ${capacityTotal} total places`,
+      showup: 'Unavailable — no verified check-ins',
+    }
+  })
 }
 
 function validRegistrationSnapshot(snapshot) {
@@ -487,6 +531,7 @@ export function registrationSnapshotProperties(snapshot, trigger) {
     commitments: answer.commitments || '', classification: answer.classification || '', totals: answer.totals || '', waiting: answer.waiting || '',
     program_breakdown_json: JSON.stringify(registrationProgramRows(snapshot)),
     session_breakdown_json: JSON.stringify(sessionRows(operations)),
+    session_day_time_json: JSON.stringify(sessionDayTimeRows(operations)),
     pending_payments: pendingPaymentAction(operations),
     // Numeric source for independent report verification. Explicit keys prevent
     // accidentally enriched source objects from carrying identities into analytics.
@@ -525,13 +570,13 @@ export function registrationExpectedTables(source = null, now = new Date()) {
   ]
   const programs = snapshot ? registrationProgramRows(snapshot).map(row => [row.program, row.current, row.previous, row.context]) : [['Program bookings unavailable', 'Unavailable', 'Unavailable', 'Check the LeagueApps refresh; missing data does not mean zero.']]
   if (!programs.length) programs.push(['No program bookings in either period', '0 bookings; 0 athletes', '0 bookings; 0 athletes', 'Complete export recorded. Team setup and season commitments appear in the summary.'])
-  return { summary: REGISTRATION_QUESTIONS.map((q, i) => [q, values[i]]), programs, sessions: sessionRows(snapshot?.sessionOperations).map(r => [r.session, r.booked, r.pace, r.capacity, r.action]) }
+  return { summary: REGISTRATION_QUESTIONS.map((q, i) => [q, values[i]]), programs, dayTime: sessionDayTimeRows(snapshot?.sessionOperations).map(r => [r.schedule, r.sessions, r.booked, r.fill, r.showup]), sessions: sessionRows(snapshot?.sessionOperations).map(r => [r.session, r.booked, r.pace, r.capacity, r.action]) }
 }
 const sqlQuote = value => `'${value.replaceAll("'", "''")}'`
 const registrationMidnight = `toStartOfDay(now(), '${WEBSITE_TIMEZONE}')`
 function latestRegistrationQuery() {
   return `SELECT count() AS snapshots,
-    ${['status', 'period_start', 'period_end', 'answer', 'context', 'next_step', 'commitments', 'classification', 'totals', 'waiting', 'program_breakdown_json', 'session_breakdown_json', 'pending_payments'].map(key => `argMax(properties.${key}, timestamp) AS ${key}`).join(',\n    ')},
+    ${['status', 'period_start', 'period_end', 'answer', 'context', 'next_step', 'commitments', 'classification', 'totals', 'waiting', 'program_breakdown_json', 'session_breakdown_json', 'session_day_time_json', 'pending_payments'].map(key => `argMax(properties.${key}, timestamp) AS ${key}`).join(',\n    ')},
     formatDateTime(max(timestamp), '%Y-%m-%d %H:%i:%S', 'UTC') AS as_of,
     snapshots > 0 AND status = 'verified'
       AND period_start = toString(toDate(${registrationMidnight} - INTERVAL 7 DAY))
@@ -569,4 +614,11 @@ export function registrationSessionsQuery() {
   return `SELECT JSONExtractString(item, 'session') AS Session, JSONExtractString(item, 'booked') AS Booked, JSONExtractString(item, 'pace') AS Earlier, JSONExtractString(item, 'capacity') AS Capacity, JSONExtractString(item, 'action') AS Action
 FROM (\n${latestRegistrationQuery()}\n)
 ARRAY JOIN JSONExtractArrayRaw(coalesce(if(usable AND notEmpty(toString(session_breakdown_json)), toString(session_breakdown_json), ${unavailable}), ${unavailable})) AS item`
+}
+
+export function registrationDayTimeQuery() {
+  const unavailable = sqlQuote(JSON.stringify(sessionDayTimeRows(null)))
+  return `SELECT JSONExtractString(item, 'schedule') AS \`Day / time\`, JSONExtractString(item, 'sessions') AS \`Completed clinics\`, JSONExtractString(item, 'booked') AS \`Booked by start\`, JSONExtractString(item, 'fill') AS \`Fill rate\`, JSONExtractString(item, 'showup') AS \`Show-up rate\`
+FROM (\n${latestRegistrationQuery()}\n)
+ARRAY JOIN JSONExtractArrayRaw(coalesce(if(usable AND notEmpty(toString(session_day_time_json)), toString(session_day_time_json), ${unavailable}), ${unavailable})) AS item`
 }
