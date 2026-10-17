@@ -1011,6 +1011,59 @@ Cover upload failure exits nonzero; a requested `cover_file` without `cover_url`
 
 The 630 correction on 2026-10-02 used `GRAPH_BASE=https://graph.facebook.com/v26.0`. The default remains v25.0 for existing campaigns. Its Reel and Story reached `FINISHED` before publication; the Reel returned a pending Nick Maruyama invite. Account-specific instructions and receipts belong in `apps/630/630-marketing-automation/docs/internal/ops/META-PUBLISHING.md` and that repository's social draft folder.
 
+## Instagram catalog music on Reels
+
+`search-audio.mjs` reads Instagram's eligible audio catalog for the selected account.
+It never uploads media, creates a container, changes a queue or publishes. Use these
+commands to check access, find candidates, and refresh one track's metadata:
+
+```bash
+node scripts/social-publish/search-audio.mjs --account 630 --check-access
+node scripts/social-publish/search-audio.mjs --account 630 --query "upbeat instrumental" --limit 10
+node scripts/social-publish/search-audio.mjs --account 630 --id <selected-audio-id>
+```
+
+The default type is `music`; `--type original_sound` searches original sounds. Omit
+the query to request the catalog's trending selection. Output is JSON. Preview URLs
+are temporary (Meta says roughly 1.5 days); refresh metadata instead of storing a
+preview URL as a publish asset. Listen before calling a result a suitable instrumental:
+search words do not guarantee genre, energy or absence of vocals.
+
+Credentials use the selected account's registered `token_ref`, or `IG_ACCESS_TOKEN`.
+The access check reports token validity/type/expiry/scopes, the exact Instagram
+identity, the direct Page link and an actual music search. It exits nonzero when
+identity, validity or audio access fails. It makes GET requests only; successful search
+does not establish successful attachment or publication. On October 17, 2026, 630's
+saved **Page** token passed identity and audio search, despite the documentation naming
+a User token. This is an observed result for that credential, not a promise that all
+Page tokens work. Do not broaden permissions or silently use another account's token.
+
+After Nino chooses a track, add `--audio-id <id>`, optionally `--audio-volume <1–100>`
+and `--video-volume <1–100>`, to the ordinary authorized `post-now.mjs` command.
+Use a video without an embedded music bed to avoid overlapping two songs. Volumes
+default to Meta's 100 when omitted. The saved queue field is:
+
+```json
+"audio_configuration": { "audio_id": "<selected numeric ID>", "audio_volume": 60, "video_volume": 35 }
+```
+
+These example volumes are starting points, not an approved mix. The field reaches
+the Reel creation request through both `post-reels.mjs` and the scheduler. It is
+included in the approval/container digest. CLI prepared containers retain their
+existing retry rules; the scheduler holds a saved container if its track or volume
+configuration changes. Missing music permission fails the item; neither publisher
+retries by dropping the music. Images, Stories, carousels and Facebook crossposts
+with catalog audio are refused. Use a separate Facebook item if needed.
+
+Meta's [Instagram Audio API](https://developers.facebook.com/documentation/instagram-platform/content-publishing/audio-api)
+(fetched October 17, updated June 16, 2026) supports Facebook Login, a subset of
+music cleared for third-party use, audio ID and the two volume controls. It does not
+document a song-section/start-offset control or offer a combined Reel/audio preview.
+Do not claim native-library parity, exact beat alignment, ad eligibility, or a
+successful live attachment from a search result. Put the chosen ID and mix in the
+publication manifest before preparing the unpublished container. Then publish the
+saved item only within the user's approval and verify its live result.
+
 ## Ad-hoc one-shot post (no event, no schedule)
 
 An ad hoc post goes out by hand unless Nino named the Graph API for it (the

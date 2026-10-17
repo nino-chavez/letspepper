@@ -27,6 +27,15 @@ test('lostState: items the Worker has not started on are not guarded', () => {
   assert.deepEqual(lostState({ items: [held] }, { items: [{ ...held, caption: 'changed' }] }), [])
 })
 
+test('lostState protects the saved music marker alongside its container', () => {
+  const item = { ...posted(), ig_container_audio_configuration: JSON.stringify({ audio_id: '123', audio_volume: 60 }) }
+  const live = { items: [item] }
+  assert.deepEqual(lostState(live, structuredClone(live)), [])
+  const missing = { ...item }; delete missing.ig_container_audio_configuration
+  assert.deepEqual(lostState(live, { items: [missing] }), [item.id])
+  assert.deepEqual(lostState(live, { items: [{ ...item, ig_container_audio_configuration: JSON.stringify({ audio_id: '456' }) }] }), [item.id])
+})
+
 test('seedPayload carries the explicit strict media scope to the Worker route', () => {
   const event = 'reviewed-coaching-test'
   const entry = { reason: 'approved one Reel', approved: '2026-10-15', accounts: ['630'], media_types: ['REELS'], strict_media_types: true }

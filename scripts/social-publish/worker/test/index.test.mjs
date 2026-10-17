@@ -534,6 +534,71 @@ test('630 Reel uses its partner credential, approved cover and Nick collaborator
   assert.equal(create.params.caption, q.items[0].caption)
 })
 
+test('630 scheduler attaches the exact selected music and preserves it with the container', async () => {
+  const q = partnerReel()
+  const audio = { audio_id: '123456789', audio_volume: 60, video_volume: 35 }
+  q.items[0].audio_configuration = audio
+  const requests = []
+  const result = await runQueue(q, partnerGraphFetch(requests), { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(result.items[0].status, 'posted')
+  const create = requests.find(r => r.path.endsWith('/17841411569230130/media'))
+  assert.deepEqual(JSON.parse(create.params.audio_configuration), audio)
+  assert.equal(result.items[0].ig_container_audio_configuration, create.params.audio_configuration)
+})
+
+test('630 scheduler refuses changed music on a saved container before Graph', async () => {
+  const q = partnerReel()
+  Object.assign(q.items[0], { ig_container_id: 'saved', status: 'building', audio_configuration: { audio_id: '456' }, ig_container_audio_configuration: JSON.stringify({ audio_id: '123' }) })
+  let calls = 0
+  const result = await runQueue(q, async () => { calls++; throw new Error('must not call Graph') }, { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(calls, 0)
+  assert.equal(result.items[0].status, 'error')
+  assert.match(result.items[0].error, /different Instagram audio/)
+})
+
+test('scheduler resumes a CLI music container explicitly handed off as building, without recreating it', async () => {
+  const q = partnerReel()
+  const audio = { audio_id: '123456789', audio_volume: 60, video_volume: 35 }
+  Object.assign(q.items[0], { status: 'building', ig_container_id: 'partner-container', ig_container_audio_configuration: JSON.stringify(audio), audio_configuration: audio })
+  const requests = []
+  const result = await runQueue(q, partnerGraphFetch(requests), { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(result.items[0].status, 'posted')
+  assert.equal(requests.filter(r => r.path.endsWith('/17841411569230130/media')).length, 0)
+  assert.equal(requests.filter(r => r.path.endsWith('/17841411569230130/media_publish')).length, 1)
+})
+
+test('CLI prepared status remains an unpublished hold, even with a valid music marker', async () => {
+  const q = partnerReel()
+  const audio = { audio_id: '123456789' }
+  Object.assign(q.items[0], { status: 'prepared', ig_container_id: 'partner-container', ig_container_audio_configuration: JSON.stringify(audio), audio_configuration: audio })
+  let calls = 0
+  const result = await runQueue(q, async () => { calls++; throw new Error('must not call Graph') }, { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(calls, 0)
+  assert.equal(result.items[0].status, 'prepared')
+})
+
+test('building a fresh silent-catalog container clears an obsolete music marker', async () => {
+  const q = partnerReel()
+  q.items[0].ig_container_audio_configuration = JSON.stringify({ audio_id: 'old-track' })
+  const requests = []
+  const result = await runQueue(q, partnerGraphFetch(requests), { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(result.items[0].status, 'posted')
+  assert.equal(result.items[0].ig_container_audio_configuration, undefined)
+  assert.equal(requests.find(r => r.path.endsWith('/17841411569230130/media')).params.audio_configuration, undefined)
+})
+
+test('catalog music cannot silently disappear on a Facebook crosspost', async () => {
+  const q = partnerReel()
+  q.meta.route.accounts = ['letspepper']
+  q.items[0].account = 'letspepper'
+  Object.assign(q.items[0], { channels: ['instagram', 'facebook'], facebook_status: 'pending', audio_configuration: { audio_id: '123' } })
+  let calls = 0
+  const result = await runQueue(q, async () => { calls++; throw new Error('must not call Graph') }, { IG_630_ACCESS_TOKEN: 'partner-token' })
+  assert.equal(calls, 0)
+  assert.match(result.items[0].error, /separate Facebook item/)
+  assert.match(result.items[0].facebook_error, /separate Facebook item/)
+})
+
 test('630 missing partner credential fails before Graph instead of using the owned token', async () => {
   let calls = 0
   const q = await runQueue(partnerReel(), async () => { calls++; throw new Error('must not call Graph') })

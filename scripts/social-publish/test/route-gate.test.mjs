@@ -71,7 +71,7 @@ function sandbox({ routes = { events: {} }, queue = incidentQueue() } = {}) {
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
   mkdirSync(join(root, 'tools', 'lib'), { recursive: true })
-  for (const f of ['route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'collab-shape.mjs', 'tag-params.mjs', 'carousel-container-params.mjs', 'post-reels.mjs', 'queue-dir.mjs', 'queue-store.mjs', 'post-now.mjs', 'accounts.json', 'vary-captions.mjs'])
+  for (const f of ['reel-audio.mjs', 'route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'collab-shape.mjs', 'tag-params.mjs', 'carousel-container-params.mjs', 'post-reels.mjs', 'queue-dir.mjs', 'queue-store.mjs', 'post-now.mjs', 'accounts.json', 'vary-captions.mjs'])
     cpSync(join(SOCIAL, f), join(social, f))
   cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
   cpSync(join(REPO, 'tools', 'lib', 'invoked-directly.mjs'), join(root, 'tools', 'lib', 'invoked-directly.mjs'))
@@ -528,7 +528,8 @@ test('a requested cover that is not hosted blocks every Graph call', async () =>
 })
 
 test('prepare-only validates one saved container without publishing; finishing reuses it', async () => {
-  const item = { id: 'prepared-reel', account: '630', media_type: 'REELS', video_url: 'https://media.invalid/reel.mp4', cover_url: 'https://media.invalid/cover.jpg', caption: 'Great teams solve problems.', collaborators: ['nick_maruyama'], scheduledAt: '2026-10-02T00:00:00Z', status: 'pending' }
+  const audio = { audio_id: '123456789', audio_volume: 60, video_volume: 35 }
+  const item = { id: 'prepared-reel', account: '630', media_type: 'REELS', video_url: 'https://media.invalid/reel.mp4', cover_url: 'https://media.invalid/cover.jpg', caption: 'Great teams solve problems.', collaborators: ['nick_maruyama'], scheduledAt: '2026-10-02T00:00:00Z', status: 'pending', audio_configuration: audio }
   const sb = sandbox({ queue: { event: EVENT, items: [item] } }); const graph = await graphStub()
   try {
     const args = ['--event', EVENT, '--id', item.id, '--count', '1', '--graph-route', REASON]
@@ -537,12 +538,50 @@ test('prepare-only validates one saved container without publishing; finishing r
     const saved = JSON.parse(readFileSync(sb.queuePath())).items[0]
     assert.equal(saved.status, 'prepared')
     assert.ok(saved.ig_container_id)
+    assert.equal(saved.ig_container_audio_configuration, JSON.stringify(audio))
+    assert.deepEqual(JSON.parse(graph.payloads.find(p => p.path.endsWith('/media')).params.audio_configuration), audio)
     assert.ok(!graph.seen.some((r) => r.includes('/media_publish')))
     const finished = await run(join(sb.social, 'post-reels.mjs'), args, { cwd: sb.root, base: graph.base })
     assert.equal(finished.code, 0, finished.err)
     assert.equal(graph.seen.filter((r) => r === 'POST /17841411569230130/media').length, 1)
     assert.equal(graph.seen.filter((r) => r.includes('/media_publish')).length, 1)
   } finally { await graph.close(); sb.cleanup() }
+})
+
+test('post-now dry run retains chosen music and rejects invalid audio before queue or Graph writes', async () => {
+  const sb = sandbox(); const graph = await graphStub()
+  try {
+    const video = join(sb.root, 'reel.mp4'); writeFileSync(video, 'test video')
+    const base = ['--account', '630', '--file', video, '--graph-route', REASON, '--dry-run']
+    const ok = await run(join(sb.social, 'post-now.mjs'), [...base, '--audio-id', '123456789', '--audio-volume', '60', '--video-volume', '35'], { cwd: sb.root, base: graph.base })
+    assert.equal(ok.code, 0, ok.err)
+    assert.match(ok.out, /"audio_id": "123456789"/)
+    assert.match(ok.out, /"video_volume": 35/)
+    for (const flags of [['--audio-id'], ['--audio-volume', '60'], ['--audio-id', '123', '--audio-volume', '0'], ['--story', '--audio-id', '123']]) {
+      const bad = await run(join(sb.social, 'post-now.mjs'), [...base, ...flags], { cwd: sb.root, base: graph.base })
+      assert.notEqual(bad.code, 0, `${flags} must fail`)
+    }
+    assert.equal(existsSync(sb.queuePath('adhoc')), false)
+    assert.equal(graph.seen.length, 0)
+  } finally { await graph.close(); sb.cleanup() }
+})
+
+test('music permission error never retries silently without the requested music', async () => {
+  const item = { id: 'music-reel', account: '630', media_type: 'REELS', video_url: 'https://media.invalid/reel.mp4', caption: 'Tournament weekends are back.', scheduledAt: '2000-01-01', status: 'pending', audio_configuration: { audio_id: '123' } }
+  const sb = sandbox({ queue: { event: EVENT, items: [item] } })
+  let calls = 0
+  const server = http.createServer((req, res) => {
+    calls++; req.resume()
+    res.writeHead(403, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ error: { code: 200, message: 'Music permission denied' } }))
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const result = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', item.id, '--graph-route', REASON], { cwd: sb.root, base: `http://127.0.0.1:${server.address().port}` })
+    assert.notEqual(result.code, 0)
+    assert.equal(calls, 1)
+    assert.equal(JSON.parse(readFileSync(sb.queuePath())).items[0].status, 'error')
+  } finally { await new Promise(resolve => server.close(resolve)); sb.cleanup() }
 })
 
 test('digestOf: a legacy item with no alt_text and no Facebook destination hashes exactly as the pre-alt_text/pre-Facebook formula did', () => {

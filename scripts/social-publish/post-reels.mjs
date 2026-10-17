@@ -27,6 +27,8 @@
  *                  fallback. REELS take bare usernames as-is.
  *   collaborators  ["username", ...]      send Collab co-author invites
  *   cover_url      public JPEG URL for a REELS cover
+ *   audio_configuration  {audio_id, audio_volume?, video_volume?} REELS only;
+ *                  selected Instagram catalog audio, retained across retries
  *
  * Flags: --count N (default 2) · --account slug (override) · --id <item-id>
  *        (publish only that queue item) · --force · --dry-run · --prepare-only
@@ -67,6 +69,7 @@ import { tagParams, userTagsParams } from './tag-params.mjs'
 import { carouselChildParams, carouselParentParams } from './carousel-container-params.mjs'
 import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { openQueueFile } from './queue-store.mjs'
+import { audioParams } from './reel-audio.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -146,6 +149,8 @@ if (!due.length) {
 }
 
 const batch = due.slice(0, count)
+// Validate all requested audio before a queue write or any Graph call.
+for (const item of batch) audioParams(item)
 
 // Route first. It comes before the token check on purpose: an agent that is
 // refused for a missing token goes and fetches one, and only then learns the
@@ -239,6 +244,7 @@ async function buildContainer(ig, it) {
   const { id } = await api(`${ig}/media`, {
     media_type: 'REELS', video_url: it.video_url, caption: it.caption, share_to_feed: 'true',
     ...(it.cover_url ? { cover_url: it.cover_url } : {}), ...tagParams(it),
+    ...audioParams(it),
   })
   return id
 }
@@ -293,7 +299,11 @@ for (const it of batch) {
     }
     if (!containerId) {
       containerId = await buildContainer(ig, it)
-      it.ig_container_id = containerId; it.ig_container_digest = payload; save()
+      it.ig_container_id = containerId; it.ig_container_digest = payload
+      const audio = audioParams(it)
+      if (audio.audio_configuration) it.ig_container_audio_configuration = audio.audio_configuration
+      else delete it.ig_container_audio_configuration
+      save()
     }
     await waitFinished(containerId)
     if (prepareOnly) {
