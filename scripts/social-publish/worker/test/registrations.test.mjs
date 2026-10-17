@@ -24,7 +24,7 @@ function harness(pages, { exportStatus=200, captureStatus=200, programs=[] }={})
       assert.equal(await crypto.subtle.verify('RSASSA-PKCS1-v1_5',pair.publicKey,Buffer.from(parts[2],'base64url'),new TextEncoder().encode(parts.slice(0,2).join('.'))),true)
       return Response.json({access_token:'test-access'})
     }
-    if(String(url).includes('public.leagueapps.io')) return Response.json(programs)
+    if(String(url).includes('public.leagueapps.io')) return Response.json(new URL(url).searchParams.get('pageNum') === '1' ? programs : [])
     if(String(url).includes('/export/'))return Response.json(exportStatus===200?pages.shift():{private:'never-publish@example.invalid'},{status:exportStatus})
     captures.push(JSON.parse(opts.body))
     return Response.json({status:captureStatus===200?1:0},{status:captureStatus})
@@ -125,7 +125,7 @@ test('outbound requests work in the actual Workers runtime and reject redirects'
           const outbound=new Request(url,options);
           calls.push({url:String(url),redirect:outbound.redirect});
           if(String(url).includes('/auth/token')) return redirect ? new Response(null,{status:302,headers:{Location:'https://untrusted.invalid'}}) : Response.json({access_token:'test-token'});
-          if(String(url).includes('public.leagueapps.io')) return Response.json(programs)
+          if(String(url).includes('public.leagueapps.io')) return Response.json(new URL(url).searchParams.get('pageNum') === '1' ? programs : [])
     if(String(url).includes('/export/')) return Response.json([]);
           return Response.json({status:1});
         }});
@@ -161,4 +161,10 @@ test('session metadata joins the complete export and a metadata failure preserve
   await runRegistrations(e,{now,fetch:bad.fetch})
   assert.equal(bad.captures[0].properties.status,'verified')
   assert.match(bad.captures[0].properties.session_breakdown_json,/unavailable/)
+})
+
+test('session metadata includes completed programs so past clinics remain comparable', async()=>{
+ const e=env();e.LEAGUEAPPS_PUBLIC_API_KEY='public-test';const h=harness([[]]);
+ await runRegistrations(e,{now,fetch:h.fetch});
+ assert.ok(h.calls.some(url=>url.includes('includeState=LIVE,UPCOMING,COMPLETED&includePrivate=true')));
 })

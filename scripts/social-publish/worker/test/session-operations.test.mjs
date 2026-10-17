@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createSessionOperations, safeSessionOperations, sessionRows, pendingPaymentAction, createRegistrationRollup, registrationSnapshotProperties, registrationExpectedTables, reportingWindow } from '../../analytics-contract.mjs'
+import { createSessionOperations, safeSessionOperations, readLeagueAppsPrograms, sessionDayTimeRows, registrationDayTimeQuery, sessionRows, pendingPaymentAction, createRegistrationRollup, registrationSnapshotProperties, registrationExpectedTables, reportingWindow } from '../../analytics-contract.mjs'
 // Synthetic registrations only. These IDs, people and balances are invented.
 const ts=day=>Date.parse(day+'T04:00:00Z')
 const program=(id,date,extra={})=>({programId:id,masterProgramId:5121283,isMaster:false,deleted:false,startTime:ts(date),endTime:ts(date),scheduleTimes:'5:00PM to 7:00PM',...extra})
@@ -61,4 +61,68 @@ test('published numeric source independently regenerates the displayed session a
  assert.deepEqual(expected.sessions,JSON.parse(p.session_breakdown_json).map(r=>[r.session,r.booked,r.pace,r.capacity,r.action]))
  assert.equal(expected.summary.find(r=>r[0]==='Pending-payment follow-up')[1],p.pending_payments)
  assert.match(expected.summary.find(r=>r[0]==='Bookings or attendance?')[1],/not yet verified/)
+})
+
+test('completed bookings use session start, deduplicate passes, and never invent attendance',()=>{
+ const result=build([
+   row(1,5121284,{userId:10,created:Date.parse('2026-10-05T22:00:00Z')}),
+   row(2,2,{userId:10}),
+   row(3,2,{created:Date.parse('2026-10-05T22:00:01Z')}),
+   row(4,1,{registrationStatus:'SPOT_PENDING'}),
+   row(5,5,{created:Date.parse('2026-10-16T22:00:00Z')}),
+ ])
+ assert.deepEqual(result.completed.map(r=>[r.date,r.booked]),[['2026-09-28',0],['2026-10-05',1],['2026-10-12',1],['2026-10-16',2]])
+ const rows=sessionDayTimeRows(result)
+ assert.equal(rows.length,2)
+ assert.match(rows[0].schedule,/Monday.*5:00PM to 7:00PM Central/)
+ assert.match(rows[0].booked,/0.7 athletes per clinic · 2 bookings across 3 clinics/)
+ assert.match(rows[0].sessions,/3 clinics · 2026-09-28 through 2026-10-12/)
+ assert.match(rows[0].fill,/Unavailable.*0\/3/)
+ assert.equal(rows[0].showup,'Unavailable — no verified check-ins')
+ assert.doesNotMatch(JSON.stringify(result),/PRIVATE|userId|registrationId|email/)
+})
+test('fill rates require all positive dated capacities and use summed places, not mean percentages',()=>{
+ const capacities={1:{limit:10,checkedOn:'2026-09-01',validThrough:'2026-11-01'},2:{limit:20,checkedOn:'2026-09-01',validThrough:'2026-11-01'},3:{limit:30,checkedOn:'2026-09-01',validThrough:'2026-11-01'}}
+ const rows=[row(1,1),row(2,2),row(3,2),row(4,3),row(5,3),row(6,3)]
+ assert.equal(sessionDayTimeRows(build(rows,{capacities}))[0].fill,'10.0% · 6 booked / 60 total places')
+ for(const cap of [{...capacities[2],limit:0},{...capacities[2],checkedOn:'2026-10-06'},{...capacities[2],validThrough:'2026-10-04'}]) {
+   assert.match(sessionDayTimeRows(build(rows,{capacities:{...capacities,2:cap}}))[0].fill,/Unavailable.*2\/3/)
+ }
+})
+test('missing identities, metadata, old snapshots and corrupted completed data fail explicitly',()=>{
+ const result=build([row(1,1,{userId:null})])
+ assert.match(sessionDayTimeRows(result)[0].booked,/Unavailable/)
+ assert.match(sessionDayTimeRows(result)[0].fill,/Unavailable/)
+ assert.match(sessionDayTimeRows(build([],{programs:null}))[0].sessions,/Unavailable/)
+ assert.match(sessionDayTimeRows(build([],{programs:[]}))[0].sessions,/Unavailable/)
+ assert.equal(build([],{programs:[]}).sessionsStatus,'unavailable')
+ const old={...result};delete old.completed
+ assert.match(sessionDayTimeRows(old)[0].sessions,/Unavailable/)
+ result.completed[0].email='PRIVATE'
+ assert.doesNotMatch(JSON.stringify(safeSessionOperations(result)),/PRIVATE|email/)
+ result.completed[0].date='2026-11-01'
+ assert.equal(safeSessionOperations(result),null)
+ const duplicate=build([]);duplicate.completed.push(duplicate.completed[0])
+ assert.equal(safeSessionOperations(duplicate),null)
+ const notEnded=createSessionOperations({programs:[program(5,'2026-10-16')]})
+ assert.equal(notEnded.finish('2026-10-16T23:59:00Z').completed.length,0)
+})
+test('day/time display is regenerated from numeric aggregates and queried with missing-data fallback',()=>{
+ const rollup=createRegistrationRollup(reportingWindow({now})), snapshot=rollup.finish(now)
+ snapshot.sessionOperations=build([row(1,1)])
+ const p=registrationSnapshotProperties(snapshot,'cron')
+ const expected=registrationExpectedTables({status:p.status,period_start:p.period_start,period_end:p.period_end,observed_at:now,counts:p.registration_counts_json},now)
+ assert.deepEqual(expected.dayTime,JSON.parse(p.session_day_time_json).map(r=>[r.schedule,r.sessions,r.booked,r.fill,r.showup]))
+ assert.match(registrationDayTimeQuery(),/session_day_time_json/)
+ assert.match(registrationDayTimeQuery(),/Unavailable — no verified check-ins/)
+ assert.match(registrationExpectedTables(null,now).dayTime[0][2],/Unavailable/)
+})
+
+test('program pagination reaches an empty page and refuses repeated or incomplete results',async()=>{
+ const calls=[]
+ const all=await readLeagueAppsPrograms(async(page,size)=>{calls.push([page,size]);return page===1?[program(1,'2026-09-14')]:page===2?[program(2,'2026-09-18')]:[]})
+ assert.equal(all.length,2);assert.deepEqual(calls,[[1,1000],[2,1000],[3,1000]])
+ await assert.rejects(readLeagueAppsPrograms(async()=>[program(1,'2026-09-14')]),/overlap/)
+ await assert.rejects(readLeagueAppsPrograms(async page=>[program(page,'2026-09-14')],{maxPages:2}),/page limit/)
+ await assert.rejects(readLeagueAppsPrograms(async()=>({programs:[]})),/invalid/)
 })
