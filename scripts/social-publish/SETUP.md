@@ -53,6 +53,8 @@ Every local publish passes through `route-gate.mjs` before the copy audit, the R
 
 ## Selected-publication packages
 
+The existing `--release` format remains supported for its local reviewed-item path. The raw-footage pilot uses the richer selected-publication format below, including draft/approval state and Worker bindings. Choose one package format per invocation; combining `--release` and `--review-package` is refused. Neither format replaces route approval.
+
 `review-package.mjs` is an additional opt-in contract for a post that has had a
 single, complete human review. It does not replace the route gate. A route says
 the owned publisher may be used. A selected-publication package says which
