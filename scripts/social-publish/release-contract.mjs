@@ -17,7 +17,14 @@
  * queue item from that file alone — content flags are refused beside it — measures the media
  * again, and refuses before any side effect when anything differs from the record, naming the
  * field. post-reels.mjs re-checks the ledger item against the same record when it publishes,
- * because a scheduled run is hours later and the ledger is a file.
+ * because a scheduled run is hours later and the ledger is a file — and it fetches the hosted
+ * object it is about to hand Meta and hashes it against the reviewed hash, because a ledger can
+ * point its URL anywhere and only the bytes at that URL say what will go out.
+ *
+ * Delivery is checked against the clock too. A scheduled time already past is refused at review
+ * (it is a typo or a missed window, and nothing should be queued against it) and refused at
+ * publish once it is more than LATE_GRACE_MS behind (a run a few minutes after 7am is 7am; a run
+ * three hours late is a new decision). "Scheduled" never quietly becomes "now".
  *
  * The review digest is digestOf() from route-gate.mjs — the same formula a route receipt and a
  * saved container are bound by — over the item with its id and hosted URLs blanked and the event
@@ -61,6 +68,8 @@ import { digestOf } from './route-gate.mjs'
 import { audioConfiguration } from './reel-audio.mjs'
 
 export const REFUSED_RELEASE = 4
+/** How late a scheduled publish may run and still count as on time. Past this, the delivery is re-decided. */
+export const LATE_GRACE_MS = 15 * 60_000
 /** The fields the review record binds, in the order a refusal lists them. */
 export const CONTRACT_FIELDS = ['account', 'media_type', 'source.sha256', 'source.video_md5', 'cover.sha256', 'caption', 'mentions', 'user_tags', 'collaborators', 'audio_configuration', 'alt_text', 'delivery']
 const DIGEST_EVENT = 'release' // the event label the review digest is computed under; the item's account is in the hash
@@ -213,6 +222,30 @@ export function deliveryInstant(delivery, now = new Date()) {
 
 export const describeDelivery = (d) => (d?.immediate === true ? 'immediate' : `${d?.scheduled_at} ${d?.timezone}`)
 
+const humanDuration = (ms) => {
+  const m = Math.round(ms / 60_000)
+  if (m < 60) return `${m} min`
+  if (m < 48 * 60) return `${Math.floor(m / 60)} h ${m % 60} min`
+  return `${Math.round(m / (24 * 60))} days`
+}
+
+/**
+ * A scheduled delivery against the clock. At review (grace 0) a past time is refused outright. At
+ * publish, a time more than `grace` behind is refused: the reviewed instruction no longer
+ * describes what would happen, so it is decided again rather than silently becoming "now".
+ */
+export function lateProblems(delivery, now = new Date(), grace = LATE_GRACE_MS, { stage = 'publish' } = {}) {
+  if (!delivery?.scheduled_at) return []
+  let at
+  try { at = instantOf(delivery.scheduled_at, delivery.timezone) } catch (e) { return [problem('delivery', e.message)] }
+  const late = now.getTime() - at.getTime()
+  if (late <= grace) return []
+  const when = `scheduled for ${describeDelivery(delivery)} (${at.toISOString()}), which was ${humanDuration(late)} ago`
+  return [problem('delivery', stage === 'review'
+    ? `${when} — already past at review time. Pick a future time, or {"immediate": true}`
+    : `${when}, past the ${grace / 60_000}-minute grace — the reviewed delivery time has passed and "scheduled" does not quietly become "now". Review again with a new time, or {"immediate": true}`)]
+}
+
 // ---------------------------------------------------------------------------------------------
 // Measurement
 // ---------------------------------------------------------------------------------------------
@@ -356,11 +389,44 @@ export function compareReview(item) {
   return problems
 }
 
+async function sha256Url(url, fetchImpl) {
+  const res = await fetchImpl(url)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const h = createHash('sha256')
+  for await (const chunk of res.body) h.update(chunk)
+  return h.digest('hex')
+}
+
+/**
+ * The hosted object against the review record: what Meta will fetch, hashed, against what was
+ * reviewed. This is the one check a ledger edit cannot pass — video_url, image_url and cover_url
+ * can be pointed anywhere, and the record would still agree with itself. Runs in post-reels.mjs
+ * before any Graph call, on --dry-run too; it costs one download of the media. A URL that cannot
+ * be fetched is a refusal, not a pass: bytes that cannot be checked are not published.
+ */
+export async function hostedProblems(item, { fetchImpl = globalThis.fetch } = {}) {
+  const fields = item?.release?.review?.fields
+  if (!isObj(fields)) return [] // compareReview() owns the missing-record case
+  const checks = [[item.video_url || item.image_url, 'source.sha256', 'media']]
+  if (item.cover_url) checks.push([item.cover_url, 'cover.sha256', 'cover'])
+  const problems = []
+  for (const [url, field, what] of checks) {
+    if (!url) continue
+    let sha
+    try { sha = await sha256Url(url, fetchImpl) } catch (e) {
+      problems.push(problem(field, `could not fetch the hosted ${what} ${url} to check it (${e.message}) — bytes that cannot be checked are not published`)); continue
+    }
+    if (hash16(sha) !== fields[field]) problems.push(problem(field, `the hosted ${what} ${url} hashes to ${short(sha)}, which is not the reviewed ${what}`))
+  }
+  return problems
+}
+
 /**
  * The publish-time check: the media on disk against the hashes the review recorded (with the
- * clearest message first — which part of a video moved), the caption's mentions, then the record.
+ * clearest message first — which part of a video moved), the caption's mentions, the clock, then
+ * the record.
  */
-export function verify(release, item, measured) {
+export function verify(release, item, measured, { now = new Date() } = {}) {
   const problems = []
   const declared = release.source || {}
   if (declared.sha256 && declared.sha256 !== measured.sha256) {
@@ -375,7 +441,7 @@ export function verify(release, item, measured) {
   if (release.cover?.sha256 && release.cover.sha256 !== measured.cover_sha256) {
     problems.push(problem('cover.sha256', `${measured.cover_file} hashes to ${short(measured.cover_sha256)}; the reviewed cover hashed to ${short(release.cover.sha256)}`))
   }
-  problems.push(...mentionProblems(release))
+  problems.push(...mentionProblems(release), ...lateProblems(release.delivery, now))
   const named = new Set(problems.map((p) => p.field))
   for (const p of compareReview(item)) if (!named.has(p.field)) problems.push(p)
   return problems
@@ -427,7 +493,7 @@ export function review(path, { now = new Date(), ffmpeg } = {}) {
   if (release.source.sha256 && release.source.sha256 !== measured.sha256) problems.push(problem('source.sha256', `the package says ${short(release.source.sha256)} but ${measured.file} hashes to ${short(measured.sha256)} — point source.file at the selected export, or drop the declared hash and let review measure it`))
   if (release.source.video_md5 && measured.video_md5 && release.source.video_md5 !== measured.video_md5) problems.push(problem('source.video_md5', `the package says ${release.source.video_md5} but the video stream hashes to ${measured.video_md5}`))
   if (release.cover?.sha256 && release.cover.sha256 !== measured.cover_sha256) problems.push(problem('cover.sha256', `the package says ${short(release.cover.sha256)} but ${measured.cover_file} hashes to ${short(measured.cover_sha256)}`))
-  problems.push(...mentionProblems(release))
+  problems.push(...mentionProblems(release), ...lateProblems(release.delivery, now, 0, { stage: 'review' }))
   if (problems.length) throw new ReleaseError(path, problems, { exitCode: 1, stage: 'review' })
   release.source = { file: release.source.file, sha256: measured.sha256, video_md5: measured.video_md5 }
   if (release.cover) release.cover = { file: release.cover.file, sha256: measured.cover_sha256 }
@@ -447,7 +513,7 @@ export function check(path, { now = new Date(), ffmpeg } = {}) {
     throw e
   }
   const item = releaseItem(release, measured, { now, path })
-  const problems = verify(release, item, measured)
+  const problems = verify(release, item, measured, { now })
   return { ok: !problems.length, problems, item, measured }
 }
 

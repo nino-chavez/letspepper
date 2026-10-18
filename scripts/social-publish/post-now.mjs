@@ -170,10 +170,12 @@ assertRouteBeforeBuild({ event: EVENT, account, reasonFlag: args['graph-route'],
 // as it is on disk and the item as it will be queued, against the package's review record. Exit
 // code 4 names the field. Routing says whether this publisher may be used; this says whether what
 // it is about to send is what was reviewed.
+// A scheduled time already more than LATE_GRACE_MS behind is refused inside verify(): it does not
+// fall through to the immediate path. Within the grace it is due, and publishes now as the file said.
 const dueAt = fromRelease ? new Date(item.scheduledAt).getTime() : 0
 const scheduledAhead = fromRelease && dueAt > Date.now()
 if (fromRelease) {
-  const problems = verify(fromRelease.release, item, fromRelease.measured)
+  const problems = verify(fromRelease.release, item, fromRelease.measured, { now: new Date() })
   if (problems.length) { console.error(refusalText(releasePath, problems)); process.exit(REFUSED_RELEASE) }
   console.log(`Release contract ok — ${releasePath} matches its review record (${item.release.review.digest}); delivery: ${describeDelivery(item.release.delivery)}`)
   if (scheduledAhead && args['prepare-only']) {

@@ -108,10 +108,17 @@ writeFileSync(path, JSON.stringify(q, null, 2))
   return { root, social, queuePath: (e = EVENT) => join(social, 'queue', `${e}.json`), cleanup: () => rmSync(root, { recursive: true, force: true }) }
 }
 
-async function graphStub() {
+// Also plays R2: a GET under /media/ serves the file of that basename from `mediaDir`, so the
+// hosted-bytes check in post-reels has real bytes to hash (and a 404 to refuse on, for a name it lacks).
+async function graphStub({ mediaDir = null } = {}) {
   const seen = []; const payloads = []
   const server = http.createServer((req, res) => {
     seen.push(`${req.method} ${req.url.split('?')[0]}`)
+    if (req.method === 'GET' && req.url.startsWith('/media/')) {
+      const file = mediaDir && join(mediaDir, req.url.split('/').pop())
+      if (!file || !existsSync(file)) { res.writeHead(404); return res.end() }
+      res.writeHead(200, { 'content-type': 'application/octet-stream' }); return res.end(readFileSync(file))
+    }
     let body = ''
     req.on('data', (c) => { body += c })
     req.on('end', () => {
@@ -146,7 +153,8 @@ async function reviewed(sb, dir, release) {
   return path
 }
 
-const postNow = (sb, graph, path, extra = []) => run(join(sb.social, 'post-now.mjs'), ['--release', path, '--graph-route', REASON, ...extra], { cwd: sb.root, base: graph.base })
+const postNow = (sb, graph, path, extra = []) => run(join(sb.social, 'post-now.mjs'), ['--release', path, '--graph-route', REASON, '--public-base', `${graph.base}/media`, ...extra], { cwd: sb.root, base: graph.base })
+const postReels = (sb, graph, id, extra = []) => run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', id, '--graph-route', REASON, ...extra], { cwd: sb.root, base: graph.base })
 
 // ---------------------------------------------------------------------------------------------
 // The digest: what the gate can and cannot see
@@ -404,7 +412,7 @@ test('post-now --release: a content flag beside the release file is refused — 
 })
 
 test('post-now --release, the passing path: the reviewed package publishes as reviewed, and the ledger binds the release', async () => {
-  const sb = sandbox(); const graph = await graphStub(); const dir = fixtureDir()
+  const sb = sandbox(); const dir = fixtureDir(); const graph = await graphStub({ mediaDir: dir })
   try {
     const path = await reviewed(sb, dir, releaseFor(dir))
     const dry = await postNow(sb, graph, path, ['--dry-run'])
@@ -428,6 +436,8 @@ test('post-now --release, the passing path: the reviewed package publishes as re
     assert.equal(container.params.caption, CAPTION, 'the caption sent is the caption reviewed')
     assert.deepEqual(JSON.parse(container.params.user_tags).map((t) => t.username), ['nick_maruyama', 'chellechavez_'])
     assert.equal(graph.seen.filter((s) => s.includes('/media_publish')).length, 1)
+    assert.ok(graph.seen.some((s) => s.startsWith('GET /media/') && s.endsWith('/export.jpg')), `the hosted bytes were fetched and checked before publishing:\n${graph.seen.join('\n')}`)
+    assert.ok(graph.seen.indexOf(graph.seen.find((s) => s.startsWith('GET /media/'))) < graph.seen.findIndex((s) => s.startsWith('POST ')), 'fetched before the first Graph call')
   } finally { await graph.close(); sb.cleanup(); rmSync(dir, { recursive: true, force: true }) }
 })
 
@@ -443,11 +453,11 @@ test('post-now --release: a scheduled delivery is queued for its time, never pub
     assert.equal(item.scheduledAt, instantOf(delivery.scheduled_at, delivery.timezone).toISOString(), 'scheduledAt comes from the file, not from the clock')
     assert.equal(item.status, 'pending')
     assert.ok(item.image_url, 'the media is hosted so the later run has nothing left to upload')
-    assert.ok(!graph.seen.some((s) => s.includes('/media')), `published early:\n${graph.seen.join('\n')}`)
+    assert.deepEqual(graph.seen, [], `published early:\n${graph.seen.join('\n')}`)
     assert.match(r.out, /post-reels\.mjs --event adhoc --id adhoc-/, 'says how to publish it when due')
     assert.match(r.out, /2099-10-19T07:00 America\/Chicago/)
     // The later run, too early and forced: still not due. --force skips a schedule nobody reviewed, not this one.
-    const forced = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', item.id, '--force', '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    const forced = await postReels(sb, graph, item.id, ['--force'])
     assert.notEqual(forced.code, 0)
     assert.deepEqual(graph.seen, [])
     // --prepare-only ahead of a future delivery is refused rather than preparing a container that will expire.
@@ -474,11 +484,94 @@ test('PLANTED post-reels: a release-bound queue item whose content no longer mat
   const sb = sandbox({ queue: { event: EVENT, items: [item] } }); const graph = await graphStub()
   try {
     const before = readFileSync(sb.queuePath(), 'utf8')
-    const r = await run(join(sb.social, 'post-reels.mjs'), ['--event', EVENT, '--id', item.id, '--graph-route', REASON], { cwd: sb.root, base: graph.base })
+    const r = await postReels(sb, graph, item.id)
     assert.equal(r.code, REFUSED_RELEASE, `expected the release refusal exit code\n${r.out}\n${r.err}`)
     assert.match(r.err, /REFUSED — release contract/)
     assert.match(r.err, /^\s*caption:/m)
     assert.deepEqual(graph.seen, [], 'a mismatched release reached Meta')
     assert.equal(readFileSync(sb.queuePath(), 'utf8'), before, 'the ledger is untouched on refusal')
   } finally { await graph.close(); sb.cleanup() }
+})
+
+// ---------------------------------------------------------------------------------------------
+// Post-commit review of f733c52: a past schedule, and the hosted bytes
+// ---------------------------------------------------------------------------------------------
+
+test('a scheduled time already in the past is refused at review, and at publish once it is past the grace', () => {
+  const review = need('review'); const check = need('check'); const lateProblems = need('lateProblems')
+  const dir = fixtureDir()
+  try {
+    const delivery = { scheduled_at: '2026-10-19T07:00', timezone: 'America/Chicago' } // 12:00Z
+    const path = writeRelease(dir, releaseFor(dir, { delivery }))
+    // A year typed wrong, or a window already missed: review refuses, no record is written.
+    assert.throws(() => review(path, { now: new Date('2026-10-19T12:00:01Z') }), /delivery: .*already past at review time/)
+    assert.equal(readJson(path).review, undefined)
+    // Reviewed the evening before.
+    review(path, { now: new Date('2026-10-18T22:00:00Z') })
+    assert.deepEqual(check(path, { now: new Date('2026-10-19T11:00:00Z') }).problems, [], 'before the time: queued for it')
+    assert.deepEqual(check(path, { now: new Date('2026-10-19T12:10:00Z') }).problems, [], 'ten minutes after: still 7am')
+    const late = check(path, { now: new Date('2026-10-19T15:12:00Z') }).problems
+    assert.equal(late.length, 1, JSON.stringify(late))
+    assert.equal(late[0].field, 'delivery')
+    assert.match(late[0].message, /3 h 12 min ago/)
+    assert.match(late[0].message, /does not quietly become "now"/)
+    assert.deepEqual(lateProblems({ immediate: true }, new Date()), [], 'immediate has no clock')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('post-now --release and post-reels both refuse a reviewed schedule whose time has passed, instead of publishing late', async () => {
+  const check = need('check')
+  const sb = sandbox(); const dir = fixtureDir(); const graph = await graphStub({ mediaDir: dir })
+  try {
+    // Reviewed yesterday for 01:00 Chicago today — hours ago by the time anything runs.
+    const delivery = { scheduled_at: `${new Date().toISOString().slice(0, 10)}T00:00`, timezone: 'UTC' }
+    const path = writeRelease(dir, releaseFor(dir, { delivery }))
+    const reviewedAt = new Date(Date.now() - 36 * 3600_000)
+    const r = await run(join(sb.social, 'release-contract.mjs'), ['check', path], { cwd: sb.root, base: graph.base })
+    assert.equal(r.code, REFUSED_RELEASE, 'an unreviewed package is refused by check')
+    const reviewed = contract.review(path, { now: reviewedAt })
+    assert.ok(reviewed.release.review)
+    const skipIfEarly = Date.now() - new Date(`${delivery.scheduled_at}:00Z`).getTime() < 20 * 60_000
+    if (skipIfEarly) return // within 20 minutes of midnight UTC the schedule is still inside the grace; the module test above covers the clock
+    const now = await postNow(sb, graph, path)
+    assert.equal(now.code, REFUSED_RELEASE, `${now.out}\n${now.err}`)
+    assert.match(now.err, /^\s*delivery: .*past the 15-minute grace/m)
+    assert.equal(existsSync(sb.queuePath()), false)
+    // The same item already in the ledger (queued in time, run late): post-reels refuses it too.
+    const item = { ...check(path, { now: reviewedAt }).item, id: 'adhoc-late', image_url: `${graph.base}/media/adhoc/630/adhoc-late/export.jpg` }
+    writeFileSync(sb.queuePath(), JSON.stringify({ event: EVENT, items: [item] }, null, 2))
+    const late = await postReels(sb, graph, item.id)
+    assert.equal(late.code, REFUSED_RELEASE, `${late.out}\n${late.err}`)
+    assert.match(late.err, /^\s*delivery: .*past the 15-minute grace/m)
+    assert.deepEqual(graph.seen, [], 'nothing fetched or sent for a post that is late')
+  } finally { await graph.close(); sb.cleanup(); rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('PLANTED post-reels: the hosted object is hashed against the review — a ledger whose URL points at other bytes is refused, and so is a URL that cannot be fetched', async () => {
+  const check = need('check')
+  const sb = sandbox(); const dir = fixtureDir(); const graph = await graphStub({ mediaDir: dir })
+  writeFileSync(join(dir, 'other.jpg'), Buffer.from('41.3 s prepared derivative'))
+  try {
+    const path = writeRelease(dir, releaseFor(dir))
+    contract.review(path)
+    const base = { ...check(path).item, id: 'adhoc-hosted', scheduledAt: '2000-01-01T00:00:00.000Z' }
+    const queue = (image_url) => writeFileSync(sb.queuePath(), JSON.stringify({ event: EVENT, items: [{ ...base, image_url }] }, null, 2))
+    // The ledger record agrees with itself; only the bytes at the URL disagree.
+    queue(`${graph.base}/media/adhoc/630/adhoc-hosted/other.jpg`)
+    const swapped = await postReels(sb, graph, base.id)
+    assert.equal(swapped.code, REFUSED_RELEASE, `${swapped.out}\n${swapped.err}`)
+    assert.match(swapped.err, /^\s*source\.sha256: the hosted media .*other\.jpg hashes to .*not the reviewed media/m)
+    assert.ok(!graph.seen.some((s) => s.startsWith('POST ')), `a Graph call was made for unreviewed bytes:\n${graph.seen.join('\n')}`)
+    // Gone from R2, or never uploaded: not a pass.
+    queue(`${graph.base}/media/adhoc/630/adhoc-hosted/missing.jpg`)
+    const gone = await postReels(sb, graph, base.id)
+    assert.equal(gone.code, REFUSED_RELEASE, gone.err)
+    assert.match(gone.err, /^\s*source\.sha256: could not fetch the hosted media .*HTTP 404/m)
+    assert.ok(!graph.seen.some((s) => s.startsWith('POST ')))
+    // Control: the reviewed bytes at the URL publish.
+    queue(`${graph.base}/media/adhoc/630/adhoc-hosted/export.jpg`)
+    const ok = await postReels(sb, graph, base.id)
+    assert.equal(ok.code, 0, `${ok.out}\n${ok.err}`)
+    assert.equal(graph.seen.filter((s) => s.includes('/media_publish')).length, 1)
+  } finally { await graph.close(); sb.cleanup(); rmSync(dir, { recursive: true, force: true }) }
 })

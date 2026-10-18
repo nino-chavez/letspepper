@@ -38,8 +38,11 @@
  * `release`, with the hashes of the media it was reviewed from, its mentions, its delivery and
  * the review record. Before publishing it, the item is checked against that record again —
  * the scheduled run is hours after post-now checked it, and the ledger is a file anyone can
- * edit — and refused with exit code 4, naming the field, when it no longer matches. --force
- * does not make a release-bound scheduled item due early: the delivery time was reviewed.
+ * edit — then the hosted object it is about to hand Meta is fetched and hashed against the
+ * reviewed hash (a ledger can point its URL anywhere; only the bytes at the URL say what goes
+ * out), and a scheduled time more than LATE_GRACE_MS behind is refused rather than published
+ * late. Exit code 4 names the field. --force does not make a release-bound scheduled item due
+ * early: the delivery time was reviewed.
  *
  * ROUTE GATE (route-gate.mjs): nothing here runs — not the copy audit, not a
  * Graph call, not on --dry-run either — until the batch has an approved Graph
@@ -77,7 +80,7 @@ import { carouselChildParams, carouselParentParams } from './carousel-container-
 import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { openQueueFile } from './queue-store.mjs'
 import { audioParams } from './reel-audio.mjs'
-import { compareReview, refusalText, REFUSED_RELEASE } from './release-contract.mjs'
+import { compareReview, lateProblems, hostedProblems, refusalText, REFUSED_RELEASE } from './release-contract.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -172,10 +175,12 @@ assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script:
 // Release contract, after the route and before the token, the audit, the receipt write and the
 // first Graph call — on --dry-run too. An item queued from a package still has to match its
 // review record here: nothing in the queue file stops a caption from being edited between the
-// queue write and a scheduled run.
+// queue write and a scheduled run. Then the clock, then the hosted bytes (one download, skipped
+// when the cheaper checks have already refused).
 for (const it of batch) {
   if (!it.release) continue
-  const problems = compareReview(it)
+  const problems = [...compareReview(it), ...lateProblems(it.release.delivery, new Date(now))]
+  if (!problems.length) problems.push(...await hostedProblems(it))
   if (problems.length) { console.error(refusalText(it.release.path || `${event}/${it.id}`, problems)); process.exit(REFUSED_RELEASE) }
 }
 
