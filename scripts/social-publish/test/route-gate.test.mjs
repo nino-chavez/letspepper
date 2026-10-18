@@ -30,6 +30,7 @@ import {
 } from '../route-gate.mjs'
 import { coversMediaType } from '../route-shape.mjs'
 import { carouselChildParams, carouselParentParams } from '../carousel-container-params.mjs'
+import { PUBLISHER_FILES, TOOL_LIB_FILES } from './publisher-files.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SOCIAL = join(HERE, '..')
@@ -71,11 +72,8 @@ function sandbox({ routes = { events: {} }, queue = incidentQueue() } = {}) {
   const social = join(root, 'scripts', 'social-publish')
   mkdirSync(join(social, 'queue'), { recursive: true })
   mkdirSync(join(root, 'tools', 'lib'), { recursive: true })
-  for (const f of ['reel-audio.mjs', 'route-gate.mjs', 'route-shape.mjs', 'hold-shape.mjs', 'collab-shape.mjs', 'tag-params.mjs', 'carousel-container-params.mjs', 'post-reels.mjs', 'queue-dir.mjs', 'queue-store.mjs', 'post-now.mjs', 'accounts.json', 'vary-captions.mjs'])
-    cpSync(join(SOCIAL, f), join(social, f))
-  cpSync(join(REPO, 'tools', 'lib', 'encounter-audit.mjs'), join(root, 'tools', 'lib', 'encounter-audit.mjs'))
-  cpSync(join(REPO, 'tools', 'lib', 'invoked-directly.mjs'), join(root, 'tools', 'lib', 'invoked-directly.mjs'))
-  cpSync(join(REPO, 'tools', 'lib', 'copy-segments.mjs'), join(root, 'tools', 'lib', 'copy-segments.mjs'))
+  for (const f of PUBLISHER_FILES) cpSync(join(SOCIAL, f), join(social, f))
+  for (const f of TOOL_LIB_FILES) cpSync(join(REPO, 'tools', 'lib', f), join(root, 'tools', 'lib', f))
   cpSync(join(REPO, 'reader-contract.json'), join(root, 'reader-contract.json'))
   writeFileSync(join(social, 'graph-routes.json'), JSON.stringify(routes, null, 2))
   if (queue) writeFileSync(join(social, 'queue', `${queue.event}.json`), JSON.stringify(queue, null, 2))

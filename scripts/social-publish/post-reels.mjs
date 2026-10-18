@@ -34,6 +34,16 @@
  *        (publish only that queue item) · --force · --dry-run · --prepare-only
  *        --graph-route "<Nino's words>"  one-off approval to use this publisher
  *
+ * RELEASE CONTRACT (release-contract.mjs): an item that post-now.mjs --release queued carries
+ * `release`, with the hashes of the media it was reviewed from, its mentions, its delivery and
+ * the review record. Before publishing it, the item is checked against that record again —
+ * the scheduled run is hours after post-now checked it, and the ledger is a file anyone can
+ * edit — then the hosted object it is about to hand Meta is fetched and hashed against the
+ * reviewed hash (a ledger can point its URL anywhere; only the bytes at the URL say what goes
+ * out), and a scheduled time more than LATE_GRACE_MS behind is refused rather than published
+ * late. Exit code 4 names the field. --force does not make a release-bound scheduled item due
+ * early: the delivery time was reviewed.
+ *
  * ROUTE GATE (route-gate.mjs): nothing here runs — not the copy audit, not a
  * Graph call, not on --dry-run either — until the batch has an approved Graph
  * route: the event listed in graph-routes.json (a campaign), or a one-off
@@ -70,6 +80,7 @@ import { carouselChildParams, carouselParentParams } from './carousel-container-
 import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { openQueueFile } from './queue-store.mjs'
 import { audioParams } from './reel-audio.mjs'
+import { compareReview, lateProblems, hostedProblems, refusalText, REFUSED_RELEASE } from './release-contract.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -134,8 +145,12 @@ const ready = (it) => it.status !== 'posted' && (!it.cover_file || !!it.cover_ur
 // Worker does (its route gate is a batch precheck, not per-item), so a blocked Story here just
 // isn't due, same as a hold; it does not need reviving. --force does not override it, same as
 // holdBlock above.
+//
+// --force skips a future scheduledAt that a builder computed — not one that came from a reviewed
+// release package, where the delivery time is part of what Nino was shown (release-contract.mjs).
+const forceable = (it) => force && !it.release?.delivery?.scheduled_at
 const due = q.items.filter((it) => ready(it) && (!idFilter || it.id === idFilter) &&
-  (force || new Date(it.scheduledAt).getTime() <= now) && !holdBlock(it, new Date(now)) && !collabBlock(it) &&
+  (forceable(it) || new Date(it.scheduledAt).getTime() <= now) && !holdBlock(it, new Date(now)) && !collabBlock(it) &&
   !linkedItemBlock(it, q.items))
 
 if (!due.length) {
@@ -156,6 +171,18 @@ for (const item of batch) audioParams(item)
 // refused for a missing token goes and fetches one, and only then learns the
 // post should not be going through this publisher at all.
 assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script: 'post-reels.mjs', named: !!idFilter, candidates: due.length, account: accountOverride })
+
+// Release contract, after the route and before the token, the audit, the receipt write and the
+// first Graph call — on --dry-run too. An item queued from a package still has to match its
+// review record here: nothing in the queue file stops a caption from being edited between the
+// queue write and a scheduled run. Then the clock, then the hosted bytes (one download, skipped
+// when the cheaper checks have already refused).
+for (const it of batch) {
+  if (!it.release) continue
+  const problems = [...compareReview(it), ...lateProblems(it.release.delivery, new Date(now))]
+  if (!problems.length) problems.push(...await hostedProblems(it))
+  if (problems.length) { console.error(refusalText(it.release.path || `${event}/${it.id}`, problems)); process.exit(REFUSED_RELEASE) }
+}
 
 if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN for the selected account (see accounts.json token_ref and SETUP.md).'); process.exit(1) }
 
