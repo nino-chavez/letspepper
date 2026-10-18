@@ -61,9 +61,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Install publisher test runtime
+        # ffmpeg: release-contract.mjs hashes a video's stream with it, and those tests skip without it.
         run: |
           sudo apt-get update
-          sudo apt-get install -y zsh
+          sudo apt-get install -y zsh ffmpeg
           pnpm exec playwright install --with-deps chromium
       - name: Verify publisher and scheduler
         run: |
