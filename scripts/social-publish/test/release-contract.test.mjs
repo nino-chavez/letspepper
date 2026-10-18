@@ -523,16 +523,16 @@ test('post-now --release and post-reels both refuse a reviewed schedule whose ti
   const check = need('check')
   const sb = sandbox(); const dir = fixtureDir(); const graph = await graphStub({ mediaDir: dir })
   try {
-    // Reviewed yesterday for 01:00 Chicago today — hours ago by the time anything runs.
-    const delivery = { scheduled_at: `${new Date().toISOString().slice(0, 10)}T00:00`, timezone: 'UTC' }
+    // Scheduled for yesterday at midnight UTC (24–48 h ago, whatever the clock says now) and reviewed an
+    // hour before that, so the review passes and every run below is at least a day late.
+    const scheduled = new Date(Date.now() - 24 * 3600_000); scheduled.setUTCHours(0, 0, 0, 0)
+    const delivery = { scheduled_at: scheduled.toISOString().slice(0, 16), timezone: 'UTC' }
     const path = writeRelease(dir, releaseFor(dir, { delivery }))
-    const reviewedAt = new Date(Date.now() - 36 * 3600_000)
+    const reviewedAt = new Date(scheduled.getTime() - 3600_000)
     const r = await run(join(sb.social, 'release-contract.mjs'), ['check', path], { cwd: sb.root, base: graph.base })
     assert.equal(r.code, REFUSED_RELEASE, 'an unreviewed package is refused by check')
     const reviewed = contract.review(path, { now: reviewedAt })
     assert.ok(reviewed.release.review)
-    const skipIfEarly = Date.now() - new Date(`${delivery.scheduled_at}:00Z`).getTime() < 20 * 60_000
-    if (skipIfEarly) return // within 20 minutes of midnight UTC the schedule is still inside the grace; the module test above covers the clock
     const now = await postNow(sb, graph, path)
     assert.equal(now.code, REFUSED_RELEASE, `${now.out}\n${now.err}`)
     assert.match(now.err, /^\s*delivery: .*past the 15-minute grace/m)
@@ -574,4 +574,32 @@ test('PLANTED post-reels: the hosted object is hashed against the review — a l
     assert.equal(ok.code, 0, `${ok.out}\n${ok.err}`)
     assert.equal(graph.seen.filter((s) => s.includes('/media_publish')).length, 1)
   } finally { await graph.close(); sb.cleanup(); rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('hostedProblems: the review record decides what is fetched — a reviewed cover missing from the ledger is refused, an unreviewed one too', async () => {
+  const hostedProblems = need('hostedProblems')
+  const hash16 = (v) => createHash('sha256').update(JSON.stringify(v ?? null)).digest('hex').slice(0, 16) // the record's own formula
+  const served = { 'https://r2.test/reel.mp4': Buffer.from('reviewed reel'), 'https://r2.test/cover.jpg': Buffer.from('reviewed cover'), 'https://r2.test/other.jpg': Buffer.from('some other cover') }
+  const fetchImpl = async (url) => (served[url]
+    ? { ok: true, status: 200, body: (async function* () { yield served[url] })() }
+    : { ok: false, status: 404 })
+  const fieldsFor = (coverBytes) => ({
+    'source.sha256': hash16(sha256(served['https://r2.test/reel.mp4'])),
+    'cover.sha256': hash16(coverBytes ? sha256(coverBytes) : null),
+  })
+  const item = (overrides, fields) => ({ media_type: 'REELS', video_url: 'https://r2.test/reel.mp4', release: { review: { digest: 'x', fields } }, ...overrides })
+  const fieldsOf = async (it) => (await hostedProblems(it, { fetchImpl })).map((p) => `${p.field}: ${p.message}`)
+  // Reviewed with a cover: the cover has to be there, and be the reviewed bytes.
+  const withCover = fieldsFor(served['https://r2.test/cover.jpg'])
+  assert.deepEqual(await fieldsOf(item({ cover_url: 'https://r2.test/cover.jpg' }, withCover)), [])
+  assert.match((await fieldsOf(item({}, withCover)))[0], /^cover\.sha256: a cover was reviewed but this item has no cover_url/)
+  assert.match((await fieldsOf(item({ cover_url: 'https://r2.test/other.jpg' }, withCover)))[0], /^cover\.sha256: the hosted cover .*not the reviewed cover/)
+  assert.match((await fieldsOf(item({ cover_url: 'https://r2.test/gone.jpg' }, withCover)))[0], /^cover\.sha256: could not fetch .*HTTP 404/)
+  // Reviewed without a cover: none may appear.
+  const noCover = fieldsFor(null)
+  assert.deepEqual(await fieldsOf(item({}, noCover)), [])
+  assert.match((await fieldsOf(item({ cover_url: 'https://r2.test/cover.jpg' }, noCover)))[0], /^cover\.sha256: the hosted cover .*not the reviewed cover/)
+  // And the media itself, both ways.
+  assert.match((await fieldsOf(item({ video_url: 'https://r2.test/other.jpg' }, noCover)))[0], /^source\.sha256: the hosted media .*not the reviewed media/)
+  assert.deepEqual(await fieldsOf({ ...item({}, noCover), release: {} }), [], 'no record: compareReview owns that refusal')
 })

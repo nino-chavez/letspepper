@@ -344,7 +344,7 @@ export function contractFields(item) {
   }
 }
 
-const hash16 = (value) => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex').slice(0, 16)
+export const hash16 = (value) => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex').slice(0, 16)
 export const fieldDigests = (fields) => Object.fromEntries(CONTRACT_FIELDS.map((f) => [f, hash16(fields[f])]))
 
 /** digestOf() over the item as reviewed: no id, no hosted URLs (there are none at review time), a fixed event label. */
@@ -408,6 +408,12 @@ export async function hostedProblems(item, { fetchImpl = globalThis.fetch } = {}
   const fields = item?.release?.review?.fields
   if (!isObj(fields)) return [] // compareReview() owns the missing-record case
   const checks = [[item.video_url || item.image_url, 'source.sha256', 'media']]
+  // Whether a cover is checked is decided by the REVIEW RECORD, not by the ledger: a reviewed cover
+  // whose cover_url was deleted from the queue file would otherwise simply not be looked at, and
+  // the Reel would go out bare. The reverse — a cover_url the review never saw — hashes to
+  // something other than the record's hash of null and is refused by the loop below.
+  const coverReviewed = fields['cover.sha256'] !== undefined && fields['cover.sha256'] !== hash16(null)
+  if (coverReviewed && !item.cover_url) return [problem('cover.sha256', 'a cover was reviewed but this item has no cover_url — the Reel would go out without its reviewed cover')]
   if (item.cover_url) checks.push([item.cover_url, 'cover.sha256', 'cover'])
   const problems = []
   for (const [url, field, what] of checks) {
