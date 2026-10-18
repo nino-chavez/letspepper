@@ -8,6 +8,7 @@
 export const PUBLISHER_FILES = [
   'post-reels.mjs', 'post-now.mjs',
   'route-gate.mjs', 'route-shape.mjs', 'release-contract.mjs', 'reel-audio.mjs',
+  'review-package.mjs', 'review-package-shape.mjs', 'review-package-worker.mjs',
   'hold-shape.mjs', 'collab-shape.mjs', 'tag-params.mjs', 'carousel-container-params.mjs',
   'queue-dir.mjs', 'queue-store.mjs', 'vary-captions.mjs',
   'accounts.json',

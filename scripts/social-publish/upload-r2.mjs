@@ -25,7 +25,9 @@
  * queue folder, which queue-dir.mjs resolves to the main checkout's even when
  * this runs from a linked worktree.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, copyFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { contentHash, assertItemMatchesPackage, assertLocalItemFiles, makeHostedBinding, hasReviewContract } from './review-package.mjs'
 import { execFileSync } from 'node:child_process'
 import { join, basename, extname } from 'node:path'
 import { queueDir } from './queue-dir.mjs'
@@ -79,23 +81,39 @@ const hostedCount = (it) => isCarousel(it)
   : (it.file && it[kindOf(it.file).urlField] ? 1 : 0)
 const pending = (it) => filesOf(it).length > hostedCount(it) || (it.cover_file && !it.cover_url)
 
-const put = (file) => {
+const put = (file, expectedHash = null) => {
   const { contentType, urlField } = kindOf(file)
-  const key = `${prefix}/${basename(file)}`
-  execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${bucket}/${key}`,
-    `--file=${file}`, `--content-type=${contentType}`, '--remote'],
-    { stdio: ['ignore', 'ignore', 'inherit'] })
-  return { urlField, url: `${publicBase.replace(/\/$/, '')}/${key}` }
+  // Snapshot reviewed bytes: a concurrent render cannot overwrite the upload input.
+  const snapshot = expectedHash ? mkdtempSync(join(tmpdir(), 'review-upload-')) : null
+  const uploadFile = snapshot ? join(snapshot, `media${extname(file)}`) : file
+  try {
+    if (snapshot) copyFileSync(file, uploadFile)
+    if (expectedHash && contentHash(uploadFile) !== expectedHash) throw new Error('selected media bytes changed after review')
+    const key = `${prefix}/${expectedHash ? `${expectedHash}${extname(file).toLowerCase()}` : basename(file)}`
+    execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${bucket}/${key}`,
+      `--file=${uploadFile}`, `--content-type=${contentType}`, '--remote'],
+      { stdio: ['ignore', 'ignore', 'inherit'] })
+    return { urlField, key, url: `${publicBase.replace(/\/$/, '')}/${key}` }
+  } finally { if (snapshot) rmSync(snapshot, { recursive: true, force: true }) }
 }
 
 const todo = q.items.filter(pending)
 const fileCount = todo.reduce((n, it) => n + filesOf(it).length - hostedCount(it) + (it.cover_file && !it.cover_url ? 1 : 0), 0)
+// Preflight every reviewed item before the first upload in this invocation.
+for (const it of todo) if (hasReviewContract(it)) {
+  try {
+    assertLocalItemFiles(it)
+    assertItemMatchesPackage(it, it.review_package, it.review_package.delivery.intent)
+    if (isCarousel(it)) throw new Error('reviewed carousel execution is unsupported: bind every child before uploading')
+  } catch (error) { console.error(`REFUSED — ${error.message}`); process.exit(3) }
+}
 let failures = 0
 console.log(`Uploading ${fileCount} media file(s) across ${todo.length}/${q.items.length} item(s) to r2://${bucket}/${prefix}/ ...\n`)
 
 for (const it of q.items) {
   if (!pending(it)) continue
   try {
+    if (it.review_package && isCarousel(it)) throw new Error('reviewed carousel execution is unsupported: bind every child before uploading')
     if (isCarousel(it)) {
       // Rebuilt whole rather than appended, so a rerun cannot double-add a child
       // or reorder one. Carousel order is the swipe order.
@@ -105,14 +123,20 @@ for (const it of q.items) {
       })
       console.log(`✓ ${it.id} → ${it.children.length} child media`)
     } else if (it.file && !it[kindOf(it.file).urlField]) {
-      const { urlField, url } = put(it.file)
+      const uploaded = put(it.file, it.review_package?.media.content_sha256)
+      const { urlField, url } = uploaded
       it[urlField] = url
+      if (it.review_package) it.review_media_key = uploaded.key
       console.log(`✓ ${it.id} → ${url}`)
     }
     if (it.cover_file && !it.cover_url) {
       if (!/\.jpe?g$/i.test(it.cover_file)) throw new Error('Reel cover must be a JPEG')
-      it.cover_url = put(it.cover_file).url
+      const uploaded = put(it.cover_file, it.review_package?.cover?.content_sha256)
+      it.cover_url = uploaded.url; if (it.review_package) it.review_cover_key = uploaded.key
       console.log(`✓ ${it.id} cover → ${it.cover_url}`)
+    }
+    if (it.review_package) {
+      it.review_binding = makeHostedBinding(it.review_package, { mediaUrl: it.video_url || it.image_url, mediaKey: it.review_media_key, coverUrl: it.cover_url, coverKey: it.review_cover_key })
     }
     store.save() // persist after each
   } catch (e) {

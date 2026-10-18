@@ -29,6 +29,7 @@ import {
   standingEntry,
 } from '../route-gate.mjs'
 import { coversMediaType } from '../route-shape.mjs'
+import {createReviewPackage,digestOfPackage,makeHostedBinding} from '../review-package.mjs'
 import { carouselChildParams, carouselParentParams } from '../carousel-container-params.mjs'
 import { PUBLISHER_FILES, TOOL_LIB_FILES } from './publisher-files.mjs'
 
@@ -814,4 +815,19 @@ test('legacy media lists keep their existing non-Story behavior without the stri
   assert.equal(coversMediaType(entry, 'IMAGE'), true)
   assert.equal(coversMediaType(entry, 'CAROUSEL'), true)
   assert.equal(coversMediaType(entry, 'STORIES'), false)
+})
+
+
+test('an account override cannot redirect a reviewed post, even before media verification', async()=>{
+  const q=incidentQueue(),sb=sandbox({queue:q}),graph=await graphStub()
+  try {
+    const file=join(sb.root,'selected.mp4');writeFileSync(file,'fixture')
+    const item=q.items[0];item.media_type='REELS';delete item.children
+    const pkg=createReviewPackage({account:item.account,mediaType:'REELS',mediaFile:file,caption:item.caption,userTags:item.user_tags,collaborators:item.collaborators,source:{reference:'fixture'}})
+    pkg.state='reviewed';pkg.delivery={intent:'immediate'};pkg.digest=digestOfPackage(pkg);pkg.approval={status:'approved',evidence:'Test fixture approval only',digest:pkg.digest,approved_at:new Date(Date.now()-1000).toISOString(),expires_at:new Date(Date.now()+60000).toISOString()}
+    item.video_url=graph.base+'/'+pkg.media.content_sha256+'.mp4';item.review_package=pkg;item.review_package_digest=pkg.digest;item.review_binding=makeHostedBinding(pkg,{mediaUrl:item.video_url,mediaKey:pkg.media.content_sha256+'.mp4'})
+    writeFileSync(sb.queuePath(),JSON.stringify(q))
+    const result=await run(join(sb.social,'post-reels.mjs'),['--event',EVENT,'--count','1','--id',ITEM_ID,'--account','letspepper','--force'],{cwd:sb.root,base:graph.base})
+    assert.notEqual(result.code,0);assert.match(result.err,/queue account or media type differs/);assert.deepEqual(graph.seen,[])
+  } finally {await graph.close();sb.cleanup()}
 })

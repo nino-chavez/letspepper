@@ -59,6 +59,7 @@ import { assertRouteBeforeBuild } from './route-gate.mjs'
 import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { updateQueueFile } from './queue-store.mjs'
 import { audioConfiguration, audioFromArgs } from './reel-audio.mjs'
+import { assertItemMatchesPackage, assertLocalFiles, validateReviewPackage } from './review-package.mjs'
 import { loadRelease, measure, releaseItem, verify, refusalText, describeDelivery, ReleaseError, REFUSED_RELEASE } from './release-contract.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -77,10 +78,13 @@ const list = (v) => (typeof v === 'string' ? v.split(',').map((s) => s.trim()).f
 const dryRun = !!args['dry-run']
 const bucket = typeof args.bucket === 'string' ? args.bucket : 'flickday-social'
 const publicBase = typeof args['public-base'] === 'string' ? args['public-base'] : 'https://pub-068210f3c0834d56a2eef0f10bf15e2d.r2.dev'
+const reviewPackage = typeof args['review-package'] === 'string'
+  ? JSON.parse(readFileSync(resolve(args['review-package']), 'utf8')) : null
 
 // --release: the package owns the content. A flag that would set any of it is refused outright —
 // not compared, not merged — so the post cannot be the file plus whatever was typed beside it.
 const releasePath = typeof args.release === 'string' ? resolve(args.release) : null
+if (releasePath && reviewPackage) { console.error('Choose one release package format: --release or --review-package, not both.'); process.exit(3) }
 const OWNED_BY_RELEASE = { account: 'account', file: 'source.file', caption: 'caption', 'alt-text': 'alt_text', story: 'media_type', cover: 'cover', collab: 'collaborators', tag: 'user_tags', 'audio-id': 'audio_configuration', 'audio-volume': 'audio_configuration', 'video-volume': 'audio_configuration' }
 if (releasePath) {
   for (const [flag, field] of Object.entries(OWNED_BY_RELEASE)) {
@@ -130,6 +134,15 @@ try {
     ? (fromRelease.release.audio_configuration ? audioConfiguration({ media_type, audio_configuration: fromRelease.release.audio_configuration }) : undefined)
     : audioFromArgs(args, media_type)
 } catch (error) { console.error(error.message); process.exit(1) }
+if (reviewPackage) {
+  try {
+    validateReviewPackage(reviewPackage, { approved: true }); assertLocalFiles(reviewPackage)
+    if (reviewPackage.account !== account || reviewPackage.media_type !== media_type || resolve(reviewPackage.media.file) !== file || reviewPackage.caption !== (story ? '' : caption) || JSON.stringify(reviewPackage.user_tags || []) !== JSON.stringify(list(args.tag)) || JSON.stringify(reviewPackage.collaborators || []) !== JSON.stringify(story ? [] : list(args.collab))) throw new Error('CLI account, media, caption, tags, or collaborators differ from reviewed package')
+    const selectedAudio = audio ? { representation: 'native', configuration: audio } : { representation: reviewPackage.audio.representation === 'embedded' ? 'embedded' : 'none' }
+    if (JSON.stringify(reviewPackage.audio || { representation: 'none' }) !== JSON.stringify(selectedAudio)) throw new Error('CLI audio differs from reviewed package')
+    if ((reviewPackage.cover?.file || null) !== (coverFile || null)) throw new Error('CLI cover differs from reviewed package')
+  } catch (error) { console.error(`REFUSED — ${error.message}`); process.exit(3) }
+}
 
 const queuePath = join(queueDir(), `${EVENT}.json`)
 const q = existsSync(queuePath)
@@ -158,6 +171,11 @@ const item = fromRelease ? releaseItem(fromRelease.release, fromRelease.measured
   collaborators: story ? [] : collaborators,
   scheduledAt: new Date().toISOString(),
   status: 'pending',
+  ...(reviewPackage ? { review_package: reviewPackage, review_package_digest: reviewPackage.digest, review_binding: { version: 1, package_digest: reviewPackage.digest } } : {}),
+}
+if (reviewPackage) {
+  try { assertItemMatchesPackage(item, reviewPackage, 'immediate') }
+  catch (error) { console.error(`REFUSED — ${error.message}`); process.exit(3) }
 }
 
 // Every post-now item is a one-off, so each needs its own route. Checked before
