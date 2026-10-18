@@ -44,6 +44,7 @@ import { recaption, reassign } from './held-item-shape.mjs'
 import { decideCollab } from './collab-shape.mjs'
 import { queueDir } from './queue-dir.mjs'
 import { writeQueueFile } from './queue-store.mjs'
+import { assertWorkerBindingShape } from './review-package.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WRANGLER_CONFIG = join(HERE, 'worker', 'wrangler.jsonc')
@@ -53,6 +54,7 @@ const WRANGLER_CONFIG = join(HERE, 'worker', 'wrangler.jsonc')
  * standing entry. Returns { payload } or { refused: <why> }.
  */
 export function seedPayload(queue, event, routes, now = new Date()) {
+  for (const item of queue.items || []) if (item.review_package) assertWorkerBindingShape(item)
   const entry = standingEntry(event, routes)
   if (!entry) return { refused: `"${event}" has no complete entry in graph-routes.json (reason, approved YYYY-MM-DD, accounts[], optional expires).` }
   if (!inDate(entry, now)) return { refused: `the graph-routes.json entry for "${event}" expired ${entry.expires}.` }

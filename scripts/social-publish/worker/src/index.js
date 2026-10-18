@@ -90,6 +90,7 @@ import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route
 import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
 import { collabBlock, decideCollab } from '../../collab-shape.mjs'
 import { audioParams } from '../../reel-audio.mjs'
+import { assertWorkerBinding } from '../../review-package.mjs'
 import { collaboratorParams, userTagsParams, tagParams } from '../../tag-params.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
@@ -394,7 +395,11 @@ async function routed(env, ev, q, candidates, now = new Date()) {
   const allowed = []
   let refused = 0
   for (const item of candidates) {
-    const why = routeRefusal(q, ev, item, now)
+    let why = routeRefusal(q, ev, item, now)
+    if (!why) {
+      try { await assertWorkerBinding(item) }
+      catch (error) { why = `review package: ${error.message}` }
+    }
     if (!why) { allowed.push(item); continue }
     refuse(item, why)
     refused++

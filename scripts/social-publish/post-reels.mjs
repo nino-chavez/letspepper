@@ -70,6 +70,7 @@ import { carouselChildParams, carouselParentParams } from './carousel-container-
 import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { openQueueFile } from './queue-store.mjs'
 import { audioParams } from './reel-audio.mjs'
+import { assertHostedBindingShape } from './review-package.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -151,6 +152,9 @@ if (!due.length) {
 const batch = due.slice(0, count)
 // Validate all requested audio before a queue write or any Graph call.
 for (const item of batch) audioParams(item)
+// A selected-publication package is an additional opt-in gate, not a replacement
+// for the route gate. It runs on dry-runs and before any Graph work.
+for (const item of batch) if (item.review_package) assertHostedBindingShape(item, 'immediate')
 
 // Route first. It comes before the token check on purpose: an agent that is
 // refused for a missing token goes and fetches one, and only then learns the

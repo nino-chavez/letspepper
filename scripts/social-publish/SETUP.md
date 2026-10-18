@@ -51,6 +51,47 @@ Every local publish passes through `route-gate.mjs` before the copy audit, the R
 
 `--dry-run` is refused the same way, so a dry run cannot pass where the live run would stop. Gated entry points: `post-reels.mjs`, `post-now.mjs`, and `--post` on `build-album-carousel.mjs` and `build-top-shots.mjs`. Not gated: `build-fb-album.mjs`, a bulk fill the Facebook composer cannot do.
 
+## Selected-publication packages
+
+`review-package.mjs` is an additional opt-in contract for a post that has had a
+single, complete human review. It does not replace the route gate. A route says
+the owned publisher may be used. A selected-publication package says which
+account, media type, exact caption, tags, collaborators, audio treatment,
+cover, source reference, and delivery choice were reviewed.
+
+Create a local draft package with its selected files and source reference. The
+command always creates `state: "draft"` with `delivery.intent: "review-only"`;
+it cannot approve or schedule a post.
+
+```
+node scripts/social-publish/review-package.mjs --create \
+  --account letspepper --media-type REELS --media /absolute/selected.mp4 \
+  --caption-file /absolute/caption.txt --source "TPS review frame 2026-10-18" \
+  --source-file /absolute/selected-original.mp4 \
+  --out /absolute/selected-publication.json
+```
+
+The review system, not this CLI, records a human approval on the displayed
+digest and changes delivery to `immediate` or `scheduled`. A scheduled package
+also needs its exact UTC `scheduled_at`, IANA `timezone`, and `missed_after`
+window. The publisher rejects a review-only package, an approval for a different
+digest, a delivery-mode mismatch, or a scheduled item outside its window.
+
+For an approved immediate package, pass `--review-package <path>` to
+`post-now.mjs` with the same account, files, caption, tags, collaborators,
+audio, and cover. It verifies local content hashes before it writes a queue or
+uploads. `upload-r2.mjs` then uses a content-addressed R2 key and stores the
+hosted hash binding. A reviewed item cannot silently overwrite bytes at an old
+basename URL.
+
+For an approved scheduled package, retain `review_package` and its binding on
+the queue item before `seed-kv.mjs`. Seeding rejects an incomplete binding. The
+Worker fetches the hosted media and cover and hashes them again before every
+fresh publish or prepared-container retry. It refuses rather than pretending it
+can verify a local path. Changing, cancelling, or replacing a reviewed item
+therefore requires a new approved digest; a stale prepared container is refused
+rather than reused.
+
 **The scheduled Worker** checks the same entry shape (`route-shape.mjs` owns it for both). It publishes an item only when that item's KV queue carries `meta.route`, a complete entry that is still in date and names the item's account. Anything else goes terminal before any Graph call, in the resume path as well as the fresh-post path. Terminal means both destinations are marked `error`, and `route_error` says why. `/status` reports each event's `route` and a `route_refused` count. Seed with `seed-kv.mjs`, which copies `meta.route` from the event's `graph-routes.json` entry and refuses when there isn't one:
 
 ```bash
