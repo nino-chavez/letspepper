@@ -70,7 +70,7 @@ import { carouselChildParams, carouselParentParams } from './carousel-container-
 import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { openQueueFile } from './queue-store.mjs'
 import { audioParams } from './reel-audio.mjs'
-import { assertHostedBindingShape } from './review-package.mjs'
+import { assertLocalHostedBinding } from './review-package.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -154,7 +154,7 @@ const batch = due.slice(0, count)
 for (const item of batch) audioParams(item)
 // A selected-publication package is an additional opt-in gate, not a replacement
 // for the route gate. It runs on dry-runs and before any Graph work.
-for (const item of batch) if (item.review_package) assertHostedBindingShape(item, 'immediate')
+for (const item of batch) await assertLocalHostedBinding(item)
 
 // Route first. It comes before the token check on purpose: an agent that is
 // refused for a missing token goes and fetches one, and only then learns the
@@ -304,6 +304,7 @@ for (const it of batch) {
     if (!containerId) {
       containerId = await buildContainer(ig, it)
       it.ig_container_id = containerId; it.ig_container_digest = payload
+      if (it.review_package) it.review_prepared_digest = it.review_package.digest
       const audio = audioParams(it)
       if (audio.audio_configuration) it.ig_container_audio_configuration = audio.audio_configuration
       else delete it.ig_container_audio_configuration

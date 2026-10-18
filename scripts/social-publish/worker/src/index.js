@@ -90,7 +90,7 @@ import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route
 import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
 import { collabBlock, decideCollab } from '../../collab-shape.mjs'
 import { audioParams } from '../../reel-audio.mjs'
-import { assertWorkerBinding } from '../../review-package.mjs'
+import { assertWorkerBinding } from '../../review-package-worker.mjs'
 import { collaboratorParams, userTagsParams, tagParams } from '../../tag-params.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
@@ -397,7 +397,7 @@ async function routed(env, ev, q, candidates, now = new Date()) {
   for (const item of candidates) {
     let why = routeRefusal(q, ev, item, now)
     if (!why) {
-      try { await assertWorkerBinding(item) }
+      try { await assertWorkerBinding(item, fetch, now) }
       catch (error) { why = `review package: ${error.message}` }
     }
     if (!why) { allowed.push(item); continue }
@@ -444,6 +444,7 @@ async function publishInstagramItem(env, ev, q, item, budget) {
     if (!containerId) {
       containerId = await buildContainer(token, acct.ig_user_id, item, budget, () => persistQueue(env, ev, q))
       item.ig_container_id = containerId; item.status = 'building'
+      if (item.review_package) item.review_prepared_digest = item.review_package.digest
       if (audio.audio_configuration) item.ig_container_audio_configuration = audio.audio_configuration
       else delete item.ig_container_audio_configuration
       await persistQueue(env, ev, q) // persist before the slow poll/publish

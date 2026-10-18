@@ -1,20 +1,26 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import test, {before, after, mock} from 'node:test'
+import {execFileSync,spawnSync} from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   assertHostedBindingShape, assertItemMatchesPackage, assertLocalFiles, assertWorkerBinding, assertWorkerBindingShape,
-  contentHash, createReviewPackage, digestOfPackage, makeHostedBinding, validateReviewPackage,
+  assertLocalHostedBinding, contentHash, createReviewPackage, digestOfPackage, makeHostedBinding, validateReviewPackage,
 } from '../review-package.mjs'
+import {responseHash} from '../review-package-worker.mjs'
 import { seedPayload } from '../seed-kv.mjs'
 import worker from '../worker/src/index.js'
+
+// Freeze only Date; transport and subprocess timeouts stay real.
+before(() => mock.timers.enable({apis:['Date'],now:new Date('2026-10-18T15:10:00.000Z')}))
+after(() => mock.timers.reset())
 
 const dir = () => mkdtempSync(join(tmpdir(), 'review-package-'))
 const approved = (pkg, intent = 'immediate') => {
   pkg.state = 'reviewed'; pkg.delivery = intent === 'scheduled'
     ? { intent, scheduled_at: '2026-10-20T14:00:00.000Z', missed_after: '2026-10-20T15:00:00.000Z', timezone: 'America/Chicago' } : { intent }
-  pkg.digest = digestOfPackage(pkg); pkg.approval = { status: 'approved', evidence: 'Nino selected this exact package in review.', digest: pkg.digest }
+  pkg.digest = digestOfPackage(pkg); pkg.approval = { status: 'approved', evidence: 'Test fixture only: an explicit approval for this package digest.', approved_at:'2026-10-18T00:00:00.000Z', expires_at:'2026-10-21T00:00:00.000Z', digest: pkg.digest }
   return pkg
 }
 const itemFor = (pkg, execution = 'immediate') => ({
@@ -39,7 +45,7 @@ test('accepted local package binds caption, account, tags, audio, cover, source 
   try {
     const media = join(root, 'selected.mp4'); const source = join(root, 'source.mp4'); const cover = join(root, 'cover.jpg')
     writeFileSync(media, 'picture'); writeFileSync(source, 'source-picture'); writeFileSync(cover, 'cover')
-    const pkg = approved(createReviewPackage({ account: 'letspepper', mediaType: 'REELS', mediaFile: media, sourceFile: source, coverFile: cover, caption: 'The current selected caption.', userTags: ['team'], collaborators: ['flickday.media'], audio: { representation: 'native', configuration: { audio_id: '123', audio_volume: 60, video_volume: 35 } }, source: { reference: 'TPS master selected 2026-10-18' }, permittedChanges: ['audio-only'] }))
+    const pkg = approved(createReviewPackage({ account: 'letspepper', mediaType: 'REELS', mediaFile: media, sourceFile: source, coverFile: cover, caption: 'The current selected caption.', userTags: ['team'], collaborators: ['flickday.media'], audio: { representation: 'native', configuration: { audio_id: '123', audio_volume: 60, video_volume: 35 } }, source: { reference: 'TPS master selected 2026-10-18' }, permittedChanges: [] }))
     const item = itemFor(pkg); assert.doesNotThrow(() => { validateReviewPackage(pkg, { approved: true }); assertLocalFiles(pkg); assertItemMatchesPackage(item, pkg, 'immediate') })
     item.video_url = `https://media.invalid/${pkg.media.content_sha256}.mp4`; item.cover_url = `https://media.invalid/${pkg.cover.content_sha256}.jpg`
     item.review_binding = makeHostedBinding(pkg, { mediaUrl: item.video_url, mediaKey: `event/${pkg.media.content_sha256}.mp4`, coverUrl: item.cover_url, coverKey: `event/${pkg.cover.content_sha256}.jpg` })
@@ -54,14 +60,19 @@ test('accepted local package binds caption, account, tags, audio, cover, source 
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
-test('audio-only output must name the selected original video stream, not merely a new file hash', () => {
+test('audio-only checks actual original/output video streams and preview presentation', () => {
   const root = dir()
   try {
-    const media = join(root, 'with-music.mp4'); writeFileSync(media, 'new-audio-same-picture')
-    const pkg = approved(createReviewPackage({ account: 'letspepper', mediaType: 'REELS', mediaFile: media, audio: { representation: 'embedded' }, source: { reference: 'selected original', change: 'audio-only', original_video_stream_sha256: 'a'.repeat(64) } }))
-    pkg.media.video_stream_sha256 = 'b'.repeat(64); pkg.digest = digestOfPackage(pkg); pkg.approval.digest = pkg.digest
-    assert.throws(() => validateReviewPackage(pkg, { approved: true }), /preserve the selected original video stream/)
-  } finally { rmSync(root, { recursive: true, force: true }) }
+    const original=join(root,'original.mp4'),changed=join(root,'changed.mp4'),samePicture=join(root,'with-audio.mp4')
+    execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=red:s=64x96:r=10:d=0.5','-c:v','libx264','-pix_fmt','yuv420p',original])
+    execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=blue:s=64x96:r=10:d=0.5','-c:v','libx264','-pix_fmt','yuv420p',changed])
+    execFileSync('ffmpeg',['-v','error','-i',original,'-f','lavfi','-i','sine=frequency=500:duration=0.5','-map','0:v','-map','1:a','-c:v','copy','-c:a','aac','-shortest',samePicture])
+    const pkg=createReviewPackage({account:'letspepper',mediaType:'REELS',mediaFile:samePicture,sourceFile:original,reviewFile:samePicture,audio:{representation:'embedded'},source:{reference:original,change:'audio-only'},permittedChanges:['audio-only']})
+    assert.doesNotThrow(()=>assertLocalFiles(pkg))
+    assert.throws(()=>createReviewPackage({account:'letspepper',mediaType:'REELS',mediaFile:changed,sourceFile:original,source:{reference:original,change:'audio-only'}}),/preserve/)
+    pkg.media.video_stream_sha256='a'.repeat(64);pkg.source.original_video_stream_sha256='a'.repeat(64);pkg.digest=digestOfPackage(pkg)
+    assert.throws(()=>assertLocalFiles(pkg),/original picture/)
+  } finally {rmSync(root,{recursive:true,force:true})}
 })
 
 test('scheduled package refuses immediate execution, changed time, and review-only coercion', () => {
@@ -86,14 +97,14 @@ test('worker binding verifies hosted content before a scheduled item can create 
     const item = itemFor(pkg, 'scheduled')
     item.video_url = 'https://media.invalid/' + pkg.media.content_sha256 + '.mp4'
     item.review_binding = makeHostedBinding(pkg, { mediaUrl: item.video_url, mediaKey: `event/${pkg.media.content_sha256}.mp4` })
-    item.ig_container_id = 'prepared-container' // a retry still has to re-check bytes.
+    item.review_prepared_digest = pkg.digest; item.ig_container_id = 'prepared-container' // a retry still has to re-check bytes.
     assert.doesNotThrow(() => assertWorkerBindingShape(item))
     assert.throws(() => assertHostedBindingShape({ ...item, video_url: 'https://media.invalid/mutable-name.mp4' }, 'scheduled'), /hosted media URL/)
     const routes = { events: { selected: { reason: 'Nino approved this scheduled selected package.', approved: '2026-10-18', accounts: ['letspepper'] } } }
     assert.doesNotThrow(() => seedPayload({ items: [item] }, 'selected', routes))
     assert.throws(() => seedPayload({ items: [{ ...item, caption: 'replacement caption' }] }, 'selected', routes), /caption/)
-    await assert.doesNotReject(() => assertWorkerBinding(item, async () => new Response('hosted-media')))
-    await assert.rejects(() => assertWorkerBinding(item, async () => new Response('replaced-bytes')), /hosted reviewed media bytes/)
+    await assert.doesNotReject(() => assertWorkerBinding(item, async () => new Response('hosted-media'), new Date('2026-10-20T14:30:00.000Z')))
+    await assert.rejects(() => assertWorkerBinding(item, async () => new Response('replaced-bytes'), new Date('2026-10-20T14:30:00.000Z')), /hosted reviewed media bytes/)
     item.review_binding.media.key = 'event/mutable-name.mp4'; assert.throws(() => assertWorkerBindingShape(item), /content-addressed/)
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
@@ -119,4 +130,75 @@ test('the Worker refuses changed hosted bytes before any Graph container request
     const saved = JSON.parse(await kv.get('selected')).items[0]
     assert.equal(saved.status, 'error'); assert.match(saved.error, /hosted reviewed media bytes/)
   } finally { globalThis.fetch = originalFetch; rmSync(root, { recursive: true, force: true }) }
+})
+
+test('scheduled timestamps, timezone, approval expiry, and early execution are enforced', () => {
+  const root=dir()
+  try {
+    const file=join(root,'media.mp4');writeFileSync(file,'fixture')
+    const pkg=approved(createReviewPackage({account:'letspepper',mediaType:'REELS',mediaFile:file,source:{reference:'fixture'}}),'scheduled')
+    for(const delta of [
+      {scheduled_at:'2026-02-30T14:00:00.000Z'},
+      {missed_after:'2026-10-20T13:00:00.000Z'},
+      {timezone:'not-a-zone'},
+    ]) {const changed=structuredClone(pkg);Object.assign(changed.delivery,delta);changed.digest=digestOfPackage(changed);changed.approval.digest=changed.digest;assert.throws(()=>validateReviewPackage(changed,{approved:true}))}
+    const item=itemFor(pkg,'scheduled')
+    assert.throws(()=>assertHostedBindingShape({...item,review_binding:{package_digest:pkg.digest}},'scheduled',new Date('2026-10-20T13:00:00.000Z'),{publish:true}),/not due/)
+    assert.throws(()=>validateReviewPackage(pkg,{approved:true,now:new Date('2026-10-22T00:00:00.000Z')}),/validity window/)
+  } finally {rmSync(root,{recursive:true,force:true})}
+})
+
+test('a stripped package or stale prepared container cannot fall back to legacy execution', () => {
+  const root=dir()
+  try {
+    const file=join(root,'media.mp4');writeFileSync(file,'fixture')
+    const pkg=approved(createReviewPackage({account:'letspepper',mediaType:'REELS',mediaFile:file,source:{reference:'fixture'}}))
+    const item=itemFor(pkg)
+    assert.throws(()=>assertHostedBindingShape({...item,review_package:null},'immediate'),/lost its selected-publication/)
+    assert.throws(()=>assertItemMatchesPackage({...item,ig_container_id:'old',review_prepared_digest:'old-digest'},pkg,'immediate'),/another reviewed package/)
+    assert.doesNotThrow(()=>assertItemMatchesPackage({...item,ig_container_id:'same',review_prepared_digest:pkg.digest},pkg,'immediate'))
+    assert.equal(assertHostedBindingShape({id:'legacy'},'immediate'),null)
+  } finally {rmSync(root,{recursive:true,force:true})}
+})
+
+test('local execution rehashes hosted media and rejects a surprise Facebook destination', async () => {
+  const root=dir()
+  try {
+    const file=join(root,'media.mp4');writeFileSync(file,'fixture')
+    const pkg=approved(createReviewPackage({account:'letspepper',mediaType:'REELS',mediaFile:file,source:{reference:'fixture'},audio:{representation:'embedded'}}))
+    const item=itemFor(pkg);item.video_url=`https://media.invalid/${pkg.media.content_sha256}.mp4`
+    item.review_binding=makeHostedBinding(pkg,{mediaUrl:item.video_url,mediaKey:`${pkg.media.content_sha256}.mp4`})
+    await assert.doesNotReject(()=>assertLocalHostedBinding(item,async()=>new Response('fixture')))
+    await assert.rejects(()=>assertLocalHostedBinding(item,async()=>new Response('changed')),/media bytes/)
+    assert.throws(()=>assertItemMatchesPackage({...item,channels:['instagram','facebook']},pkg,'immediate'),/Facebook/)
+  } finally {rmSync(root,{recursive:true,force:true})}
+})
+
+
+test('native catalog metadata is validated and non-streaming fallback is bounded', async () => {
+  const root=dir()
+  try {
+    const file=join(root,'media.mp4');writeFileSync(file,'fixture')
+    const options={account:'letspepper',mediaType:'REELS',mediaFile:file,source:{reference:'fixture'}}
+    for(const configuration of [undefined,{}, {audio_id:'not-a-number'}, {audio_id:'123',audio_volume:0}]) {
+      assert.throws(()=>createReviewPackage({...options,audio:{representation:'native',configuration}}))
+    }
+    const image={...options,mediaType:'IMAGE',audio:{representation:'native',configuration:{audio_id:'123'}}}
+    assert.throws(()=>createReviewPackage(image),/REELS only/)
+    if(typeof crypto.DigestStream !== 'function') {
+      await assert.rejects(()=>responseHash(new Response(new Uint8Array(1024*1024+1))),/streaming digest unavailable/)
+    }
+  } finally {rmSync(root,{recursive:true,force:true})}
+})
+
+
+test('the CLI execution-check flag at the end refuses a draft without side effects', () => {
+  const root=dir()
+  try {
+    const media=join(root,'selected.mp4');writeFileSync(media,'fixture')
+    const pkg=createReviewPackage({account:'630',mediaType:'REELS',mediaFile:media,source:{reference:'fixture'}})
+    const file=join(root,'selected-publication.json');writeFileSync(file,JSON.stringify(pkg))
+    const result=spawnSync(process.execPath,[new URL('../review-package.mjs',import.meta.url).pathname,'--validate',file,'--execution-check'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:10000})
+    assert.equal(result.status,3);assert.match(result.stderr,/review-only package cannot publish/)
+  } finally {rmSync(root,{recursive:true,force:true})}
 })

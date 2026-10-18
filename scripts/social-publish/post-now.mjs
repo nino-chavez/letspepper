@@ -104,7 +104,7 @@ if (reviewPackage) {
   try {
     validateReviewPackage(reviewPackage, { approved: true }); assertLocalFiles(reviewPackage)
     if (reviewPackage.account !== account || reviewPackage.media_type !== media_type || resolve(reviewPackage.media.file) !== file || reviewPackage.caption !== (story ? '' : caption) || JSON.stringify(reviewPackage.user_tags || []) !== JSON.stringify(list(args.tag)) || JSON.stringify(reviewPackage.collaborators || []) !== JSON.stringify(story ? [] : list(args.collab))) throw new Error('CLI account, media, caption, tags, or collaborators differ from reviewed package')
-    const selectedAudio = audio ? { representation: 'native', configuration: audio } : { representation: 'none' }
+    const selectedAudio = audio ? { representation: 'native', configuration: audio } : { representation: reviewPackage.audio.representation === 'embedded' ? 'embedded' : 'none' }
     if (JSON.stringify(reviewPackage.audio || { representation: 'none' }) !== JSON.stringify(selectedAudio)) throw new Error('CLI audio differs from reviewed package')
     if ((reviewPackage.cover?.file || null) !== (coverFile || null)) throw new Error('CLI cover differs from reviewed package')
   } catch (error) { console.error(`REFUSED — ${error.message}`); process.exit(3) }

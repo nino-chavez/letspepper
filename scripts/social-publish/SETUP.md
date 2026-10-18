@@ -71,26 +71,41 @@ node scripts/social-publish/review-package.mjs --create \
   --out /absolute/selected-publication.json
 ```
 
-The review system, not this CLI, records a human approval on the displayed
-digest and changes delivery to `immediate` or `scheduled`. A scheduled package
-also needs its exact UTC `scheduled_at`, IANA `timezone`, and `missed_after`
-window. The publisher rejects a review-only package, an approval for a different
-digest, a delivery-mode mismatch, or a scheduled item outside its window.
+After the complete local review, record Nino's actual approval message or receipt,
+the selected digest, canonical UTC `approved_at` and `expires_at`, and the approved
+delivery choice. This CLI never invents that evidence or promotes a draft. Changing
+reviewed content or delivery creates a new digest; show the changed package before
+using it. A scheduled package needs exact UTC `scheduled_at`, IANA `timezone`, and
+`missed_after`. Review-only, unapproved, expired, not-yet-due, late, or mismatched
+packages cannot execute. This is an operator contract, not cryptographic identity
+verification of the approval author.
 
 For an approved immediate package, pass `--review-package <path>` to
-`post-now.mjs` with the same account, files, caption, tags, collaborators,
-audio, and cover. It verifies local content hashes before it writes a queue or
-uploads. `upload-r2.mjs` then uses a content-addressed R2 key and stores the
-hosted hash binding. A reviewed item cannot silently overwrite bytes at an old
-basename URL.
+`post-now.mjs` with the same account, files, exact caption, alt text, tags,
+collaborators, audio, and cover. It checks local files before queue or upload
+writes. `upload-r2.mjs` snapshots the selected bytes and uploads them under their
+SHA256, retaining the hosted binding. Both local and Worker publishers fetch
+and stream-hash the hosted media and cover before a fresh publish or retry.
 
 For an approved scheduled package, retain `review_package` and its binding on
-the queue item before `seed-kv.mjs`. Seeding rejects an incomplete binding. The
-Worker fetches the hosted media and cover and hashes them again before every
-fresh publish or prepared-container retry. It refuses rather than pretending it
-can verify a local path. Changing, cancelling, or replacing a reviewed item
-therefore requires a new approved digest; a stale prepared container is refused
-rather than reused.
+the item before `seed-kv.mjs`. Seeding checks active items; posted/cancelled/vetoed/
+skipped history is preserved without needing renewed approval. Ordinary hold and
+veto controls still cancel or stop a post. Replacement content needs a new
+approved package. A saved container with another package digest is refused for
+manual reconciliation, rather than discarded or silently republished.
+
+For an audio-only request, use `--change-scope audio-only` and `--source-file`
+pointing to the exact selected original. FFmpeg/ffprobe are required locally: the
+check compares actual compressed picture streams and presentation metadata, not
+self-reported hashes. `--review-media` can bind a local music preview to the same
+picture as the silent upload. `--audio-id` records native catalog music;
+`--audio-representation embedded` records already-mixed audio. Never attach both.
+
+This first version supports reviewed single images, Reels and Stories for
+Instagram. Reviewed carousels and Facebook crossposts are refused; they need
+per-child or destination-specific review fields before extension. Legacy items
+without review markers keep their existing behavior and object keys. Removing
+the package while leaving review markers does not downgrade it to legacy.
 
 **The scheduled Worker** checks the same entry shape (`route-shape.mjs` owns it for both). It publishes an item only when that item's KV queue carries `meta.route`, a complete entry that is still in date and names the item's account. Anything else goes terminal before any Graph call, in the resume path as well as the fresh-post path. Terminal means both destinations are marked `error`, and `route_error` says why. `/status` reports each event's `route` and a `route_refused` count. Seed with `seed-kv.mjs`, which copies `meta.route` from the event's `graph-routes.json` entry and refuses when there isn't one:
 
