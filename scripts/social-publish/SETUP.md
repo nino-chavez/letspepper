@@ -85,7 +85,7 @@ For an approved immediate package, pass `--review-package <path>` to
 collaborators, audio, and cover. It checks local files before queue or upload
 writes. `upload-r2.mjs` snapshots the selected bytes and uploads them under their
 SHA256, retaining the hosted binding. Both local and Worker publishers fetch
-and stream-hash the hosted media and cover before a fresh publish or retry.
+and stream-hash the hosted media and cover before a fresh publish or retry. Only the item selected for this tick is fetched; verification requests count against its request budget. Network/host failures defer without Graph work while the approved window stays open. A confirmed hash mismatch is terminal. The delivery and approval windows are checked again before publication attempts, including after transcoding.
 
 For an approved scheduled package, retain `review_package` and its binding on
 the item before `seed-kv.mjs`. Seeding checks active items; posted/cancelled/vetoed/

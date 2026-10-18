@@ -62,7 +62,7 @@ export function assertItemFields(item,pkg,execution,now=new Date(),{publish=fals
   }
   if (item.review_binding?.package_digest !== pkg.digest || item.review_package_digest && item.review_package_digest !== pkg.digest) throw new Error('queue item lacks matching reviewed-package binding')
 }
-export const hasReviewContract=item=>Boolean(item.review_package || item.review_binding || item.review_package_digest || item.review_media_key)
+export const hasReviewContract=item=>Boolean(item.review_package || item.review_binding || item.review_package_digest || item.review_media_key || item.review_cover_key || item.review_prepared_digest || item.review_verification_error)
 export function selectedPackage(item) {
   if(hasReviewContract(item) && !item.review_package)throw new Error('reviewed item lost its selected-publication package')
   return item.review_package || null

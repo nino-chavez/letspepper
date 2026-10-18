@@ -202,3 +202,59 @@ test('the CLI execution-check flag at the end refuses a draft without side effec
     assert.equal(result.status,3);assert.match(result.stderr,/review-only package cannot publish/)
   } finally {rmSync(root,{recursive:true,force:true})}
 })
+
+// A fake KV and transport exercise the scheduler lifecycle without credentials or Meta.
+const scheduledFixture = (root, text, id) => {
+  const media=join(root,id+'.mp4');writeFileSync(media,text)
+  const pkg=approved(createReviewPackage({account:'letspepper',mediaType:'REELS',mediaFile:media,source:{reference:'fixture'}}),'scheduled')
+  pkg.delivery.scheduled_at=new Date(Date.now()-1000).toISOString();pkg.delivery.missed_after=new Date(Date.now()+60000).toISOString()
+  pkg.digest=digestOfPackage(pkg);pkg.approval.digest=pkg.digest
+  const item=itemFor(pkg,'scheduled');Object.assign(item,{id,status:'pending',video_url:`https://media.invalid/${pkg.media.content_sha256}.mp4`})
+  item.review_binding=makeHostedBinding(pkg,{mediaUrl:item.video_url,mediaKey:`${pkg.media.content_sha256}.mp4`})
+  return item
+}
+const workerFixture = items => {
+  const values=new Map([['selected',JSON.stringify({event:'selected',meta:{route:{reason:'Test fixture route only.',approved:'2026-10-18',accounts:['letspepper']}},items})]])
+  const kv={get:async key=>values.get(key)??null,put:async(key,value)=>values.set(key,value)}
+  return {kv,env:{QUEUE:kv,TRIGGER_KEY:'trigger',ACTIVE_EVENTS:'selected',ALLOWED_HOURS_UTC:'0',IG_ACCESS_TOKEN:'TEST_ONLY_NOT_A_CREDENTIAL'},items:()=>JSON.parse(values.get('selected')).items}
+}
+const runWorker=fixture=>worker.fetch(new Request('https://worker.invalid/run?key=trigger&force=1'),fixture.env)
+const graphOK=url=>new Response(JSON.stringify(String(url).includes('status_code')?{status_code:'FINISHED'}:{id:String(url).includes('media_publish')?'published':'container'}),{headers:{'Content-Type':'application/json'}})
+
+test('a transient verification failure defers, then retries; only selected media is fetched', async()=>{
+  const root=dir(),originalFetch=globalThis.fetch
+  try {
+    const first=scheduledFixture(root,'first-bytes','first'),second=scheduledFixture(root,'second-bytes','second'),fixture=workerFixture([first,second])
+    let graphCalls=0;const mediaCalls=[]
+    globalThis.fetch=async url=>{if(String(url).startsWith('https://media.invalid/')){mediaCalls.push(String(url));return new Response('temporary',{status:503})}graphCalls++;return graphOK(url)}
+    await runWorker(fixture)
+    assert.equal(graphCalls,0);assert.equal(fixture.items()[0].status,'pending');assert.match(fixture.items()[0].review_verification_error,/HTTP 503/);assert.deepEqual(mediaCalls,[first.video_url])
+    mediaCalls.length=0
+    globalThis.fetch=async url=>{if(String(url).startsWith('https://media.invalid/')){mediaCalls.push(String(url));return new Response('first-bytes')}graphCalls++;return graphOK(url)}
+    await runWorker(fixture)
+    assert.equal(fixture.items()[0].status,'posted');assert.equal(fixture.items()[1].status,'pending');assert.deepEqual(mediaCalls,[first.video_url]);assert.equal(graphCalls,3)
+  } finally {globalThis.fetch=originalFetch;rmSync(root,{recursive:true,force:true})}
+})
+
+test('verification uses the request budget and expiry during transcode stops publication',async()=>{
+  const root=dir(),originalFetch=globalThis.fetch
+  try {
+    const first=scheduledFixture(root,'bytes','first'),fixture=workerFixture([first]);fixture.env.SUBREQUEST_BUDGET='1';let graphCalls=0
+    globalThis.fetch=async url=>{if(String(url).startsWith('https://media.invalid/'))return new Response('bytes');graphCalls++;return graphOK(url)}
+    await runWorker(fixture);assert.equal(graphCalls,0);assert.equal(fixture.items()[0].status,'pending')
+    delete fixture.env.SUBREQUEST_BUDGET
+    globalThis.fetch=async url=>{
+      if(String(url).startsWith('https://media.invalid/'))return new Response('bytes')
+      graphCalls++
+      if(String(url).includes('status_code'))mock.timers.setTime(new Date('2026-10-18T15:12:00.000Z').getTime())
+      return graphOK(url)
+    }
+    await runWorker(fixture);assert.equal(graphCalls,2);assert.equal(fixture.items()[0].status,'error');assert.match(fixture.items()[0].error,/missed its approved window/);assert.equal(fixture.items()[0].ig_container_id,'container')
+  } finally {mock.timers.setTime(new Date('2026-10-18T15:10:00.000Z').getTime());globalThis.fetch=originalFetch;rmSync(root,{recursive:true,force:true})}
+})
+
+test('prepared, cover and verification review markers cannot be stripped into legacy',()=>{
+  for(const marker of ['review_prepared_digest','review_cover_key','review_verification_error']) {
+    assert.throws(()=>assertHostedBindingShape({id:'stripped',[marker]:'saved'},'immediate'),/lost its selected-publication/)
+  }
+})

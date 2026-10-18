@@ -90,7 +90,7 @@ import { standingEntry, inDate, entryCovers, coversMediaType } from '../../route
 import { holdBlock, isHeld, linkedItemBlock } from '../../hold-shape.mjs'
 import { collabBlock, decideCollab } from '../../collab-shape.mjs'
 import { audioParams } from '../../reel-audio.mjs'
-import { assertWorkerBinding } from '../../review-package-worker.mjs'
+import { assertWorkerBinding, assertWorkerBindingFields, mediaVerificationUnavailable } from '../../review-package-worker.mjs'
 import { collaboratorParams, userTagsParams, tagParams } from '../../tag-params.mjs'
 import {
   notify, postedNotification, failedNotification, vetoedNotification,
@@ -110,7 +110,7 @@ const DEFAULT_SUBREQUEST_BUDGET = 40
 class Deferred extends Error {}
 
 /**
- * A per-invocation counter for external (Graph + ntfy) subrequests. Created fresh in
+ * A per-invocation counter for external (Graph + ntfy + reviewed-media) subrequests. Created fresh in
  * run() every invocation — Workers isolates can be reused across invocations, so this
  * must NEVER be module-scoped state, or a later invocation would inherit an earlier one's
  * spent budget. canSpend/spend let a caller check before committing to a call ("check
@@ -198,9 +198,10 @@ async function api(token, path, params, method = 'POST') {
 // Idempotent: re-publishing the SAME creation_id never duplicates. Meta often
 // returns "unexpected error" on media_publish even when it succeeded — a retry
 // then returns the real id (or publishes if it truly hadn't).
-async function publishWithRetry(token, ig, creationId, tries = 4) {
+async function publishWithRetry(token, ig, creationId, tries = 4, beforeAttempt = async () => {}) {
   let lastErr
   for (let i = 0; i < tries; i++) {
+    await beforeAttempt()
     try { const { id } = await api(token, `${ig}/media_publish`, { creation_id: creationId }); return id }
     catch (e) {
       lastErr = e
@@ -397,7 +398,7 @@ async function routed(env, ev, q, candidates, now = new Date()) {
   for (const item of candidates) {
     let why = routeRefusal(q, ev, item, now)
     if (!why) {
-      try { await assertWorkerBinding(item, fetch, now) }
+      try { await assertWorkerBindingFields(item, now) }
       catch (error) { why = `review package: ${error.message}` }
     }
     if (!why) { allowed.push(item); continue }
@@ -407,6 +408,30 @@ async function routed(env, ev, q, candidates, now = new Date()) {
   }
   if (refused) await persistQueue(env, ev, q)
   return allowed
+}
+
+// Verify only the selected item. No Graph mutation has happened here, so an
+// unavailable host or exhausted request budget defers within the approved window.
+async function verifySelectedReview(env, ev, q, item, budget) {
+  try {
+    await assertWorkerBinding(item, (url, options) => {
+      if (budget && !budget.spend(1)) throw new Deferred('subrequest budget exhausted verifying reviewed media')
+      return fetch(url, options)
+    })
+    await assertWorkerBindingFields(item) // verification itself can consume part of the approved window
+    delete item.review_verification_error
+    return null
+  } catch(error) {
+    if (mediaVerificationUnavailable(error)) {
+      item.review_verification_error=error.message
+      await persistQueue(env, ev, q)
+      return {note:error.message+'; deferred without Graph work'}
+    }
+    const why='review package: '+error.message
+    refuse(item, why)
+    await persistQueue(env, ev, q)
+    return {error:why}
+  }
 }
 
 // Best-effort permalink for a POSTED notification's click target — the failure of this
@@ -457,7 +482,7 @@ async function publishInstagramItem(env, ev, q, item, budget) {
       }
     }
     if (budget && !budget.spend(1)) { await persistQueue(env, ev, q); return { note: 'subrequest budget exhausted before publish — resumes next run' } }
-    const mediaId = await publishWithRetry(token, acct.ig_user_id, containerId)
+    const mediaId = await publishWithRetry(token, acct.ig_user_id, containerId, 4, () => assertWorkerBindingFields(item))
     item.status = 'posted'; item.ig_media_id = mediaId; item.posted_at = new Date().toISOString(); item.error = null
     await persistQueue(env, ev, q)
     if (notifiable(ev)) {
@@ -796,6 +821,8 @@ async function resumeIfBuilding(env, ev, budget) {
   if (!building.length) return null
   const [item] = await routed(env, ev, q, building)
   if (!item) return null
+  const verification = await verifySelectedReview(env, ev, q, item, budget)
+  if (verification) return verification
   return publishItem(env, ev, q, item, budget)
 }
 
@@ -842,6 +869,8 @@ async function postDuePending(env, ev, hourAllowed, budget) {
   if (!due.length) return null
   const scheduled = due.filter((it) => it.scheduledAt).sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
   const item = scheduled.length ? scheduled[0] : due[Math.floor(Math.random() * due.length)]
+  const verification = await verifySelectedReview(env, ev, q, item, budget)
+  if (verification) return verification
   return publishItem(env, ev, q, item, budget)
 }
 

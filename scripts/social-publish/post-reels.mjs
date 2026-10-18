@@ -70,7 +70,7 @@ import { carouselChildParams, carouselParentParams } from './carousel-container-
 import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { openQueueFile } from './queue-store.mjs'
 import { audioParams } from './reel-audio.mjs'
-import { assertLocalHostedBinding } from './review-package.mjs'
+import { assertLocalHostedBinding, assertHostedBindingShape } from './review-package.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -154,7 +154,8 @@ const batch = due.slice(0, count)
 for (const item of batch) audioParams(item)
 // A selected-publication package is an additional opt-in gate, not a replacement
 // for the route gate. It runs on dry-runs and before any Graph work.
-for (const item of batch) await assertLocalHostedBinding(item)
+const effectiveReviewItem = item => accountOverride ? {...item,account:accountOverride} : item
+for (const item of batch) await assertLocalHostedBinding(effectiveReviewItem(item))
 
 // Route first. It comes before the token check on purpose: an agent that is
 // refused for a missing token goes and fetches one, and only then learns the
@@ -206,8 +207,9 @@ async function waitFinished(containerId) {
 // the drip fails every post and only retries on the next hourly run (or stalls if
 // the laptop slept). Retry the transient error in-run with backoff; let real
 // errors (bad container, permissions) surface immediately.
-async function publishWithRetry(ig, creationId, attempts = 5) {
+async function publishWithRetry(ig, creationId, attempts = 5, beforeAttempt = async () => {}) {
   for (let i = 0; ; i++) {
+    await beforeAttempt()
     try {
       return await api(`${ig}/media_publish`, { creation_id: creationId })
     } catch (e) {
@@ -265,6 +267,7 @@ for (const it of batch) {
     continue
   }
   try {
+    assertHostedBindingShape(effectiveReviewItem(it),it.review_package?.delivery.intent,new Date(),{publish:true})
     const ig = igIdFor(it)
     process.stdout.write(`→ ${it.id} (@${registry[slug].handle}) ... `)
     // Reuse a prior failed run's container — a "failed" media_publish can still
@@ -316,7 +319,7 @@ for (const it of batch) {
       save(); console.log(`prepared (container ${containerId}); not published`); ok++
       continue
     }
-    const { id: mediaId } = await publishWithRetry(ig, containerId)
+    const { id: mediaId } = await publishWithRetry(ig, containerId, 5, () => assertHostedBindingShape(effectiveReviewItem(it),it.review_package?.delivery.intent,new Date(),{publish:true}))
     it.status = 'posted'; it.ig_media_id = mediaId; it.posted_at = new Date().toISOString(); it.error = null
     save()
     console.log(`posted (media ${mediaId})`)
