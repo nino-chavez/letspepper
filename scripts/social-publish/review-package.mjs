@@ -26,7 +26,7 @@ export function videoFingerprint(file) {
 export function createReviewPackage({account,mediaType,mediaFile,sourceFile=null,reviewFile=null,caption='',altText=null,coverFile=null,userTags=[],collaborators=[],audio={representation:'none'},source={},permittedChanges=[]}) {
   if(!account || !mediaType || !mediaFile || !source.reference?.trim())throw new Error('account, mediaType, mediaFile and reviewed source reference are required')
   const media=resolve(mediaFile),original=resolve(sourceFile || media)
-  const pkg={schema:'selected-publication/v1',state:'draft',account,media_type:mediaType,
+  const pkg={schema:'selected-publication/v1',state:'draft',account,media_type:mediaType,destinations:['instagram'],
     media:{file:media,filename:basename(media),content_sha256:contentHash(media)},
     cover:coverFile?{file:resolve(coverFile),filename:basename(coverFile),content_sha256:contentHash(resolve(coverFile))}:null,
     caption,alt_text:altText,mentions:captionMentions(caption),user_tags:[...userTags],collaborators:[...collaborators],audio,

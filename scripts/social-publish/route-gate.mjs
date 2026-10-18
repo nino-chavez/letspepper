@@ -40,10 +40,11 @@
  *
  * A receipt approves THAT post. It carries a digest of what Nino was shown —
  * the publishing account, media type, caption, collaborators, tags and media
- * URLs — and stops covering the item the moment any of them changes. Otherwise
- * a post that failed could be "fixed" (new photos, a new caption, --account
- * pointed somewhere else) and re-run inside the 24 hours on a yes that was given
- * to something different.
+ * URLs, and for a post published from a release package (release-contract.mjs)
+ * the media bytes, cover, mentions and delivery time — and stops covering the
+ * item the moment any of them changes. Otherwise a post that failed could be
+ * "fixed" (new photos, a new caption, --account pointed somewhere else) and
+ * re-run inside the 24 hours on a yes that was given to something different.
  *
  * The check runs before the copy audit, the R2 upload and the first Graph
  * call, and it runs on --dry-run too: a dry run that passes where the live run
@@ -138,8 +139,26 @@ export function digestOf(item, account, event = '') {
   const audio = audioConfiguration(item)
   // Do not invalidate legacy receipts or prepared containers without audio.
   // A selected track or changed mix DOES invalidate approval/container reuse.
-  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, ...cover, ...(facebook ? [facebook] : []), ...(audio ? [audio] : [])]
+  //
+  // Release contract (2026-10-18, release-contract.mjs): an item queued from a reviewed release.json
+  // carries `release` — the sha256 of the media bytes and the md5 of the video stream, the cover's
+  // sha256, the caption mentions and the delivery instruction. Those are what the TPS day-one Reel
+  // got wrong while every check passed: a hosted URL names a file, not its bytes (and is null at
+  // review time), and scheduledAt was never hashed. Same legacy rule as the slots above — present
+  // only when the item carries the block, so every receipt and container made before it hashes as
+  // it did. The review digest is this function over the item with id and URLs blanked
+  // (release-contract.mjs contractDigest), so one formula binds review, receipt and container.
+  const release = releaseTuple(item?.release)
+  const shown = [event, item?.id ?? null, account || item?.account || null, type, words, media, ...cover, ...(facebook ? [facebook] : []), ...(audio ? [audio] : []), ...(release ? [release] : [])]
   return createHash('sha256').update(JSON.stringify(shown)).digest('hex').slice(0, 16)
+}
+
+/** The release-contract slot of digestOf(): null when the item was not queued from a package. */
+export function releaseTuple(r) {
+  if (!r || typeof r !== 'object') return null
+  const d = r.delivery
+  const delivery = d?.immediate === true ? ['immediate'] : d?.scheduled_at ? ['scheduled', d.scheduled_at, d.timezone ?? null] : null
+  return [r.source?.sha256 ?? null, r.source?.video_md5 ?? null, r.cover_sha256 ?? null, Array.isArray(r.mentions) ? r.mentions : [], delivery]
 }
 
 const fresh = (r, now) => {

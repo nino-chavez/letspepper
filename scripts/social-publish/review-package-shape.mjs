@@ -13,6 +13,7 @@ export const captionMentions = caption => [...new Set([...caption.matchAll(/(?<!
 export function assertPackageShape(pkg, {approved=false, now=new Date()}={}) {
   if (!pkg || pkg.schema !== 'selected-publication/v1') throw new Error('invalid selected-publication package schema')
   if (!['draft','reviewed'].includes(pkg.state) || !pkg.account || !['REELS','IMAGE','STORIES'].includes(pkg.media_type)) throw new Error('package has invalid state, account, or supported media type')
+  if (!same(pkg.destinations,['instagram'])) throw new Error('this reviewed-package version supports the Instagram destination only')
   if (!isHash(pkg.media?.content_sha256) || !isHash(pkg.source?.content_sha256) || !pkg.source?.reference?.trim()) throw new Error('package lacks source/output content hash or source reference')
   if (typeof pkg.caption !== 'string' || !handles(pkg.user_tags) || !handles(pkg.collaborators) || !handles(pkg.mentions) || !same(pkg.mentions,captionMentions(pkg.caption))) throw new Error('package caption or decided mention/tag/collaborator fields are invalid')
   for (const asset of [pkg.cover,pkg.review_media].filter(Boolean)) if (!isHash(asset.content_sha256)) throw new Error('package cover/review media lacks content hash')

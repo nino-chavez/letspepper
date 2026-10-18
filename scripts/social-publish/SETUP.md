@@ -132,6 +132,69 @@ pnpm social:worker:test   # every file in worker/test/: every Worker refusal see
 
 New routes limited to explicit media types can set `strict_media_types: true` beside a nonempty `media_types` array. Both the local gate and scheduled Worker then refuse every type outside that list. `seed-kv.mjs` carries the switch into production. Existing routes without the switch retain their historical non-Story behavior; Stories still require explicit opt-in.
 
+## Release contract
+
+The route gate says whether this publisher may be used. The release contract (`release-contract.mjs`) says whether what it is about to send is what Nino was shown. It binds content, not routing: a one-off post still needs its `--graph-route`.
+
+Why it exists: on 2026-10-18 the TPS day-one Reel went out with four release mistakes in one post. It was rendered from a 41.3 s derivative instead of the selected 53.87 s export (the instruction had been audio-only), it carried an older caption file instead of the selected one, the @nick_maruyama and @chellechavez_ tags were missing, and it published at once when Sunday 7am CT was wanted. Every check that ran passed, because each compared a file against itself or against whichever file it had been handed. The route digest names media by hosted URL, which does not exist at review time, and it never hashed the delivery time; `post-now.mjs` defaulted `scheduledAt` to now without saying so.
+
+**One frozen package per post.** Write `release.json` beside the media. Every array is required, so an empty list is a decision and a missing one is refused; an unknown key is refused rather than dropped; the caption is the text itself, never a path to a caption file.
+
+```json
+{
+  "account": "630",
+  "media_type": "REELS",
+  "source": { "file": "tps-day-one.mp4" },
+  "caption": "Day one is in the books. Three teams went undefeated. @nick_maruyama @chellechavez_",
+  "mentions": ["nick_maruyama", "chellechavez_"],
+  "user_tags": ["nick_maruyama", "chellechavez_"],
+  "collaborators": [],
+  "audio_configuration": null,
+  "cover": null,
+  "delivery": { "scheduled_at": "2026-10-19T07:00", "timezone": "America/Chicago" },
+  "notes": "Selected export is the 53.87 s CapCut render, not the 41.3 s derivative."
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `account` | Destination, an `accounts.json` slug. |
+| `media_type` | `REELS`, `IMAGE` or `STORIES`; checked against the file's extension. |
+| `source.file` | The media, absolute or relative to the package. `review` adds `sha256` (the file bytes) and `video_md5` (the md5 of the video stream alone, via `ffmpeg -map 0:v -c copy -f md5`; `null` for an image), so an audio-only remux can be told from a re-render. |
+| `caption` | Inline text. A Story's caption is `""`. |
+| `mentions` | Handles (no `@`) the caption must contain as `@handle`; `review` refuses a caption that lacks one. A Story has none: its mentions are `user_tags`. |
+| `user_tags` | People tags, as the publisher already takes them (bare handles, or `{username,x,y}`). |
+| `collaborators` | Collab co-author invites. Never on a Story. |
+| `audio_configuration` | `{"audio_id": "<numeric>", "audio_volume"?, "video_volume"?}` (see "Instagram catalog music") or `null`. Reels only. |
+| `cover` | Reels only: `{"file": "cover.jpg"}` (`review` adds `sha256`) or `null`. |
+| `alt_text` | Feed image only, optional. |
+| `delivery` | `{"immediate": true}`, or `{"scheduled_at": "YYYY-MM-DDTHH:mm", "timezone": "<IANA zone>"}` with the time as local wall time and no offset. A time already past is refused at review, and at publish once it is more than 15 minutes behind. |
+| `notes` | Free text for the reviewer. Not checked. |
+| `review` | Written by `review`, below. Not by hand. |
+
+**Review, then publish from the file.**
+
+```bash
+# 1. measure the media, check the mentions, record the review in the file, print what will go out
+node scripts/social-publish/release-contract.mjs review /path/to/release.json
+
+# 2. (any time) what post-now would decide, without touching anything — exit 4 names the field
+node scripts/social-publish/release-contract.mjs check /path/to/release.json
+
+# 3. publish from the package and nothing else
+node scripts/social-publish/post-now.mjs --release /path/to/release.json --graph-route "<Nino's words>"
+```
+
+`review` fills `source.sha256`, `source.video_md5` and `cover.sha256`, then writes `review`: a digest of the whole item, a digest per field, and `reviewed_at`. The digest is `route-gate.mjs`'s `digestOf()` over the item with its id and hosted URLs blanked — the same formula a route receipt and a saved container are bound by — and `digestOf()` hashes the release block (media hashes, cover hash, mentions, delivery) only when an item carries one, so every receipt and container made before this existed still hashes as it did. What `review` prints is what Nino is shown; a yes is a yes to that.
+
+`post-now.mjs --release` builds the queue item from the file alone. `--account`, `--file`, `--caption`, `--tag`, `--collab`, `--cover`, `--story`, `--alt-text` and the audio flags are refused beside it: the post cannot be the file plus whatever was typed next to it. It hashes the media again, rebuilds the item, and compares both against the review record after the route gate and before the queue write, on `--dry-run` too. Any difference exits `4` and names the field — `source.sha256` (with whether the video stream moved), `caption`, `mentions`, `user_tags`, `collaborators`, `audio_configuration`, `cover.sha256`, `account`, `delivery`. Nothing is queued, uploaded or published. The fix is never to edit around it: fix the media or the package, run `review` again, publish from the reviewed file.
+
+Delivery comes from the file; there is no silent "now". `{"immediate": true}` publishes as before. A scheduled delivery is queued with that `scheduledAt`, hosted on R2, and left for `post-reels.mjs --event adhoc --id <id>` to publish when due (the command is printed; the drip runner can also carry it). `--force` does not pull a release-bound item forward, and `--prepare-only` is refused ahead of a scheduled time because the container would expire first. A scheduled time never quietly becomes "now" either: `review` refuses a time already past, and both publishers refuse a release-bound item once its time is more than 15 minutes behind (`LATE_GRACE_MS`) — a run at 7:05 for 7:00 is on time, a run at 10:12 is a new decision, so review it again with a new time.
+
+The queue item carries `release` — the hashes, mentions, delivery and review record — and `post-reels.mjs` checks it against that record again before every publish, because a scheduled run is hours later and the ledger is a file. Then it fetches the hosted object it is about to hand Meta (`video_url` / `image_url`, and `cover_url`) and hashes it against the reviewed hash: a ledger can point its URL anywhere and still agree with itself, so only the bytes at the URL say what goes out. That costs one download per publish; a URL that cannot be fetched is a refusal, not a pass. The route receipt it writes is bound to the release block too.
+
+Tests: `test/release-contract.test.mjs`. Each refusal was first run against the gate as it stood before it existed and failed there (the digest could not see media bytes or delivery; the publisher sent a mismatched item to the Graph stub; a late schedule published at once; a repointed ledger URL published other bytes); the runs are recorded on the PR that added them. The video-stream cases need `ffmpeg` and skip without it.
+
 ## One-time setup
 
 ### Phase 0 — account foundation (Business Manager UI; do these yourself)
@@ -1057,7 +1120,7 @@ Use the local publisher for an explicitly approved API correction. A one-off cor
 
 1. Verify the selected credential against the known Page and Instagram IDs. Full access in Business Suite is not an OAuth token. Check granted scopes, target assets and expiry. An empty `/me/accounts` result does not disprove access when a direct linked-Page read succeeds.
 2. Use the account's `token_ref` from 1Password. Keep credentials in process environment, never command arguments, logs, source or receipts. `post-now.mjs` resolves this reference when `IG_ACCESS_TOKEN` is absent. Direct `post-reels.mjs` calls require `IG_ACCESS_TOKEN` to be supplied for that account.
-3. Prepare a Reel with `post-now.mjs --cover <approved.jpg> --collab <confirmed_handle> --prepare-only` plus its ordinary account/file/caption/route arguments. Prepare a companion Story separately with `--story --tag <confirmed_handle> --prepare-only`. A Story is a mention-bearing card, not a coauthor post or tappable Reel reshare.
+3. Put the approved content in a `release.json` and run `release-contract.mjs review` on it (see [Release contract](#release-contract)); then prepare the Reel with `post-now.mjs --release <release.json> --prepare-only --graph-route "<words>"`. The flag form, `post-now.mjs --cover <approved.jpg> --collab <confirmed_handle> --prepare-only` plus its ordinary account/file/caption/route arguments, has no record of what was reviewed. Prepare a companion Story separately with `--story --tag <confirmed_handle> --prepare-only`. A Story is a mention-bearing card, not a coauthor post or tappable Reel reshare.
 4. Read `queue/adhoc.json`: both items must be `prepared`, with a saved `ig_container_id`, matching `ig_container_digest` and no error. Meta must report `FINISHED`. Preparation uploads public assets and creates containers; it does not call `media_publish`.
 5. Publish the saved item with `post-reels.mjs --event adhoc --id <saved-id> --count 1`, using the same credential and Graph version. **Do not rerun `post-now.mjs` to resume:** that creates a new item. A timeout requires reconciliation of the saved container and account media before any replacement container is made.
 6. Read the published ID back: compare the entire caption, open the permalink, and inspect the profile cover. Read `/{media-id}/collaborators` and report `Pending` separately from `Accepted`. Publish the prepared Story after the Reel succeeds, and inspect its live frame. An accepted Story `user_tags` payload is not proof of a visible/tappable sticker or notification delivery.
@@ -1117,7 +1180,8 @@ music cleared for third-party use, audio ID and the two volume controls. It does
 document a song-section/start-offset control or offer a combined Reel/audio preview.
 Do not claim native-library parity, exact beat alignment, ad eligibility, or a
 successful live attachment from a search result. Put the chosen ID and mix in the
-publication manifest before preparing the unpublished container. Then publish the
+release package's `audio_configuration` (see [Release contract](#release-contract)) before
+preparing the unpublished container. Then publish the
 saved item only within the user's approval and verify its live result.
 
 ## Ad-hoc one-shot post (no event, no schedule)
@@ -1127,7 +1191,14 @@ An ad hoc post goes out by hand unless Nino named the Graph API for it (the
 words and is required — without it `post-now.mjs` refuses before it writes the
 ledger, uploads, or calls Meta.
 
+For anything Nino reviews before it goes out, publish from a reviewed package
+(see [Release contract](#release-contract)) rather than from flags: the flags
+below describe the post at the keyboard, and what was typed is what goes out.
+
 ```bash
+# from a reviewed release.json — account, media, caption, tags, audio and delivery all come from the file:
+node scripts/social-publish/post-now.mjs --release /path/to/release.json --graph-route "<Nino's words>"
+
 # feed post (IMAGE from .jpg/.png, REELS from .mp4/.mov — inferred):
 node scripts/social-publish/post-now.mjs --account letspepper \
   --file /path/to/graphic.jpg --caption "..." --graph-route "<Nino's words>"
