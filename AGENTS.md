@@ -177,7 +177,7 @@ Edit the `tournaments` record in `src/lib/tournaments.ts`: dates, locations, ent
 
 ## Browser automation: use browse-tool, not MCP
 
-This project previously used Playwright/Chrome DevTools MCP for interactive browser work. Prefer the Bash-based `browse-tool` CLI instead — it is on PATH when Codex is launched from the `cl` alias or a shell that sources `~/.zshrc`.
+This project previously used Playwright/Chrome DevTools MCP for interactive browser work. Prefer the Bash-based `browse-tool` CLI instead — it is on PATH when Claude Code or Codex is launched from the `cl` alias or a shell that sources `~/.zshrc`.
 
 Full command list and usage: `/Users/nino/Workspace/dev/tools/browse-tool/README.md` (use `@README.md` after `/add-dir`) — read it fresh rather than recalling commands from memory; it changes as commands are added.
 
