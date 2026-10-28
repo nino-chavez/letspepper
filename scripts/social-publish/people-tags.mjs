@@ -49,24 +49,38 @@ export function splitAesName(full) {
   return { last: (last || '').trim(), first: rest.join(',').trim() }
 }
 
-/** Match within one team only: full name, then last name plus first initial, then a lone last name. */
+/**
+ * Match within one team only. Each rule runs across the whole team before the next looser one,
+ * so a fallback never takes a row another player matches exactly (siblings share a last name).
+ * The last rule pairs a last name only when exactly one player and one row are left with it.
+ */
 export function matchRoster(laPlayers, aesRoster) {
-  const aes = [], coaches = [], used = new Set()
+  const aes = [], coaches = [], used = new Set(), hits = []
   for (const entry of aesRoster) {
     const { last, first } = splitAesName(entry.FullName)
     const role = String(entry.RoleOrJersey ?? '').trim()
     if (/^\d+$/.test(role)) aes.push({ last, first, jersey: role, full: entry.FullName })
     else coaches.push({ name: `${first} ${last}`.trim(), role })
   }
-  const matched = laPlayers.map(p => {
-    const open = aes.map((a, i) => ({ a, i })).filter(({ a, i }) => !used.has(i) && letters(a.last) === letters(p.last))
-    let hit = open.find(({ a }) => letters(a.first) === letters(p.first)), how = 'name'
-    if (!hit) { hit = open.find(({ a }) => letters(a.first)[0] === letters(p.first)[0]); how = 'last name + first initial' }
-    if (!hit && open.length === 1) { hit = open[0]; how = 'last name only' }
-    if (!hit) return { player: p }
-    used.add(hit.i)
-    return { player: p, aes: hit.a, how }
+  const sameLast = (a, p) => letters(a.last) === letters(p.last)
+  const rules = [
+    ['name', (a, p) => letters(a.first) === letters(p.first)],
+    ['last name + first initial', (a, p) => letters(a.first)[0] === letters(p.first)[0]],
+  ]
+  for (const [how, sameFirst] of rules) {
+    laPlayers.forEach((p, n) => {
+      if (hits[n]) return
+      const i = aes.findIndex((a, i) => !used.has(i) && sameLast(a, p) && sameFirst(a, p))
+      if (i >= 0) { used.add(i); hits[n] = { aes: aes[i], how } }
+    })
+  }
+  laPlayers.forEach((p, n) => {
+    if (hits[n]) return
+    const rows = aes.map((_, i) => i).filter(i => !used.has(i) && sameLast(aes[i], p))
+    const players = laPlayers.filter((q, m) => !hits[m] && letters(q.last) === letters(p.last))
+    if (rows.length === 1 && players.length === 1) { used.add(rows[0]); hits[n] = { aes: aes[rows[0]], how: 'last name only' } }
   })
+  const matched = laPlayers.map((p, n) => ({ player: p, ...hits[n] }))
   return { matched, aesOnly: aes.filter((_, i) => !used.has(i)), coaches }
 }
 
@@ -156,7 +170,10 @@ async function aesJson(url) {
   return response.json()
 }
 
-/** The AES directory does not say which clubs entered an event, so each posted event is opened. */
+/**
+ * The AES directory does not say which clubs entered an event, so each posted event is opened.
+ * A failed read stops the run: treating it as "630 was not there" would silently drop teams.
+ */
 async function findClubEvents(since) {
   const events = []
   for (let skip = 0; ; skip += 200) {
@@ -170,27 +187,31 @@ async function findClubEvents(since) {
   await Promise.all(Array.from({ length: 6 }, async () => {
     while (queue.length) {
       const key = queue.shift()
-      const event = await aesJson(`${AES}/api/event/${key}`).catch(() => null)
+      const event = await aesJson(`${AES}/api/event/${key}`)
       if (event?.Clubs?.some(c => c.ClubId === AES_CLUB)) keys.push(key)
     }
   }))
   return keys
 }
 
+/** Oldest event first, so a team entered twice keeps its latest non-empty roster. */
 async function fetchAesTeams(keys) {
   const teams = new Map(), events = []
   for (const key of keys) {
     const event = await aesJson(`${AES}/api/event/${key}`)
+    events.push({ key, eventId: event.EventId, name: event.Name, start: event.StartDate })
+  }
+  events.sort((a, b) => a.start.localeCompare(b.start))
+  for (const { key } of events) {
     const assignments = await aesJson(`${AES}/odata/${key}/nextassignments(dId=null,cId=${AES_CLUB},tIds=[])?$skip=0&$orderby=TeamName,TeamCode`)
     const seen = new Set()
     for (const a of assignments?.value || []) {
       const team = /630 Volleyball (\d+-\d+)/.exec(a.TeamName)?.[1]
       if (!team || seen.has(a.TeamId)) continue
       seen.add(a.TeamId)
-      // A team entered in two events keeps its most recent roster.
-      teams.set(team, (await aesJson(`${AES}/api/event/${key}/division/${a.TeamDivision.DivisionId}/team/${a.TeamId}/roster`)) || [])
+      const roster = await aesJson(`${AES}/api/event/${key}/division/${a.TeamDivision.DivisionId}/team/${a.TeamId}/roster`)
+      if (roster?.length || !teams.has(team)) teams.set(team, roster || [])
     }
-    events.push({ key, eventId: event.EventId, name: event.Name, start: event.StartDate })
   }
   return { teams, events }
 }

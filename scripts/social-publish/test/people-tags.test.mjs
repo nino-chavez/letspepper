@@ -40,6 +40,21 @@ test('matchRoster matches within a team by name, then initial, and keeps coaches
   assert.deepEqual(coaches, [{ name: 'Head Coach', role: 'Head Coach' }])
 })
 
+test('matchRoster gives siblings their own rows before any fallback runs', () => {
+  const players = [{ first: 'Alex', last: 'Smith' }, { first: 'Alexis', last: 'Smith' }]
+  // Alexis's exact row comes first, where Alex's first-initial fallback would reach it.
+  const roster = [{ FullName: 'Smith, Alexis', RoleOrJersey: '4' }, { FullName: 'Smith, Alexander', RoleOrJersey: '3' }]
+  const { matched } = matchRoster(players, roster)
+  assert.deepEqual(matched.map(m => [m.aes.jersey, m.how]), [['3', 'last name + first initial'], ['4', 'name']])
+})
+
+test('matchRoster leaves a shared last name unmatched when it cannot tell players apart', () => {
+  const players = [{ first: 'Sam', last: 'Lee' }, { first: 'Jo', last: 'Lee' }]
+  const { matched, aesOnly } = matchRoster(players, [{ FullName: 'Lee, Pat', RoleOrJersey: '5' }])
+  assert.deepEqual(matched.map(m => m.aes), [undefined, undefined])
+  assert.deepEqual(aesOnly.map(a => a.jersey), ['5'])
+})
+
 test('buildTagList prefers checked accounts, marks refusals, and never takes a parent handle', () => {
   const registrations = [
     reg(1, 'B18-1', 'Alex', 'Beta'),
