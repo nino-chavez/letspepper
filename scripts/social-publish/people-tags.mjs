@@ -44,6 +44,8 @@ export function parseHandle(raw) {
 
 /** AES publishes "Last, First"; LeagueApps keeps them apart. Compare letters only. */
 const letters = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '')
+/** Checks are keyed by jersey; a player not yet on an AES roster has none, so fall back to the name. */
+const checkKey = (team, jersey, name) => jersey ? `${team}#${jersey}` : `${team}#name:${letters(name)}`
 export function splitAesName(full) {
   const [last, ...rest] = String(full).split(',')
   return { last: (last || '').trim(), first: rest.join(',').trim() }
@@ -91,7 +93,8 @@ const teamSort = (a, b) => {
 
 /**
  * registrations/members: LeagueApps export rows. aesTeams: Map of "18-1" -> AES roster entries.
- * checked: Map of "team#jersey" -> { accounts, evidence, date }. refused: { handle: date }.
+ * checked: Map of "team#jersey" -> { accounts, evidence, date, private?, rejected? } (see readChecked).
+ * refused: { handle: date }.
  */
 export function buildTagList({ registrations, members, programs, aesTeams, checked = new Map(), refused = {} }) {
   const latest = new Map()
@@ -116,14 +119,22 @@ export function buildTagList({ registrations, members, programs, aesTeams, check
     coaches.push(...result.coaches.map(c => ({ team, ...c })))
     for (const { player: p, aes, how } of result.matched) {
       const typed = p.handle.handle || ''
-      const hand = aes ? checked.get(`${team}#${aes.jersey}`) : undefined
+      // A check made before the player had a jersey stays keyed by name, so try that second. A rejection
+      // covers only the handle that was checked; a family that typed a new one is unchecked again.
+      const name = `${p.first} ${p.last}`
+      const hand = [checkKey(team, aes?.jersey, name), checkKey(team, '', name)]
+        .map(key => checked.get(key)).find(c => c && (!c.rejected || c.rejected === typed))
       let account = typed, check = typed ? 'unchecked: LeagueApps registration field' : ''
-      if (hand) {
+      if (hand?.rejected) {
+        account = ''; check = `rejected ${hand.date}: @${typed} ${hand.evidence}`.trim()
+      } else if (hand) {
         account = hand.accounts.includes(typed) ? typed : hand.accounts[0]
         check = !typed ? `checked ${hand.date} (LeagueApps had none)`
           : hand.accounts.includes(typed) ? `checked ${hand.date}, matches LeagueApps`
           : `checked ${hand.date}; LeagueApps says @${typed}`
       }
+      const graph = refused[account] ? `refused ${refused[account]}`
+        : hand?.private && account ? 'private: Graph cannot tag it; tag by hand in the app' : ''
       const flags = [
         p.parentOnly && 'handle only on parent record (not used)',
         teamsOf.get(p.userId).size > 1 && 'on more than one team',
@@ -131,10 +142,10 @@ export function buildTagList({ registrations, members, programs, aesTeams, check
       ].filter(Boolean)
       rows.push({
         team, jersey: aes?.jersey || '', name: `${p.first} ${p.last}`, aesName: aes?.full || '',
-        account, check, graph: refused[account] ? `refused ${refused[account]}` : '',
+        account, check, graph,
         aes: aes ? (how === 'name' ? 'on AES roster' : `on AES roster (${how})`) : roster ? 'not on AES roster' : 'team not on AES yet',
         flags: flags.join('; '), leagueappsHandle: typed, handleStatus: p.handle.status, whatFamilyWrote: p.handle.raw || '',
-        otherAccounts: hand ? hand.accounts.filter(a => a !== account) : [], checkEvidence: hand?.evidence || '',
+        otherAccounts: hand?.accounts.filter(a => a !== account) ?? [], checkEvidence: hand?.evidence || '',
       })
     }
   }
@@ -143,14 +154,24 @@ export function buildTagList({ registrations, members, programs, aesTeams, check
   return { players: rows, aesOnly, coaches }
 }
 
-/** Hand-checked accounts in the picture-day tag-matches.json shape. Weak matches do not count. */
+/**
+ * Hand-checked accounts in the picture-day tag-matches.json shape. `strong` and `medium` confirm an
+ * account; `private` confirms one the Graph API cannot tag; `rejected` with `checked_handle` marks a
+ * typed handle as wrong. Weak matches do not count, and a rejection never replaces a confirmed account.
+ */
 export function readChecked(paths) {
   const checked = new Map()
   for (const path of paths) {
     const date = statSync(path).mtime.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
     for (const v of JSON.parse(readFileSync(path, 'utf8')).players || []) {
+      const key = checkKey(v.team, v.jersey, v.name), verdict = String(v.confidence || '')
       const accounts = String(v.account || '').toLowerCase().split(/\s+or\s+/).map(s => s.trim().replace(/^@/, '')).filter(Boolean)
-      if (accounts.length && /strong|medium/.test(v.confidence || '')) checked.set(`${v.team}#${v.jersey}`, { accounts, evidence: v.evidence || '', date })
+      const evidence = v.evidence || ''
+      if (accounts.length && /strong|medium|private/.test(verdict)) {
+        checked.set(key, { accounts, evidence, date, private: verdict === 'private' })
+      } else if (verdict === 'rejected' && v.checked_handle && !checked.get(key)?.accounts.length) {
+        checked.set(key, { accounts: [], rejected: String(v.checked_handle).toLowerCase().replace(/^@/, ''), evidence, date })
+      }
     }
   }
   return checked
