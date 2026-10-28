@@ -23,30 +23,30 @@ test('parseHandle cleans typed handles and separates "no account" answers from p
 
 test('splitAesName reads AES "Last, First"', () => {
   assert.deepEqual(splitAesName('BETA, ALEX'), { last: 'BETA', first: 'ALEX' })
-  assert.deepEqual(splitAesName("O'Hare, Sam"), { last: "O'Hare", first: 'Sam' })
+  assert.deepEqual(splitAesName("D'Arcy, Sam"), { last: "D'Arcy", first: 'Sam' })
 })
 
 test('matchRoster matches within a team by name, then initial, and keeps coaches apart', () => {
-  const players = [{ first: 'Theodore', last: 'Gamma' }, { first: 'Alex', last: 'beta' }, { first: 'Bob', last: 'Delta' }, { first: 'Pat', last: 'Late' }]
+  const players = [{ first: 'Katherine', last: 'Gamma' }, { first: 'Alex', last: 'beta' }, { first: 'Bob', last: 'Delta' }, { first: 'Pat', last: 'Late' }]
   const roster = [
     { FullName: 'Coach, Head', RoleOrJersey: 'Head Coach' },
     { FullName: 'BETA, ALEX', RoleOrJersey: '6' },
-    { FullName: 'Gamma, Teddy', RoleOrJersey: '72' },
+    { FullName: 'Gamma, Kate', RoleOrJersey: '31' },
     { FullName: 'Delta, Robert', RoleOrJersey: '9' },
     { FullName: 'Omega, Extra', RoleOrJersey: '11' },
   ]
   const { matched, aesOnly, coaches } = matchRoster(players, roster)
   assert.deepEqual(matched.map(m => [m.aes?.jersey, m.how]), [
-    ['72', 'last name + first initial'], ['6', 'name'], ['9', 'last name only'], [undefined, undefined],
+    ['31', 'last name + first initial'], ['6', 'name'], ['9', 'last name only'], [undefined, undefined],
   ])
   assert.deepEqual(aesOnly.map(a => a.jersey), ['11'])
   assert.deepEqual(coaches, [{ name: 'Head Coach', role: 'Head Coach' }])
 })
 
 test('matchRoster gives siblings their own rows before any fallback runs', () => {
-  const players = [{ first: 'Alex', last: 'Smith' }, { first: 'Alexis', last: 'Smith' }]
+  const players = [{ first: 'Alex', last: 'Quill' }, { first: 'Alexis', last: 'Quill' }]
   // Alexis's exact row comes first, where Alex's first-initial fallback would reach it.
-  const roster = [{ FullName: 'Smith, Alexis', RoleOrJersey: '4' }, { FullName: 'Smith, Alexander', RoleOrJersey: '3' }]
+  const roster = [{ FullName: 'Quill, Alexis', RoleOrJersey: '4' }, { FullName: 'Quill, Alexander', RoleOrJersey: '3' }]
   const { matched } = matchRoster(players, roster)
   assert.deepEqual(matched.map(m => [m.aes.jersey, m.how]), [['3', 'last name + first initial'], ['4', 'name']])
 })
