@@ -188,8 +188,8 @@ async function findClubEvents(since) {
     while (queue.length) {
       const key = queue.shift()
       const event = await aesJson(`${AES}/api/event/${key}`)
-      if (!event) throw new Error(`AES returned no content for posted event ${key}`)
-      if (event.Clubs?.some(c => c.ClubId === AES_CLUB)) keys.push(key)
+      if (!Array.isArray(event?.Clubs)) throw new Error(`AES returned no club list for posted event ${key}`)
+      if (event.Clubs.some(c => c.ClubId === AES_CLUB)) keys.push(key)
     }
   }))
   return keys
