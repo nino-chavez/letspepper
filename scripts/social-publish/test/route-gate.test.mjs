@@ -782,8 +782,10 @@ test('every entry in the tracked approval list is a complete approval, naming re
     assert.notEqual(event, 'adhoc', 'the ad hoc ledger cannot hold a standing route')
     const entry = standingEntry(event, tracked)
     assert.ok(entry, `graph-routes.json: "${event}" needs a non-empty reason, an approved YYYY-MM-DD date, and a non-empty accounts[]`)
-    // hasStandingRoute still proves the entry actually covers the accounts it claims to.
-    assert.ok(hasStandingRoute(event, tracked, entry.accounts), `graph-routes.json: "${event}"'s own accounts[] does not pass its own entryCovers() check`)
+    // hasStandingRoute still proves the entry actually covers the accounts it claims to. Ask on the
+    // approval date: an expired entry approves nothing now, but its shape must stay valid.
+    const approvedOn = new Date(`${entry.approved}T12:00:00Z`)
+    assert.ok(hasStandingRoute(event, tracked, entry.accounts, approvedOn), `graph-routes.json: "${event}"'s own accounts[] does not pass its own entryCovers() check`)
     for (const slug of entry.accounts) {
       assert.ok(registry[slug], `graph-routes.json: "${event}" names account slug "${slug}", which is not in accounts.json — a route naming an unknown slug approves nothing a run will ever match`)
     }
