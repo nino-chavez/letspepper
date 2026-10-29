@@ -59,6 +59,18 @@
         "REELS"
       ],
       "strict_media_types": true
+    },
+    "630-nick-approved-stories-20261029": {
+      "reason": "Nino, October 29, 2026: \"looks good. go ahead and schedule the four Nick approved for 630 Instagram. keep the two he rejected out. tag the staff. confirm these are all stories\". He then approved \"Today, October 29, 6–9 p.m. Central\" for the existing hourly scheduler. Exactly four Instagram Stories, in reviewed order: nick-quote-oct-20 at 18:00, tps-two-questions at 19:00, camps-setting at 20:00 and office-1027 at 21:00 America/Chicago. @nick_maruyama on all four; @coach_itz additionally on camps-setting. The current 630 default API route applies. Excludes tps-little-things and camps-passing, Reels, feed posts, Facebook, Collab invitations and additional creative edits. Frozen files and per-Story packages: picture-day-previews-2026-10-28/release/nick-approved-stories-2026-10-29.",
+      "approved": "2026-10-29",
+      "accounts": [
+        "630"
+      ],
+      "expires": "2026-10-30",
+      "media_types": [
+        "STORIES"
+      ],
+      "strict_media_types": true
     }
   }
 }

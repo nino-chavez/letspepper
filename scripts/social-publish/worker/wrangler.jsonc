@@ -73,7 +73,9 @@
     // seed-kv.mjs --event gallery-announce --append --put has not been run, so
     // this Worker's KV holds no "gallery-announce" key at all. loadQueue() returns
     // null for a missing key and both postDuePending/resumeIfBuilding just skip it.
-    "ACTIVE_EVENTS": "630-block-coaching-20261022,630-practice-education-20261013,skin-abrasions,gallery-announce,cutting-board-announce,poblano-2026-cancellation",
+    // Four approved 630 Stories, October 29 at 18:00–21:00 America/Chicago.
+    // Content is scoped by its STORIES-only route; seeding supplies the four items.
+    "ACTIVE_EVENTS": "630-nick-approved-stories-20261029,630-block-coaching-20261022,630-practice-education-20261013,skin-abrasions,gallery-announce,cutting-board-announce,poblano-2026-cancellation",
     // UTC posting slots — the daily cap for LEGACY (no-scheduledAt) items only.
     // The cancellation item carries no scheduledAt, so it IS gated by these hours
     // once an operator flips it to pending: 17 = noon CDT, 22 = 5p CDT.
