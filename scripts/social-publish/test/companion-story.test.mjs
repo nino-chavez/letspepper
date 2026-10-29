@@ -99,7 +99,7 @@ test('companionStoryHtml: pure — embeds the image url, matchup and date, and n
   assert.match(html, /https:\/\/pub\.example\/lead\.jpg/)
   assert.match(html, /Millikin at North Central/)
   assert.match(html, /Sept\. 23, 2026/)
-  assert.doesNotMatch(html, /letspepper\.com|link in bio/i, 'the Story overlay carries no caption/CTA text')
+  assert.doesNotMatch(html, /letspepper\.com|profile link/i, 'the Story overlay carries no caption/CTA text')
 })
 
 test('companionStoryHtml: escapes html-significant characters in the matchup/date', () => {
