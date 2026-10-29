@@ -54,14 +54,14 @@ test('caption: a high-school album never contains a player name, a score, or "ta
   assert.match(caption, /8 of 120/)
 })
 
-test('caption: says "link in bio", not letspepper.com/gallery or the direct album URL, when the album is not in the letspepper series', () => {
+test('caption: points to the profile link, not letspepper.com/gallery or the direct album URL, when the album is not in the letspepper series', () => {
   const caption = buildGalleryAnnounceCaption({
     albumName: RE7KHO_ALBUM_NAME, galleryUrl: 'https://ninochavez.co/photography/albums/hs-girls-vb-jca-at-acc-09-22-2026-Re7kho',
     selectedOf: '8 of 120', series: 'other',
   })
   assert.doesNotMatch(caption, /letspepper\.com\/gallery/)
   assert.doesNotMatch(caption, /ninochavez\.co\/photography\/albums/)
-  assert.match(caption, /Full gallery: link in bio \(JCA at ACC\)/, 'names the album so the bio page leads to THIS gallery after newer ones publish')
+  assert.match(caption, /Full gallery: tap the profile link and open JCA at ACC/, 'names the album so the links page leads to THIS gallery after newer ones publish')
 })
 
 test('caption: the Facebook copy keeps the direct album link, since Facebook makes caption URLs clickable', () => {
@@ -70,7 +70,7 @@ test('caption: the Facebook copy keeps the direct album link, since Facebook mak
     albumName: RE7KHO_ALBUM_NAME, galleryUrl, selectedOf: '8 of 120', series: 'other', channel: 'facebook',
   })
   assert.match(facebook, new RegExp(`Full gallery: ${galleryUrl.replace(/[.]/g, '\\.')}`))
-  assert.doesNotMatch(facebook, /link in bio/)
+  assert.doesNotMatch(facebook, /profile link/)
 })
 
 test('caption: links letspepper.com/gallery when the album IS in the letspepper series', () => {
