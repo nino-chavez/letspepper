@@ -9,6 +9,7 @@ test('placement menu uses named Filter regardless of combobox order', () => {
   try {
     assert.equal(new Function(`return (${toggleContentFilter.toString()})()`)(), true)
     assert.deepEqual(clicked, ['Filter\n\u200b'])
+    controls[2].innerText = 'Filter: 1 selected\n\u200b'
     controls.reverse()
     toggleContentFilter()
     assert.equal(clicked.length, 2)
