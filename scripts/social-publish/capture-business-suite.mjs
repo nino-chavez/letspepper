@@ -3,6 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { toggleContentFilter } from './business-suite-content-filter.mjs'
 import { dailySeries, nativePeriod, postSnapshot, sourceRange, validateReport, IG_ID } from './business-suite-report.mjs'
 const args=process.argv.slice(2), option=k=>args[args.indexOf(k)+1]
 if(!args.includes('--out')||!args.includes('--previous'))throw Error('usage: capture-business-suite.mjs --out <private evidence directory> --previous <validated prior report.json>')
@@ -46,13 +47,13 @@ try{
   currentFollowers=Number(m[1].replaceAll(',',''));followersObservedAt=a.captured_at
  }
  run('browse-nav',url('content','2026-09-01',end),'--wait')
- evaluate('document.querySelector("[role=combobox]").click();return true');await pause()
+ evaluate(`(${toggleContentFilter.toString()})()`);await pause()
  evaluate('const o=[...document.querySelectorAll("[role=option]")].find(e=>e.innerText==="Instagram Feed");if(!o)throw Error("Instagram Feed filter missing");if(o.getAttribute("aria-selected")!=="true")o.click();return true');await pause()
  // Persist evidence of the selected placement, then close its menu.
  let selected=evaluate('return [...document.querySelectorAll("[role=option]")].map(e=>({text:e.innerText,selected:e.getAttribute("aria-selected")}))')
- if(!selected.length){evaluate('document.querySelector("[role=combobox]").click();return true');await pause();selected=evaluate('return [...document.querySelectorAll("[role=option]")].map(e=>({text:e.innerText,selected:e.getAttribute("aria-selected")}))')}
+ if(!selected.length){evaluate(`(${toggleContentFilter.toString()})()`);await pause();selected=evaluate('return [...document.querySelectorAll("[role=option]")].map(e=>({text:e.innerText,selected:e.getAttribute("aria-selected")}))')}
  if(!selected.some(o=>o.text==='Instagram Feed'&&o.selected==='true'))throw Error('Instagram Feed selection not verified')
- save('content-filter',selected);evaluate('document.querySelector("[role=combobox]").click();return true')
+ save('content-filter',selected);evaluate(`(${toggleContentFilter.toString()})()`)
  evaluate('const v=[...document.querySelectorAll("[role=button]")].find(e=>e.innerText.replaceAll("\u200b","").trim()==="Views");if(!v)throw Error("Views heading missing");v.click();return true');await pause()
  let content
  for(let i=0;i<12;i++){
