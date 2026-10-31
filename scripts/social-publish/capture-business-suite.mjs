@@ -47,13 +47,13 @@ try{
   currentFollowers=Number(m[1].replaceAll(',',''));followersObservedAt=a.captured_at
  }
  run('browse-nav',url('content','2026-09-01',end),'--wait')
- evaluate(`(${toggleContentFilter.toString()})()`);await pause()
+ evaluate(`return (${toggleContentFilter.toString()})()`);await pause()
  evaluate('const o=[...document.querySelectorAll("[role=option]")].find(e=>e.innerText==="Instagram Feed");if(!o)throw Error("Instagram Feed filter missing");if(o.getAttribute("aria-selected")!=="true")o.click();return true');await pause()
  // Persist evidence of the selected placement, then close its menu.
  let selected=evaluate('return [...document.querySelectorAll("[role=option]")].map(e=>({text:e.innerText,selected:e.getAttribute("aria-selected")}))')
- if(!selected.length){evaluate(`(${toggleContentFilter.toString()})()`);await pause();selected=evaluate('return [...document.querySelectorAll("[role=option]")].map(e=>({text:e.innerText,selected:e.getAttribute("aria-selected")}))')}
+ if(!selected.length){evaluate(`return (${toggleContentFilter.toString()})()`);await pause();selected=evaluate('return [...document.querySelectorAll("[role=option]")].map(e=>({text:e.innerText,selected:e.getAttribute("aria-selected")}))')}
  if(!selected.some(o=>o.text==='Instagram Feed'&&o.selected==='true'))throw Error('Instagram Feed selection not verified')
- save('content-filter',selected);evaluate(`(${toggleContentFilter.toString()})()`)
+ save('content-filter',selected);evaluate(`return (${toggleContentFilter.toString()})()`)
  evaluate('const v=[...document.querySelectorAll("[role=button]")].find(e=>e.innerText.replaceAll("\u200b","").trim()==="Views");if(!v)throw Error("Views heading missing");v.click();return true');await pause()
  let content
  for(let i=0;i<12;i++){

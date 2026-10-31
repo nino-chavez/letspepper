@@ -7,7 +7,7 @@ test('placement menu uses named Filter regardless of combobox order', () => {
   const controls = ['Posts and stories', 'Media type', 'Filter\n\u200b'].map(innerText => ({innerText, click: () => clicked.push(innerText)}))
   globalThis.document = {querySelectorAll: () => controls}
   try {
-    assert.equal(toggleContentFilter(), true)
+    assert.equal(new Function(`return (${toggleContentFilter.toString()})()`)(), true)
     assert.deepEqual(clicked, ['Filter\n\u200b'])
     controls.reverse()
     toggleContentFilter()
