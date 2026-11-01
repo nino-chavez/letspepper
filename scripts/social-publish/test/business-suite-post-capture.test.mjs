@@ -11,3 +11,8 @@ test('bounded failure preserves evidence and original validation error',async()=
  await assert.rejects(capturePostSnapshot({read:()=>({rows:10}),validate:()=>{throw Error('twelve required')},scroll:()=>{},wait:async()=>{},attempts:3,saveFailure:c=>saved=c}),/twelve required/)
  assert.deepEqual(saved,{rows:10})
 })
+test('loading-frame errors retry and retain the last table on exhaustion',async()=>{
+ let reads=0,saved
+ await assert.rejects(capturePostSnapshot({read:()=>({rows:++reads}),validate:()=>{throw Error('twelve required')},scroll:()=>{throw Error('screenshot failed')},wait:async()=>{},attempts:3,saveFailure:c=>saved=c}),/twelve required/)
+ assert.equal(reads,3);assert.deepEqual(saved,{rows:3})
+})

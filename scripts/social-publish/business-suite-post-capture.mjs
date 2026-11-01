@@ -5,7 +5,8 @@ export async function capturePostSnapshot({read,validate,scroll,saveFailure,wait
   capture=await read()
   try { validate(capture); return capture } catch(e) { error=e }
   if(i===attempts-1) break
-  await scroll()
+  // A transient loading-frame failure must not discard the table evidence.
+  try { await scroll() } catch {}
   await wait()
  }
  await saveFailure(capture)
