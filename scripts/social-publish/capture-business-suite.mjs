@@ -3,6 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { capturePostSnapshot } from './business-suite-post-capture.mjs'
 import { toggleContentFilter } from './business-suite-content-filter.mjs'
 import { dailySeries, nativePeriod, postSnapshot, sourceRange, validateReport, IG_ID } from './business-suite-report.mjs'
 const args=process.argv.slice(2), option=k=>args[args.indexOf(k)+1]
@@ -55,12 +56,12 @@ try{
  if(!selected.some(o=>o.text==='Instagram Feed'&&o.selected==='true'))throw Error('Instagram Feed selection not verified')
  save('content-filter',selected);evaluate(`return (${toggleContentFilter.toString()})()`)
  evaluate('const v=[...document.querySelectorAll("[role=button]")].find(e=>e.innerText.replaceAll("\u200b","").trim()==="Views");if(!v)throw Error("Views heading missing");v.click();return true');await pause()
- let content
- for(let i=0;i<12;i++){
-  content=evaluate('return {url:location.href,captured_at:new Date().toISOString(),text:document.body.innerText,sort:document.querySelector("[aria-sort]")?.getAttribute("aria-sort"),rows:[...document.querySelectorAll("tr[data-index]")].map(e=>({index:e.getAttribute("data-index"),cells:[...e.querySelectorAll("td")].map(c=>c.innerText),links:[...e.querySelectorAll("a[href]")].map(a=>a.href)}))}')
-  content.filter='Instagram Feed'
-  try{postSnapshot(content,previous.snapshot.posts);break}catch(err){if(i===11)throw err;evaluate('document.querySelector("table").scrollTop+=350;return true');await pause()}
- }
+ const content=await capturePostSnapshot({
+  read:()=>{const x=evaluate('return {url:location.href,captured_at:new Date().toISOString(),text:document.body.innerText,sort:document.querySelector("[aria-sort]")?.getAttribute("aria-sort"),rows:[...document.querySelectorAll("tr[data-index]")].map(e=>({index:e.getAttribute("data-index"),cells:[...e.querySelectorAll("td")].map(c=>c.innerText),links:[...e.querySelectorAll("a[href]")].map(a=>a.href)}))}');x.filter='Instagram Feed';return x},
+  validate:x=>postSnapshot(x,previous.snapshot.posts),
+  scroll:()=>evaluate('const t=document.querySelector("table");t.scrollTop=t.scrollHeight;return true'),
+  saveFailure:x=>save('content-top-failed',x)
+ })
  save('content-top',content)
  const merged=new Map(previous.daily.map(r=>[r.day+'/'+r.metric,r]));for(const row of rows)merged.set(row.day+'/'+row.metric,row)
  const report=validateReport({version:1,account:'630',instagram_id:IG_ID,captured_at:new Date().toISOString(),through_day:end,current_followers:currentFollowers,followers_observed_at:followersObservedAt,daily:[...merged.values()].sort((a,b)=>a.day.localeCompare(b.day)||a.metric.localeCompare(b.metric)),periods,snapshot:postSnapshot(content,previous.snapshot.posts),weekly_backfill:previous.weekly_backfill,individual_tracking:'waiting_for_owner_exports'})
