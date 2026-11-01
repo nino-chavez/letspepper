@@ -16,6 +16,8 @@ import { loadDashboard, DEFAULT_PERIOD } from './data.js'
 import { dashboardPage, signInPage, errorPage } from './page.js'
 import { businessSuitePage } from './business-suite-page.js'
 import { loadBusinessSuite, loadBusinessSuiteStatus } from './business-suite.js'
+import { loadStoryLedger } from './story-ledger.js'
+import { storyLedgerPage } from './story-ledger-page.js'
 import { loadFollowerSnapshots } from './follower-snapshots.js'
 import { followerSnapshotsPage } from './follower-snapshots-page.js'
 import { COOKIE, securityHeaders, base64Url, passphraseMatches, sessionCookie, validSession } from './auth.js'
@@ -48,12 +50,22 @@ export default {
     if (url.pathname === '/sign-out' && request.method === 'POST') {
       return new Response(null, { status: 303, headers: { location: '/', 'set-cookie': clearCookie, ...securityHeaders(null) } })
     }
-    if (!['/','/business-suite','/followers'].includes(url.pathname)) return new Response('Not found', { status: 404, headers: securityHeaders(null) })
+    if (!['/','/business-suite','/followers','/story-ledger'].includes(url.pathname) && !/^\/story-preview\/\d+$/.test(url.pathname)) return new Response('Not found', { status: 404, headers: securityHeaders(null) })
     if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: securityHeaders(null) })
     if (!env.DASHBOARD_PASSPHRASE) return html(signInPage({ configured: false }), { status: 503 })
     if (!(await validSession(request, env.DASHBOARD_PASSPHRASE))) return html(signInPage())
+    if(url.pathname.startsWith('/story-preview/')) {
+      const id=url.pathname.split('/').at(-1)
+      const row=await env.INSIGHTS_DB.prepare("SELECT c.preview_key FROM story_content c JOIN media m USING(media_id) WHERE m.media_id=?1 AND m.account='630' AND m.media_product_type='STORY' AND c.preview_status='saved'").bind(id).first()
+      const object=row?.preview_key&&env.STORY_ARCHIVE?await env.STORY_ARCHIVE.get(`630/${id}/preview`):null
+      if(!object)return new Response('Preview not captured',{status:404,headers:securityHeaders(null)})
+      const type=object.httpMetadata?.contentType
+      if(!['image/jpeg','image/png','image/webp'].includes(type))return new Response('Preview unavailable',{status:404,headers:securityHeaders(null)})
+      return new Response(request.method==='HEAD'?null:object.body,{headers:{...securityHeaders(null),'content-type':type,'content-disposition':'inline'}})
+    }
     let data
     try {
+      if(url.pathname==='/story-ledger')return html(storyLedgerPage(await loadStoryLedger(env.INSIGHTS_DB,url.searchParams)))
       if (url.pathname === '/followers') {
         const snapshots = await loadFollowerSnapshots(env.INSIGHTS_DB,url.searchParams)
         const nonce = base64Url(crypto.getRandomValues(new Uint8Array(16)))
@@ -66,7 +78,8 @@ export default {
       }
       data = await loadDashboard(env.INSIGHTS_DB, { period: url.searchParams.get('period') ?? DEFAULT_PERIOD, postsPeriod: url.searchParams.get('postsPeriod') ?? '30' })
       data.businessSuiteStatus=await loadBusinessSuiteStatus(env.INSIGHTS_DB)
-    } catch {
+    } catch(error) {
+      if(error instanceof RangeError)return new Response('Choose valid From and To dates covering at most 366 days.',{status:400,headers:securityHeaders(null)})
       return html(errorPage(), { status: 503 })
     }
     const nonce = base64Url(crypto.getRandomValues(new Uint8Array(16)))

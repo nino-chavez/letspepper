@@ -17,14 +17,14 @@ execFileSync(process.execPath,[require.resolve('wrangler/bin/wrangler.js'),'depl
 const built=readFileSync(resolve(bundle,'index.js'),'utf8')
 // Only the server's fixture clock is replaced after production packaging.
 const clock=/now = (?:\/\* @__PURE__ \*\/ )?new Date\(\)/g
-assert.equal((built.match(clock)??[]).length,4) // Shared calendar helpers, API window and native report freshness clocks
+assert.equal((built.match(clock)??[]).length,5) // Shared calendar helpers, API window and native report freshness clocks
 const script=built.replace(clock,`now = new Date('${NOW.toISOString()}')`)
-const mf=new Miniflare({modules:true,script,compatibilityDate:'2026-01-01',bindings:{DASHBOARD_PASSPHRASE:PASSPHRASE},d1Databases:['INSIGHTS_DB'],host:'127.0.0.1',port:0})
+const mf=new Miniflare({modules:true,script,compatibilityDate:'2026-01-01',bindings:{DASHBOARD_PASSPHRASE:PASSPHRASE},d1Databases:['INSIGHTS_DB'],r2Buckets:['STORY_ARCHIVE'],host:'127.0.0.1',port:0})
 const browser=await chromium.launch({headless:true})
 const errors=[], captures=[]
 try {
   const db=await mf.getD1Database('INSIGHTS_DB')
-  for(const name of ['0001_instagram_insights.sql','0002_stories_audience_online.sql','0003_business_suite_reports.sql','0004_follower_handle_snapshots.sql']) {
+  for(const name of ['0001_instagram_insights.sql','0002_stories_audience_online.sql','0003_business_suite_reports.sql','0004_follower_handle_snapshots.sql','0005_story_ledger.sql']) {
     const sql=readFileSync(`scripts/social-publish/worker/migrations/${name}`,'utf8').replace(/--[^\n]*/g,'')
     for(const statement of sql.split(';').map(s=>s.trim()).filter(Boolean))await db.prepare(statement).run()
   }
@@ -126,6 +126,23 @@ try {
   await capture('desktop-native-auto-updated')
   await page.clock.resume()
   await db.prepare("INSERT INTO business_suite_sync_runs VALUES ('630','2026-10-16T16:00:00Z','2026-10-16T16:00:10Z','error','Invented failed capture')").run();await page.reload();await page.getByText('The latest Business Suite update failed.',{exact:false}).waitFor();await capture('desktop-native-failed')
+  for(const row of source.sqlite.prepare("SELECT * FROM media WHERE media_product_type='STORY'").all())await db.prepare(`INSERT INTO media (${Object.keys(row).join(',')}) VALUES (${Object.keys(row).map(()=>'?').join(',')})`).bind(...Object.values(row)).run()
+  for(const row of source.sqlite.prepare("SELECT * FROM media_metric_snapshots WHERE media_id='s1'").all())await db.prepare(`INSERT INTO media_metric_snapshots (${Object.keys(row).join(',')}) VALUES (${Object.keys(row).map(()=>'?').join(',')})`).bind(...Object.values(row)).run()
+  await page.goto(base+'story-ledger?from=2026-10-01&to=2026-10-16')
+  await page.getByRole('heading',{name:'Remember what each Story was.'}).waitFor()
+  await capture('desktop-story-ledger-unlabeled')
+  await db.prepare("INSERT OR IGNORE INTO story_content(media_id) VALUES ('s1')").run()
+  await db.prepare("UPDATE story_content SET title='Invented community clip',content_kind='player_community',label_source='Synthetic preview review',labeled_at='2026-10-16T14:00:00Z',elements_json='[\"mention\"]' WHERE media_id='s1'").run()
+  await db.prepare("INSERT INTO media VALUES ('123','630','2026-10-15T18:01:00Z','IMAGE','STORY',NULL,'2026-10-15T18:05:00Z','2026-10-16T17:00:00Z',NULL)").run()
+  await db.prepare("INSERT INTO story_content(media_id,title,content_kind,label_source,labeled_at,preview_key,preview_status,preview_captured_at) VALUES ('123','Invented saved preview','coaching','Synthetic fixture','2026-10-16T14:00:00Z','630/123/preview','saved','2026-10-15T18:05:00Z')").run()
+  const bucket=await mf.getR2Bucket('STORY_ARCHIVE')
+  await bucket.put('630/123/preview',Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF1kAAAAASUVORK5CYII=','base64'),{httpMetadata:{contentType:'image/png'}})
+  for(const [metric,value] of [['reach',200],['total_interactions',20]])await db.prepare("INSERT INTO story_metric_observations VALUES ('123',?,'2026-10-16T17:00:00Z',?)").bind(metric,value).run()
+  await page.reload();await page.getByRole('heading',{name:'Invented community clip'}).waitFor();await capture('desktop-story-ledger-labeled')
+  assert.equal((await context.request.get(base+'story-preview/123')).headers()['content-type'],'image/png')
+  await page.setViewportSize({width:390,height:844});await capture('phone-story-ledger-labeled')
+  await page.getByText('Compare content, weekday and posting time at a similar age',{exact:true}).click();await capture('phone-story-ledger-comparison-populated')
+  await page.getByLabel('From',{exact:true}).fill('2026-10-16');await page.getByLabel('To',{exact:true}).fill('2026-10-16');await page.getByRole('button',{name:'Apply filters'}).click();await page.getByRole('heading',{name:'No Stories recorded for these filters.'}).waitFor();await capture('phone-story-ledger-empty')
   // Only the intentionally rejected login and database-error request may emit HTTP console errors.
   assert.deepEqual(errors.filter(m=>!m.includes('401')&&!m.includes('503')),[])
   writeFileSync(resolve(out,'captures.json'),JSON.stringify(captures,null,2)+'\n')

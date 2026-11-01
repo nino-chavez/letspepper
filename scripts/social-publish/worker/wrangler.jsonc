@@ -39,6 +39,7 @@
   ],
   // Insights history (INSIGHTS.md). Created 2026-10-15 with `wrangler d1 create
   // social-insights`. The deploy workflow applies ../migrations before every deploy.
+  "r2_buckets": [{"binding":"STORY_ARCHIVE","bucket_name":"630-story-archive"}],
   "d1_databases": [
     {
       "binding": "INSIGHTS_DB",

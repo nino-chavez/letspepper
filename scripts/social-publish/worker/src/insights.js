@@ -35,6 +35,7 @@
  *     the URL holds the access token.
  */
 
+import { archiveStoryPreviews } from './story-archive.js'
 import { notify } from '../../notify.mjs'
 
 export const INSIGHTS_CRON = '30 14 * * *' // 9:30 a.m. CDT, 8:30 a.m. CST
@@ -479,14 +480,14 @@ export async function readStories({ get, igUserId }) {
   const fail = (step, err) => out.failures.push({ step, state: classify(err), detail: err.message })
   let listed
   try {
-    listed = await get(`${igUserId}/stories`, { fields: 'id,timestamp,media_type,media_product_type,permalink' })
+    listed = await get(`${igUserId}/stories`, { fields: 'id,timestamp,media_type,media_product_type,permalink,caption,media_url,thumbnail_url' })
   } catch (e) {
     if (e instanceof BudgetExhausted) { out.stoppedAtBudget = true; return out }
     fail('stories list', e)
     return out
   }
   for (const story of (listed.data ?? []).filter((m) => m?.id && m.timestamp)) {
-    out.media.push({ id: story.id, timestamp: story.timestamp, media_type: story.media_type, media_product_type: 'STORY', permalink: story.permalink ?? null, caption: null })
+    out.media.push({ id: story.id, timestamp: story.timestamp, media_type: story.media_type, media_product_type: 'STORY', permalink: story.permalink ?? null, caption: story.caption ?? null, media_url: story.media_url, thumbnail_url: story.thumbnail_url })
     try {
       const totals = readInsights(await get(`${story.id}/insights`, { metric: MEDIA_METRICS.STORY.join(',') }))
       const navigation = readInsights(await get(`${story.id}/insights`, {
@@ -626,11 +627,18 @@ async function collectAccount(env, { account, acct, graph, job, trigger, now, to
   const tokenBinding = acct.ig_token_binding || 'IG_ACCESS_TOKEN'
   const token = env[tokenBinding]
   let read
+  const budget={limit:RUN_BUDGET,used:0}
   if (!token) {
     read = emptyRead(days)
     read.failures.push({ step: 'token', state: 'error', detail: `${tokenBinding} is not set` })
   } else {
-    read = await reader(makeGraph({ graph, token, fetchImpl, budget: { limit: RUN_BUDGET, used: 0 } }))
+    read = await reader(makeGraph({ graph, token, fetchImpl, budget }))
+  }
+  if(job==='stories' && read.media.length) {
+    let previewRequests=0
+    await env.INSIGHTS_DB.batch([env.INSIGHTS_DB.prepare(UPSERT_MEDIA).bind(account,startedAt,JSON.stringify(read.media))])
+    read.failures.push(...await archiveStoryPreviews({db:env.INSIGHTS_DB,bucket:env.STORY_ARCHIVE,media:read.media,account,observedAt:startedAt,
+      fetchImpl:(url,options)=>{if(previewRequests>=4)throw Error('Preview request budget spent');previewRequests++;return fetchImpl(url,options)}}))
   }
   const { state, detail } = runState(read)
   const finishedAt = new Date().toISOString()
@@ -647,6 +655,9 @@ async function collectAccount(env, { account, acct, graph, job, trigger, now, to
   if (read.online.length) statements.push(db.prepare(UPSERT_ONLINE).bind(account, startedAt, JSON.stringify(read.online)))
   if (read.media.length) statements.push(db.prepare(UPSERT_MEDIA).bind(account, startedAt, JSON.stringify(read.media)))
   if (read.mediaValues.length) statements.push(db.prepare(UPSERT_MEDIA_VALUES).bind(today, startedAt, JSON.stringify(read.mediaValues)))
+  if(job==='stories' && read.mediaValues.length) statements.push(db.prepare(`INSERT INTO story_metric_observations(media_id,metric,observed_at,value)
+    SELECT j.value ->> 'media_id',j.value ->> 'metric',?1,j.value ->> 'value' FROM json_each(?2) j WHERE true
+    ON CONFLICT(media_id,metric,observed_at) DO NOTHING`).bind(startedAt,JSON.stringify(read.mediaValues)))
   statements.push(db.prepare(INSERT_RUN).bind(
     account, job, trigger, startedAt, finishedAt, state, window?.first ?? days[0] ?? null, window?.last ?? days[days.length - 1] ?? null,
     read.daysComplete.length, read.daysFailed.length, read.dayValues.length, read.media.length, detail,

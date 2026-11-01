@@ -507,3 +507,55 @@ laptop job is required. Validate with the registration tests, the existing socia
 suites, Wrangler's dry run, the protected live registration endpoint, and the
 PostHog query/readback. An explicit manual trigger verifies the collector; it is
 not evidence that a future scheduled tick has run.
+
+## Story content ledger
+
+`/story-ledger` keeps captured Story identities after expiry. Its previews use a private
+`630-story-archive` R2 bucket through `STORY_ARCHIVE`; only the authenticated dashboard
+can serve them. The collector requests `caption`, `media_url` and `thumbnail_url` on the
+existing Story list. A video keeps its thumbnail, not its video or audio. Images keep
+the source image. Signed CDN addresses are never stored. A missing or failed preview
+stays visible as such; the next hourly run retries while the Story is live. Existing
+expired Stories cannot acquire a preview from a vanished source.
+
+`story_content` attaches a sourced title, one content kind, an optional named sequence
+and slide position, and separately recorded interactive elements to the existing media
+ID. Labels are entered by the maintainer; there is no automatic topic, sticker or
+sequence inference. `null` elements means not recorded; `[]` means none recorded.
+Sticker-specific vote and question results remain unavailable.
+
+The dashboard stays read-only. To identify or correct a Story, keep a JSON file outside
+this public repository with `media_id`, `title`, `content_kind`, and `source` (the owner
+confirmation or private evidence reference). Optional fields are `sequence_key`,
+`slide_position`, and `elements`. `content_kind` is one of:
+
+- `coaching`: the Story teaches or demonstrates volleyball technique or decision-making.
+- `player_community`: the Story centers athletes, coaches, staff or club life.
+- `tournament`: the Story centers competition coverage or tournament results.
+- `promotion`: the Story asks people to attend, register, buy or inquire about an offer.
+- `other`: the primary subject fits none of those tests.
+
+Interactive elements are `poll`, `question`, `link`, `mention`, `repost`, `quiz`, or
+`countdown`; record only what the source shows. A sequence and position require a
+verified relationship, not an inferred gap between publication timestamps.
+
+Run `node scripts/social-publish/label-story.mjs --file <private label.json> --receipt
+<new private receipt.json>` to validate. Add `--apply` with the existing silently injected
+Cloudflare account-ops credentials to save it. The command accepts only captured 630
+Stories and verifies the saved fields by readback. It cannot change previews or metrics.
+
+`story_metric_observations` preserves each hourly reading. The old daily snapshots are
+retained and backfilled with their actual observation timestamps; no missing hours are
+invented. The ledger shows each metric's last reading and the age at its latest capture.
+Content, weekday and posting-time comparisons use paired reach and interaction readings
+from the same observation at 22–24 hours after publication. The latest eligible reading
+per Story is selected. Missing paired readings are excluded; zero reach has no interaction
+rate. The rate is interactions per 100 reached accounts, not a fraction of unique people.
+Medians and sample sizes are descriptive; small groups do not establish a winning time
+or content type. The comparison includes up to the latest 1,000 eligible Stories and
+says when truncated. The identity list is paginated, 25 per page.
+
+Publication-date filters, weekday and four-hour posting bins use `America/Chicago`,
+including daylight-saving changes. These do not change the Pacific source-day rules for
+account metrics. Source metrics and native period reach retain their existing meanings.
+Raw content, labels, screenshots and source receipts remain private.
