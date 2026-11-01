@@ -59,7 +59,7 @@ try{
  const content=await capturePostSnapshot({
   read:()=>{const x=evaluate('return {url:location.href,captured_at:new Date().toISOString(),text:document.body.innerText,sort:document.querySelector("[aria-sort]")?.getAttribute("aria-sort"),rows:[...document.querySelectorAll("tr[data-index]")].map(e=>({index:e.getAttribute("data-index"),cells:[...e.querySelectorAll("td")].map(c=>c.innerText),links:[...e.querySelectorAll("a[href]")].map(a=>a.href)}))}');x.filter='Instagram Feed';return x},
   validate:x=>postSnapshot(x,previous.snapshot.posts),
-  scroll:()=>evaluate('const t=document.querySelector("table");t.scrollTop=t.scrollHeight;return true'),
+  scroll:()=>{evaluate('const t=document.querySelector("table");t.scrollTop=t.scrollHeight;return true');run('browse-screenshot','--out',join(dir,'content-loading.png'))},
   saveFailure:x=>save('content-top-failed',x)
  })
  save('content-top',content)
