@@ -15,7 +15,7 @@ const here = (p) => new URL(p, import.meta.url)
 // IDs and city names in it are invented, because this repository is public and the real
 // values are 630's private Insights.
 const fixture = (name) => JSON.parse(readFileSync(here(`./fixtures/insights/${name}.json`), 'utf8'))
-const MIGRATIONS = ['0001_instagram_insights.sql', '0002_stories_audience_online.sql']
+const MIGRATIONS = ['0001_instagram_insights.sql', '0002_stories_audience_online.sql','0005_story_ledger.sql']
   .map((name) => readFileSync(here(`../migrations/${name}`), 'utf8'))
 const IG = '17841411569230130'
 const GRAPH = 'https://graph.facebook.com/v25.0'
@@ -574,4 +574,14 @@ test('insightsStatus reads coverage per source', async () => {
   await collect(envWith(db), graphStub('granted').fetchImpl)
   const status = await insightsStatus(envWith(db), { accounts: ACCOUNTS })
   assert.deepEqual(status['630'].coverage, [{ source: 'graph_api', first_day: '2026-10-09', last_day: '2026-10-15', days: 7 }])
+})
+
+test('hourly Story readings retain distinct capture times on the same reporting day', async()=>{
+ const db=fakeD1(),stub=graphStub('granted')
+ await stories(envWith(db),stub.fetchImpl)
+ const first=db.rows('SELECT COUNT(*) n FROM story_metric_observations')[0].n
+ await stories(envWith(db),stub.fetchImpl,{now:new Date(NOW.getTime()+3600000)})
+ assert.equal(db.rows('SELECT COUNT(*) n FROM story_metric_observations')[0].n,first*2)
+ assert.equal(db.rows('SELECT COUNT(*) n FROM story_content')[0].n,STORIES.length)
+ assert.equal(db.rows('SELECT COUNT(DISTINCT observed_at) n FROM story_metric_observations')[0].n,2)
 })

@@ -15,6 +15,7 @@
   // The self-contained browser function is serialized into a nonce-protected script.
   // esbuild name helpers belong to the Worker scope and cannot cross that boundary.
   "keep_names": false,
+  "r2_buckets": [{"binding":"STORY_ARCHIVE","bucket_name":"630-story-archive"}],
   "d1_databases": [
     {
       "binding": "INSIGHTS_DB",

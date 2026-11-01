@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 // Every number, ID and caption below is invented. This repository is public; 630's real
 // Insights live only in the database.
 const here = (p) => new URL(p, import.meta.url)
-const MIGRATIONS = ['0001_instagram_insights.sql', '0002_stories_audience_online.sql']
+const MIGRATIONS = ['0001_instagram_insights.sql', '0002_stories_audience_online.sql','0005_story_ledger.sql']
   .map((name) => readFileSync(here(`../../worker/migrations/${name}`), 'utf8'))
 export const NOW = new Date('2026-10-16T15:00:00Z') // 10 a.m. Central; Oct 16 in Los Angeles
 export const PASSPHRASE = 'test passphrase four words'
