@@ -135,6 +135,7 @@ try {
   await db.prepare("UPDATE story_content SET title='Invented community clip',content_kind='player_community',label_source='Synthetic preview review',labeled_at='2026-10-16T14:00:00Z',elements_json='[\"mention\"]' WHERE media_id='s1'").run()
   await db.prepare("INSERT INTO media VALUES ('123','630','2026-10-15T18:01:00Z','IMAGE','STORY',NULL,'2026-10-15T18:05:00Z','2026-10-16T17:00:00Z',NULL)").run()
   await db.prepare("INSERT INTO story_content(media_id,title,content_kind,label_source,labeled_at,preview_key,preview_status,preview_captured_at) VALUES ('123','Invented saved preview','coaching','Synthetic fixture','2026-10-16T14:00:00Z','630/123/preview','saved','2026-10-15T18:05:00Z')").run()
+  for(const [metric,value] of [['reach',120],['total_interactions',12]])await db.prepare("INSERT INTO story_metric_observations VALUES ('s1',?,'2026-10-16T17:00:00Z',?)").bind(metric,value).run()
   const bucket=await mf.getR2Bucket('STORY_ARCHIVE')
   const previewPage=await context.newPage();await previewPage.setViewportSize({width:180,height:320})
   await previewPage.setContent('<main style="height:300px;background:#203448;color:white;display:grid;place-content:center;font:24px Arial;text-align:center">MOCK<br>STORY<br><small style="font-size:12px">Synthetic preview</small></main>')

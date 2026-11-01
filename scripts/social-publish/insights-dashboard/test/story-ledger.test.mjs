@@ -21,7 +21,7 @@ test('ledger retains expired identities and compares only paired readings at 22�
  const db=seeded(),insert=db.sqlite.prepare('INSERT INTO story_metric_observations VALUES (?,?,?,?)')
  for(const [at,reach,interactions] of [['2026-10-16T11:00:00Z',100,20],['2026-10-16T17:00:00Z',200,30],['2026-10-16T18:30:00Z',300,60]]){insert.run('s1','reach',at,reach);insert.run('s1','total_interactions',at,interactions)}
  const data=await loadStoryLedger(db,new URLSearchParams({from:'2026-10-01',to:'2026-10-16'}),NOW);assert.equal(data.total,2);assert.equal(data.rows.find(r=>r.media_id==='s1').metrics.reach.value,120);assert.equal(data.comparisonCount,1);assert.equal(data.comparisons.kind[0].reach,200);assert.equal(data.comparisons.kind[0].actionsPer100,15)
- const html=storyLedgerPage(data);assert.match(html,/Unclassified/);assert.match(html,/Preview not captured/);assert.match(html,/22–24 hours/);assert.match(html,/Small sample/)
+ const html=storyLedgerPage(data);assert.match(html,/Unclassified/);assert.match(html,/Preview not captured/);assert.match(html,/22–24 hours/);assert.match(html,/Not enough eligible Stories to compare yet/)
  await assert.rejects(loadStoryLedger(db,new URLSearchParams({from:'2020-01-01',to:'2026-01-01'}),NOW),RangeError)
  for(const sql of Object.values(LEDGER_SQL))assert.match(sql,/^SELECT/)
  const zero=compareStories([{published_at:'2026-10-15T18:00:00Z',reach:0,interactions:0}],'kind')[0];assert.equal(zero.actionsPer100,null)
