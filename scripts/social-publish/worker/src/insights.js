@@ -634,9 +634,10 @@ async function collectAccount(env, { account, acct, graph, job, trigger, now, to
   } else {
     read = await reader(makeGraph({ graph, token, fetchImpl, budget }))
   }
+  const storedMedia=read.media.map(({media_url,thumbnail_url,...stored})=>stored)
   if(job==='stories' && read.media.length) {
     let previewRequests=0
-    await env.INSIGHTS_DB.batch([env.INSIGHTS_DB.prepare(UPSERT_MEDIA).bind(account,startedAt,JSON.stringify(read.media))])
+    await env.INSIGHTS_DB.batch([env.INSIGHTS_DB.prepare(UPSERT_MEDIA).bind(account,startedAt,JSON.stringify(storedMedia))])
     read.failures.push(...await archiveStoryPreviews({db:env.INSIGHTS_DB,bucket:env.STORY_ARCHIVE,media:read.media,account,observedAt:startedAt,
       fetchImpl:(url,options)=>{if(previewRequests>=4)throw Error('Preview request budget spent');previewRequests++;return fetchImpl(url,options)}}))
   }
@@ -653,7 +654,7 @@ async function collectAccount(env, { account, acct, graph, job, trigger, now, to
   if (read.dayValues.length) statements.push(db.prepare(UPSERT_DAY_VALUES).bind(account, startedAt, JSON.stringify(read.dayValues)))
   if (read.audience.length) statements.push(db.prepare(UPSERT_AUDIENCE).bind(account, today, startedAt, JSON.stringify(read.audience)))
   if (read.online.length) statements.push(db.prepare(UPSERT_ONLINE).bind(account, startedAt, JSON.stringify(read.online)))
-  if (read.media.length) statements.push(db.prepare(UPSERT_MEDIA).bind(account, startedAt, JSON.stringify(read.media)))
+  if (read.media.length) statements.push(db.prepare(UPSERT_MEDIA).bind(account, startedAt, JSON.stringify(storedMedia)))
   if (read.mediaValues.length) statements.push(db.prepare(UPSERT_MEDIA_VALUES).bind(today, startedAt, JSON.stringify(read.mediaValues)))
   if(job==='stories' && read.mediaValues.length) statements.push(db.prepare(`INSERT INTO story_metric_observations(media_id,metric,observed_at,value)
     SELECT j.value ->> 'media_id',j.value ->> 'metric',?1,j.value ->> 'value' FROM json_each(?2) j WHERE true
