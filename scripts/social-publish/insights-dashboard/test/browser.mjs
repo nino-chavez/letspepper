@@ -130,6 +130,7 @@ try {
   for(const row of source.sqlite.prepare("SELECT * FROM media_metric_snapshots WHERE media_id='s1'").all())await db.prepare(`INSERT INTO media_metric_snapshots (${Object.keys(row).join(',')}) VALUES (${Object.keys(row).map(()=>'?').join(',')})`).bind(...Object.values(row)).run()
   await page.goto(base+'story-ledger?from=2026-10-01&to=2026-10-16')
   await page.getByRole('heading',{name:'Remember what each Story was.'}).waitFor()
+  await page.keyboard.press('Tab');assert.equal(await page.getByRole('link',{name:'Skip to ledger'}).evaluate(el=>el===document.activeElement),true);await page.keyboard.press('Enter');assert.equal(await page.locator('#main').evaluate(el=>el===document.activeElement),true)
   await capture('desktop-story-ledger-unlabeled')
   await db.prepare("INSERT OR IGNORE INTO story_content(media_id) VALUES ('s1')").run()
   await db.prepare("UPDATE story_content SET title='Invented community clip',content_kind='player_community',label_source='Synthetic preview review',labeled_at='2026-10-16T14:00:00Z',elements_json='[\"mention\"]' WHERE media_id='s1'").run()
