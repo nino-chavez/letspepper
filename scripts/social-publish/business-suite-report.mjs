@@ -33,7 +33,8 @@ export function sourceRange(capture, { audience = false } = {}) {
 }
 export function dailySeries(capture) {
   const range = sourceRange(capture)
-  if (capture.tables?.length !== 6) throw Error('Expected six Results charts')
+  const unavailableFollows = /\nFollows\s*\n[‑–—-]+\nNo activity during selected date range\nPlease select a different date range and try to load your report again\./.test(clean(capture.text))
+  if (capture.tables?.length !== 6 && !(capture.tables?.length === 5 && unavailableFollows)) throw Error('Expected six Results charts')
   const names = ['views_including_facebook_crossposts','reach','content_interactions','link_clicks','profile_visits','follows']
   return capture.tables.flatMap((table,i) => {
     // Earlier captures stored table objects; the current collector stores their text.
@@ -53,12 +54,13 @@ export function nativePeriod(results,audience) {
   const text=clean(results.text), views=[...text.matchAll(/([\d,]+) views/g)].map(m=>count(m[1]))
   const reach=/\nReach\s*\nExport\n([\d,.]+)(K?)/.exec(text)
   const unfollows=/\nUnfollows\s*\n([\d,]+)\n/.exec(clean(audience.text))
-  if (views.length!==2 || !reach || !unfollows) throw Error('Native period values missing')
+  const unavailableUnfollows=/\nUnfollows\s*\n[‑–—-]+\n/.test(clean(audience.text))
+  if (views.length!==2 || !reach || (!unfollows&&!unavailableUnfollows)) throw Error('Native period values missing')
   const rows=dailySeries(results), days=Math.round((Date.parse(range.end)-Date.parse(range.start))/86400000)+1
-  const sum=m=>{const values=rows.filter(r=>r.metric===m);return m!=='follows'&&values.length!==days?null:values.reduce((s,r)=>s+r.value,0)}
+  const sum=m=>{const values=rows.filter(r=>r.metric===m);return (m==='follows'?values.length===0:values.length!==days)?null:values.reduce((s,r)=>s+r.value,0)}
   const follows=sum('follows'), aFollows=count(/\nFollows\s*\n([\d,]+)\n/.exec(clean(audience.text))?.[1])
-  if (aFollows!==follows) throw Error('Results and Audience follows differ')
-  return {...range,days:Math.round((Date.parse(range.end)-Date.parse(range.start))/86400000)+1,observed_at:results.captured_at,source_url:results.url,audience_url:audience.url,metrics:{instagram_views:views[1],facebook_crosspost_views:views[0],unique_reach:Number(reach[1].replaceAll(',',''))*(reach[2]?1000:1),content_interactions:sum('content_interactions'),profile_visits:sum('profile_visits'),link_clicks:sum('link_clicks'),follows,unfollows:count(unfollows[1])},reach_rounded:!!reach[2],follower_through:rows.filter(r=>r.metric==='follows').at(-1)?.day??null}
+  if (aFollows!==follows || (aFollows===null&&!/\nFollows\s*\n[‑–—-]+\n/.test(clean(audience.text)))) throw Error('Results and Audience follows differ')
+  return {...range,days:Math.round((Date.parse(range.end)-Date.parse(range.start))/86400000)+1,observed_at:results.captured_at,source_url:results.url,audience_url:audience.url,metrics:{instagram_views:views[1],facebook_crosspost_views:views[0],unique_reach:Number(reach[1].replaceAll(',',''))*(reach[2]?1000:1),content_interactions:sum('content_interactions'),profile_visits:sum('profile_visits'),link_clicks:sum('link_clicks'),follows,unfollows:unfollows?count(unfollows[1]):null},reach_rounded:!!reach[2],follower_through:rows.filter(r=>r.metric==='follows').at(-1)?.day??null}
 }
 export function postSnapshot(capture, previous=[]) {
   const u=new URL(capture.url)
