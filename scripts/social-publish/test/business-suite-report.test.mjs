@@ -83,11 +83,11 @@ test('the runner readback rejects older noncanonical stored dates and accepts re
 
 // An unavailable follower period renders five charts, not a sixth zero series.
 test('explicit unavailable follower card permits five charts and null period flows',()=>{
- const x=capture();x.tables.pop();x.text+='\nViews\nExport\n2 views\n18 views\nReach\nExport\n11\nFollows\n‑‑\nNo activity during selected date range\nPlease select a different date range and try to load your report again.'
+ const x=capture();x.tables.pop();x.text+='\nViews\nExport\n2 views\n18 views\nReach\nExport\n11\nFollows\nExport\n‑‑\nNo activity during selected date range\nPlease select a different date range and try to load your report again.'
  const a={...x,url:x.url.replace('/results?','/people?')+'&audience_tab=trends',text:'\nInstagram\nOct 1, 2026 – Oct 2, 2026\nFollowers breakdown\nFollows\n‑‑\nUnfollows\n‑‑\nFollowers\nLifetime\n100'}
  assert.equal(dailySeries(x).length,10)
  const p=nativePeriod(x,a);assert.equal(p.metrics.follows,null);assert.equal(p.metrics.unfollows,null);assert.equal(p.metrics.instagram_views,18)
- assert.throws(()=>dailySeries({...x,text:x.text.replace('Follows\n‑‑','Follows\n5')}),/six Results/)
+ assert.throws(()=>dailySeries({...x,text:x.text.replace('Follows\nExport\n‑‑','Follows\nExport\n5')}),/six Results/)
  assert.throws(()=>dailySeries({...x,tables:x.tables.slice(1)}),/six Results/)
  assert.throws(()=>nativePeriod(x,{...a,text:a.text.replace('Unfollows\n‑‑','Unfollows\nunknown')}),/period values/)
  assert.throws(()=>nativePeriod(x,{...a,text:a.text.replace('Follows\n‑‑','Follows\n0')}),/follows differ/)

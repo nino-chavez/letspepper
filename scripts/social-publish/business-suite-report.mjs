@@ -33,7 +33,7 @@ export function sourceRange(capture, { audience = false } = {}) {
 }
 export function dailySeries(capture) {
   const range = sourceRange(capture)
-  const unavailableFollows = /\nFollows\s*\n[‑–—-]+\nNo activity during selected date range\nPlease select a different date range and try to load your report again\./.test(clean(capture.text))
+  const unavailableFollows = /\nFollows\s*\nExport\n[‑–—-]+\nNo activity during selected date range\nPlease select a different date range and try to load your report again\./.test(clean(capture.text))
   if (capture.tables?.length !== 6 && !(capture.tables?.length === 5 && unavailableFollows)) throw Error('Expected six Results charts')
   const names = ['views_including_facebook_crossposts','reach','content_interactions','link_clicks','profile_visits','follows']
   return capture.tables.flatMap((table,i) => {
