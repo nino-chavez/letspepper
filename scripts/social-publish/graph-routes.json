@@ -86,7 +86,7 @@
       "strict_media_types": true
     },
     "630-volleykids-20261103": {
-      "reason": "Nino, November 2, 2026: \"use these and schedule them logically. make tomorrow about volleykids across stories, reels, and posts. think of any other ones we should build and schedule\". Approved local 20-photo carousel and four Stories shown in the VolleyKids chat, plus one factual family-info Story. 630 standing API default applies. Instagram only, November3 America/Chicago. No Facebook, Collab invitations, unconfirmed tags or noncommercial music. Video placements remain held until replacement music is approved and commercially cleared; Story04 awaits explicit no-sticker choice. Exact sources and schedule in volleykids-2026-11-01/companions/scheduled-2026-11-03/manifest.json.",
+      "reason": "Nino, November 2, 2026: \"use these and schedule them logically. make tomorrow about volleykids across stories, reels, and posts. think of any other ones we should build and schedule\". Approved local 20-photo carousel and four Stories shown in the VolleyKids chat, plus one factual family-info Story. 630 standing API default applies. Instagram only, November3 America/Chicago. No Facebook, Collab invitations, unconfirmed tags or noncommercial music. Video placements remain held until replacement music is approved and commercially cleared; Story04 awaits explicit no-sticker choice. Exact sources and schedule in volleykids-2026-11-01/companions/scheduled-2026-11-03/manifest.json. REELS are deliberately excluded until the music decision is resolved. Current official Meta IG User/media reference fetched November2 lists children as up to20 container IDs; this supersedes the older10-item caps in album-specific builders. Source: https://developers.facebook.com/documentation/instagram-platform/instagram-graph-api/reference/ig-user/media/ ; live-fetch receipt: companions/work/meta-carousel-limit-check.json.",
       "approved": "2026-11-02",
       "accounts": [
         "630"
@@ -94,8 +94,7 @@
       "expires": "2026-11-04",
       "media_types": [
         "CAROUSEL",
-        "STORIES",
-        "REELS"
+        "STORIES"
       ],
       "strict_media_types": true
     }
