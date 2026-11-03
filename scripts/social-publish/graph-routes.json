@@ -12,14 +12,15 @@
   ],
   "events": {
     "630-girls-final-tryout-20261108": {
-      "reason": "Nino, November 2, 2026: \"Yes, schedule them\", answering whether to schedule the three Stories through the API with media clearance confirmed. Taylor Skoglund approved them the same day. Exactly three Instagram Stories for the final girls make-up tryout: 01-announce November 3, 02-what-to-expect November 5, 03-day-of November 8, each at 09:00 America/Chicago. No tags.",
+      "reason": "Nino, November 2, 2026: \"Yes, schedule them\", answering whether to schedule the three Stories through the API with media clearance confirmed. Taylor Skoglund approved them the same day. Exactly three Instagram Stories for the final girls make-up tryout: 01-announce November 3, 02-what-to-expect November 5, 03-day-of November 8, each at 09:00 America/Chicago. No tags. Nino, November 2, 2026: \"that's much better. ship that\", approving the fall-training Reel with Pocket Change embedded. Taylor Skoglund approved its picture and caption the same day. One Instagram Reel, 04-reel, November 4 at 19:00 America/Chicago. No tags.",
       "approved": "2026-11-02",
       "accounts": [
         "630"
       ],
       "expires": "2026-11-09",
       "media_types": [
-        "STORIES"
+        "STORIES",
+        "REELS"
       ],
       "strict_media_types": true
     },
