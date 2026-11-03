@@ -76,7 +76,7 @@
     // null for a missing key and both postDuePending/resumeIfBuilding just skip it.
     // Three approved 630 Stories for the Nov 8 tryout, Nov 3, 5 and 8 at 09:00 America/Chicago.
     // Content is scoped by its STORIES-only route; seeding supplies the items.
-    "ACTIVE_EVENTS": "630-girls-final-tryout-20261108,630-nick-approved-stories-20261029,630-block-coaching-20261022,630-practice-education-20261013,skin-abrasions,gallery-announce,cutting-board-announce,poblano-2026-cancellation",
+    "ACTIVE_EVENTS": "630-volleykids-20261103,630-girls-final-tryout-20261108,630-nick-approved-stories-20261029,630-block-coaching-20261022,630-practice-education-20261013,skin-abrasions,gallery-announce,cutting-board-announce,poblano-2026-cancellation",
     // UTC posting slots — the daily cap for LEGACY (no-scheduledAt) items only.
     // The cancellation item carries no scheduledAt, so it IS gated by these hours
     // once an operator flips it to pending: 17 = noon CDT, 22 = 5p CDT.
