@@ -16,6 +16,8 @@ const end=add(today,-1),start=add(end,-13),month=end.slice(0,7)+'-01'
 mkdirSync(dir,{recursive:true})
 // browse-tool's own watchdogs (20s setup + 90s command) must fire first, so a stall names its phase.
 const run=(name,...args)=>execFileSync(name,args,{encoding:'utf8',timeout:120000,stdio:['ignore','pipe','pipe']}).trim()
+// Cleanup is best-effort, so it gets a short cap and cannot push the run past the refresh's limit.
+const closeOwnedTabs=()=>execFileSync('browse-tabs',['close-owned'],{encoding:'utf8',timeout:45000,env:{...process.env,BROWSE_TIMEOUT:'20'},stdio:['ignore','pipe','pipe']})
 const evaluate=js=>JSON.parse(run('browse-eval',js))
 const save=(name,x)=>writeFileSync(join(dir,name+'.json'),JSON.stringify(x,null,2)+'\n')
 const pause=()=>new Promise(r=>setTimeout(r,400))
@@ -27,7 +29,7 @@ async function capture(kind,start,end,name){
   try{sourceRange(x,{audience:kind==='people'});if(kind==='results')dailySeries(x);save(name,x);return x}catch(err){if(i===11)throw err;await pause()}
  }
 }
-await finishCapture({record:save,cleanup:()=>run('browse-tabs','close-owned'),work:async()=>{
+await finishCapture({record:save,cleanup:closeOwnedTabs,work:async()=>{
  run('browse-start')
  const results=await capture('results',start,end,'results-recheck')
  const rows=dailySeries(results),followPages={}

@@ -19,17 +19,17 @@ function stubBrowser(dir,commands){
 }
 
 // Reproduces November 3-4, 2026: the capture failed, then close-owned stalled and its error was all that survived.
-function failingBrowserRun(entry,check){
+function failingBrowserRun(entry,check,{args=[],before=()=>{}}={}){
  const dir=mkdtempSync(join(tmpdir(),'bs-capture-'))
  try{
   const bin=join(dir,'bin'),out=join(dir,'out'),prev=join(dir,'previous.json')
-  mkdirSync(bin);writeFileSync(prev,JSON.stringify(previous))
+  mkdirSync(bin);mkdirSync(out);writeFileSync(prev,JSON.stringify(previous));before(out)
   stubBrowser(bin,{
    'browse-start':'echo "invented start failure marker" >&2; exit 1',
    'browse-tabs':'echo "browse-tabs: timed out after 90s during command." >&2; exit 124'
   })
   const {CLOUDFLARE_ACCOUNT_ID,CLOUDFLARE_API_TOKEN,...env}=process.env
-  const r=spawnSync(process.execPath,[entry,'--out',out,'--previous',prev],{encoding:'utf8',timeout:30000,env:{...env,PATH:bin+delimiter+env.PATH}})
+  const r=spawnSync(process.execPath,[entry,'--out',out,'--previous',prev,...args],{encoding:'utf8',timeout:30000,env:{...env,PATH:bin+delimiter+env.PATH}})
   check(r,out)
  }finally{rmSync(dir,{recursive:true,force:true})}
 }
@@ -49,6 +49,13 @@ test('the refresh failure receipt carries the capture cause, not only the child 
   assert.match(receipt.capture_cleanup_error,/timed out after 90s/)
   assert.equal(receipt.sheet_written,false)
 }))
+
+test('a failure file left by an earlier run is not reported as this run\'s cause',()=>failingBrowserRun(refresh,(r,out)=>{
+  assert.notEqual(r.status,0)
+  const receipt=JSON.parse(readFileSync(join(out,'db-sync-failed.json'),'utf8'))
+  assert.equal(receipt.capture_error,null)
+  assert.match(receipt.message,/report\.json/)
+},{args:['--import-only'],before:out=>writeFileSync(join(out,'capture-failed.json'),JSON.stringify({failed_at:'2026-01-01T00:00:00.000Z',message:'stale invented failure',cleanup_error:null}))}))
 
 test('a failed cleanup after a validated capture is recorded, not fatal',async()=>{
  const records=[]
