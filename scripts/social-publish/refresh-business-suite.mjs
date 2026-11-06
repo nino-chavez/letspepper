@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Capture, import, and read back the report. Keep all outputs in a private directory. */
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve, delimiter } from 'node:path'
 import { validateReport, verifyDailyReadback } from './business-suite-report.mjs'
@@ -26,8 +26,10 @@ try{
  const rows=await query("SELECT day,metric,value,last_observed_at FROM account_metric_days WHERE account=?1 AND source='business_suite' AND day BETWEEN ?2 AND ?3",['630','2026-09-01',report.through_day])
  verifyDailyReadback(report.daily,rows)
  await query("INSERT INTO business_suite_sync_runs (account,started_at,finished_at,state,detail) VALUES (?1,?2,?3,'ok',NULL)",['630',started,new Date().toISOString()])
- const receipt={status:'success',completed_at:new Date().toISOString(),through_day:report.through_day,report_captured_at:report.captured_at,report_readback:true,daily_values_verified:report.daily.length,source_days:new Set(report.daily.map(r=>r.day)).size,snapshot_posts:report.snapshot.posts.length,sheet_written:false}
+ const receipt={status:'success',completed_at:new Date().toISOString(),through_day:report.through_day,report_captured_at:report.captured_at,report_readback:true,daily_values_verified:report.daily.length,source_days:new Set(report.daily.map(r=>r.day)).size,snapshot_posts:report.snapshot.posts.length,browser_cleanup:existsSync(join(out,'capture-cleanup-failed.json'))?'failed':'ok',sheet_written:false}
  writeFileSync(join(out,'db-sync-receipt.json'),JSON.stringify(receipt,null,2)+'\n');console.log(JSON.stringify(receipt))
 }catch(error){
  try{await query("INSERT INTO business_suite_sync_runs (account,started_at,finished_at,state,detail) VALUES (?1,?2,?3,'error',?4) ON CONFLICT (account,started_at) DO NOTHING",['630',started,new Date().toISOString(),'Business Suite capture or import failed. Check the private refresh receipt; the last good report is retained.'])}catch{}
- writeFileSync(join(out,'db-sync-failed.json'),JSON.stringify({status:'failed',attempted_at:new Date().toISOString(),message:error.message,previous_report:previous,sheet_written:false},null,2)+'\n');throw error}
+ // The capture child's own receipt names the real cause; the exec error only says the child exited.
+ const capture=join(out,'capture-failed.json'),cause=existsSync(capture)?JSON.parse(readFileSync(capture,'utf8')):null
+ writeFileSync(join(out,'db-sync-failed.json'),JSON.stringify({status:'failed',attempted_at:new Date().toISOString(),message:error.message,capture_error:cause?.message??null,capture_cleanup_error:cause?.cleanup_error??null,previous_report:previous,sheet_written:false},null,2)+'\n');throw error}
