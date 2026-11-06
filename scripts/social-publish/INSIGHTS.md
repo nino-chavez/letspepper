@@ -363,6 +363,17 @@ reads it. A browser sign-in or source-layout failure preserves the previous data
 report and is reported as failed. A successful API collection is separate from a
 successful Business Suite refresh.
 
+The capture always closes its own tabs, but that cleanup cannot hide what went
+wrong. A failed capture writes `capture-failed.json` with the original error and
+any cleanup error. `db-sync-failed.json` copies both, as `capture_error` and
+`capture_cleanup_error`. A cleanup failure after a validated capture writes
+`capture-cleanup-failed.json` and does not fail the run; the success receipt reports
+it as `browser_cleanup: "failed"`. The refresh counts only failure files written
+during its own run, so a retry into the same directory cannot report an older cause.
+Browser commands get 120 seconds, longer than browse-tool's own 20-second connect
+and 90-second command limits, so a stalled command reports which step stalled.
+Cleanup gets 45 seconds, and the refresh gives the whole capture 10 minutes.
+
 The authenticated `/business-suite` dashboard view shows account-period totals and
 per-day averages, source links, delayed follower dates, daily readings and the labeled
 historical backfill. `/business-suite?view=posts` shows only the top-12 lifetime snapshot,

@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { capturePostSnapshot } from './business-suite-post-capture.mjs'
 import { toggleContentFilter } from './business-suite-content-filter.mjs'
+import { finishCapture } from './business-suite-capture-cleanup.mjs'
 import { dailySeries, nativePeriod, postSnapshot, sourceRange, validateReport, IG_ID } from './business-suite-report.mjs'
 const args=process.argv.slice(2), option=k=>args[args.indexOf(k)+1]
 if(!args.includes('--out')||!args.includes('--previous'))throw Error('usage: capture-business-suite.mjs --out <private evidence directory> --previous <validated prior report.json>')
@@ -13,7 +14,10 @@ const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles
 const add=(d,n)=>new Date(Date.parse(d+'T12:00:00Z')+n*86400000).toISOString().slice(0,10)
 const end=add(today,-1),start=add(end,-13),month=end.slice(0,7)+'-01'
 mkdirSync(dir,{recursive:true})
-const run=(name,...args)=>execFileSync(name,args,{encoding:'utf8',timeout:45000,stdio:['ignore','pipe','pipe']}).trim()
+// browse-tool's own watchdogs (20s setup + 90s command) must fire first, so a stall names its phase.
+const run=(name,...args)=>execFileSync(name,args,{encoding:'utf8',timeout:120000,stdio:['ignore','pipe','pipe']}).trim()
+// Cleanup is best-effort, so it gets a short cap and cannot push the run past the refresh's limit.
+const closeOwnedTabs=()=>execFileSync('browse-tabs',['close-owned'],{encoding:'utf8',timeout:45000,env:{...process.env,BROWSE_TIMEOUT:'20'},stdio:['ignore','pipe','pipe']})
 const evaluate=js=>JSON.parse(run('browse-eval',js))
 const save=(name,x)=>writeFileSync(join(dir,name+'.json'),JSON.stringify(x,null,2)+'\n')
 const pause=()=>new Promise(r=>setTimeout(r,400))
@@ -25,7 +29,7 @@ async function capture(kind,start,end,name){
   try{sourceRange(x,{audience:kind==='people'});if(kind==='results')dailySeries(x);save(name,x);return x}catch(err){if(i===11)throw err;await pause()}
  }
 }
-try{
+await finishCapture({record:save,cleanup:closeOwnedTabs,work:async()=>{
  run('browse-start')
  const results=await capture('results',start,end,'results-recheck')
  const rows=dailySeries(results),followPages={}
@@ -66,4 +70,4 @@ try{
  const merged=new Map(previous.daily.map(r=>[r.day+'/'+r.metric,r]));for(const row of rows)merged.set(row.day+'/'+row.metric,row)
  const report=validateReport({version:1,account:'630',instagram_id:IG_ID,captured_at:new Date().toISOString(),through_day:end,current_followers:currentFollowers,followers_observed_at:followersObservedAt,daily:[...merged.values()].sort((a,b)=>a.day.localeCompare(b.day)||a.metric.localeCompare(b.metric)),periods,snapshot:postSnapshot(content,previous.snapshot.posts),weekly_backfill:previous.weekly_backfill,individual_tracking:'waiting_for_owner_exports'})
  save('report',report);console.log('Validated Business Suite report through '+end+'; '+new Set(report.daily.map(r=>r.day)).size+' source days')
-}finally{run('browse-tabs','close-owned')}
+}})
