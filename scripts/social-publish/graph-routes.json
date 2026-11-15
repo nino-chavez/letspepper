@@ -98,6 +98,19 @@
         "REELS"
       ],
       "strict_media_types": true
+    },
+    "630-youth-programs-20261116": {
+      "reason": "Nino, November 15, 2026: \"lets post this tomorrow morning\", for the youth programs carousel and Story. Nick Maruyama approved the draft in Slack the same day: \"Looks good. I'd wait till at least tomorrow for this\". 630 standing API default applies. Instagram only, November 16 America/Chicago: one 5-slide carousel at 09:00 (caption as sent to Nick; @nick_maruyama, @coach_itz and @chellechavez_ tagged on slide 1; alt text per slide) and one 15 s video Story at 10:00 with the same three as user_tags. Files: create/campaigns/youth-programs-2026-11-15/release. No Facebook (Business Suite), Collab invites or other edits.",
+      "approved": "2026-11-15",
+      "accounts": [
+        "630"
+      ],
+      "expires": "2026-11-17",
+      "media_types": [
+        "CAROUSEL",
+        "STORIES"
+      ],
+      "strict_media_types": true
     }
   }
 }
