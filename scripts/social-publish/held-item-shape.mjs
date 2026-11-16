@@ -55,3 +55,34 @@ export function reassign(queue, id, { account, collaborators }, accounts) {
   item.collaborators = handles
   return { queue: next, before, after: { account, collaborators: handles } }
 }
+
+const STORY_DELAY_MS = 15 * 60 * 1000
+
+/**
+ * Publish a held carousel on the Worker's next run instead of at its slot (seed-kv.mjs
+ * --post-now; Nino, 2026-11-16: "post it now"). Sets the item's `scheduledAt` to `now` and
+ * ends its hold, and moves any Story linked to it to `now` + 15 minutes, the same offset the
+ * builder uses. The Story still waits for the carousel to post (linkedItemBlock).
+ *
+ * Refused unless the item is held on both channels and its Collab choice is recorded: moving
+ * the time is not a Collab decision, and the hold is the only veto window Nino has.
+ */
+export function postNow(queue, id, now = new Date()) {
+  const next = structuredClone(queue)
+  const { item, refused } = heldItem(next, id)
+  if (refused) return { refused }
+  if (item.collab?.status === 'ask') return { refused: `item "${id}" is still waiting for Nino's Collab choice; record it with --collab first.` }
+  const at = now.toISOString()
+  const before = { scheduledAt: item.scheduledAt, holdUntil: item.holdUntil }
+  item.scheduledAt = at
+  if (!item.holdUntil || Date.parse(item.holdUntil) > now.getTime()) item.holdUntil = at
+  const storyAt = new Date(now.getTime() + STORY_DELAY_MS).toISOString()
+  const stories = []
+  for (const s of next.items || []) {
+    if (s.linked_item_id !== id || !['held', 'pending'].includes(s.status)) continue
+    s.scheduledAt = storyAt
+    if (!s.holdUntil || Date.parse(s.holdUntil) > now.getTime()) s.holdUntil = at
+    stories.push(s.id)
+  }
+  return { queue: next, before, after: { scheduledAt: at, holdUntil: item.holdUntil }, stories }
+}

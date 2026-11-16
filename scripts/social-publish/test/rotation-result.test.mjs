@@ -80,7 +80,7 @@ test('caption: a college album carries the result line after the venue', () => {
     albumName: DWDCET, venue: 'Gregory Arena, Naperville', selectedOf: '10 of 43', series: 'other',
     result: { line: 'North Central won 3-0.' },
   })
-  assert.match(caption, /^Millikin at North Central, Sept\. 23, 2026\nGregory Arena, Naperville\nNorth Central won 3-0\.\n\n10 of 43/)
+  assert.match(caption, /^Millikin at North Central · Sept\. 23, 2026\nGregory Arena, Naperville\nNorth Central won 3-0\.\n\nTen frames here, out of 43/)
 })
 
 test('caption: a high-school album never states a result, even if a caller passes one', () => {

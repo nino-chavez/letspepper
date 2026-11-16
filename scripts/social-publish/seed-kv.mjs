@@ -9,6 +9,7 @@
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --veto a,b [--reason "..."] --put  # kill live items (status -> "vetoed", both destinations)
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --recaption <id> --caption-file <captions.json> --put  # new Instagram + Facebook captions on one live item still held on both channels
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --reassign <id> --account <slug> --collaborators a,b --put  # new publishing account + Instagram collaborators, same held rule
+ *   node scripts/social-publish/seed-kv.mjs --event <slug> --post-now <id> --put  # publish a held carousel (Collab decided) on the next Worker run; its linked Story 15 minutes after
  *   node scripts/social-publish/seed-kv.mjs --event <slug> --collab <id> --decision <none|nino|handles> [--handles a,b] --put  # record Nino's Collab choice for a held gallery carousel
  *
  * The Worker publishes an item only when its queue carries `meta.route`. This
@@ -40,7 +41,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadRoutes, REFUSED } from './route-gate.mjs'
 import { standingEntry, inDate, entryCovers } from './route-shape.mjs'
-import { recaption, reassign } from './held-item-shape.mjs'
+import { recaption, reassign, postNow } from './held-item-shape.mjs'
 import { decideCollab } from './collab-shape.mjs'
 import { queueDir } from './queue-dir.mjs'
 import { writeQueueFile } from './queue-store.mjs'
@@ -201,19 +202,20 @@ function main() {
   const reassignId = argv.includes('--reassign') ? value('--reassign') : null
   const reassignAccount = value('--account')
   const collabId = argv.includes('--collab') ? value('--collab') : null
+  const postNowId = argv.includes('--post-now') ? value('--post-now') : null
   const collabDecision = value('--decision')
   const collabHandles = value('--handles')
   // Absent --collaborators keeps the item's current ones; `--collaborators ""` clears them.
   const reassignCollaborators = argv.includes('--collaborators') ? (value('--collaborators') || '').split(',').map((s) => s.trim()).filter(Boolean) : undefined
-  if (!event || (reviveIds && !reviveIds.length) || (vetoIds && !vetoIds.length) || (argv.includes('--recaption') && (!recaptionId || !captionFile)) || (argv.includes('--reassign') && (!reassignId || !reassignAccount)) || (argv.includes('--collab') && (!collabId || !collabDecision))) {
-    console.error('Required: --event <slug> [--replace | --append | --revive <id,id> | --veto <id,id> [--reason "..."] | --recaption <id> --caption-file <path> | --reassign <id> --account <slug> [--collaborators a,b] | --collab <id> --decision <none|nino|handles> [--handles a,b]] [--put]')
+  if (!event || (reviveIds && !reviveIds.length) || (vetoIds && !vetoIds.length) || (argv.includes('--recaption') && (!recaptionId || !captionFile)) || (argv.includes('--reassign') && (!reassignId || !reassignAccount)) || (argv.includes('--collab') && (!collabId || !collabDecision)) || (argv.includes('--post-now') && !postNowId)) {
+    console.error('Required: --event <slug> [--replace | --append | --revive <id,id> | --veto <id,id> [--reason "..."] | --recaption <id> --caption-file <path> | --reassign <id> --account <slug> [--collaborators a,b] | --collab <id> --decision <none|nino|handles> [--handles a,b] | --post-now <id>] [--put]')
     process.exit(1)
   }
   if (reviveIds && argv.includes('--replace')) { console.error('--revive works on the live queue; --replace pushes the local one. Pick one.'); process.exit(1) }
   if (append && (reviveIds || vetoIds || argv.includes('--replace'))) { console.error('--append only merges new local items into the live queue; pick one of --append / --replace / --revive / --veto.'); process.exit(1) }
   if (vetoIds && (reviveIds || argv.includes('--replace'))) { console.error('--veto works on the live queue alone; pick one of --revive / --replace / --veto.'); process.exit(1) }
-  const liveEdits = [vetoIds, reviveIds, append || null, argv.includes('--replace') || null, recaptionId, reassignId, collabId].filter(Boolean).length
-  if ((recaptionId || reassignId || collabId) && liveEdits > 1) { console.error('--recaption, --reassign, and --collab each work on one live item alone; pick one of --append / --replace / --revive / --veto / --recaption / --reassign / --collab.'); process.exit(1) }
+  const liveEdits = [vetoIds, reviveIds, append || null, argv.includes('--replace') || null, recaptionId, reassignId, collabId, postNowId].filter(Boolean).length
+  if ((recaptionId || reassignId || collabId || postNowId) && liveEdits > 1) { console.error('--recaption, --reassign, --collab, and --post-now each work on one live item alone; pick one of --append / --replace / --revive / --veto / --recaption / --reassign / --collab / --post-now.'); process.exit(1) }
 
   const routes = loadRoutes()
   // The approval is checked before anything is read from Cloudflare; seedPayload re-checks it against the queue's accounts.
@@ -221,7 +223,13 @@ function main() {
   const live = readLive(event)
   let queue
   let addedIds = null
-  if (collabId) {
+  if (postNowId) {
+    if (!live) refuse(`KV has no key "${event}" — nothing has been seeded yet.`)
+    const r = postNow(live, postNowId)
+    if (r.refused) refuse(r.refused)
+    console.log(`${postNowId}: scheduledAt ${r.before.scheduledAt} -> ${r.after.scheduledAt}${r.stories.length ? `; linked Story ${r.stories.join(', ')} 15 minutes later` : ''}. Posts on the next Worker run (hourly tick, or /run).\n`)
+    queue = r.queue
+  } else if (collabId) {
     if (!live) refuse(`KV has no key "${event}" — nothing has been seeded yet.`)
     const accounts = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
     const r = decideCollab(live, collabId, { choice: collabDecision, handles: collabHandles }, { accountHandles: Object.fromEntries(Object.entries(accounts).map(([slug, acct]) => [slug, acct.handle])) })
@@ -279,7 +287,8 @@ function main() {
 
   const outPath = join(queueDir(), `${event}.kv.json`)
   writeQueueFile(outPath, verdict.payload)
-  const source = collabId ? `live queue, recorded Collab choice for ${collabId}`
+  const source = postNowId ? `live queue, post-now ${postNowId}`
+    : collabId ? `live queue, recorded Collab choice for ${collabId}`
     : reassignId ? `live queue, reassigned ${reassignId} to ${reassignAccount}`
     : recaptionId ? `live queue, recaptioned ${recaptionId}`
     : vetoIds ? `live queue, vetoed ${vetoIds.join(', ')}`
