@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
-import { parseAlbumName, buildGalleryAnnounceCaption } from '../gallery-announce-caption.mjs'
+import { parseAlbumName, buildGalleryAnnounceCaption, selectionSentence } from '../gallery-announce-caption.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SOCIAL = join(HERE, '..')
@@ -20,6 +20,27 @@ test('parseAlbumName: pulls the teams and a readable date out of the real Re7kho
   assert.equal(title, 'HS Girls VB')
 })
 
+test('parseAlbumName: reads a college "A vs B, <title>" segment as the headline', () => {
+  const r = parseAlbumName("College Men's VB - Lewis vs Loyola, Final Fall Preview - 11-14-2026")
+  assert.equal(r.teams, 'Lewis vs Loyola, Final Fall Preview')
+  assert.equal(r.eventDateLabel, 'Nov. 14, 2026')
+})
+
+test('selectionSentence: writes the count as a word, keeps the total, and falls back on an unreadable shape', () => {
+  assert.equal(selectionSentence('10 of 89'), 'Ten frames here, out of 89 in the full gallery.')
+  assert.equal(selectionSentence('1 of 5'), 'One frame here, out of 5 in the full gallery.')
+  assert.equal(selectionSentence('6 of 6'), 'Six frames from the gallery.')
+  assert.equal(selectionSentence('12 of 40'), '12 frames here, out of 40 in the full gallery.')
+  assert.equal(selectionSentence('a few'), 'a few from the gallery.')
+})
+
+test('caption: invites a swipe and asks which FRAME, never who is in it', () => {
+  const caption = buildGalleryAnnounceCaption({ albumName: RE7KHO_ALBUM_NAME, selectedOf: '10 of 89', series: 'other', galleryUrl: 'https://ninochavez.co/photography/albums/x' })
+  assert.match(caption, /^JCA at ACC · Sept\. 22, 2026\n/)
+  assert.match(caption, /Swipe through, and tell us which frame is your pick\./)
+  assert.doesNotMatch(caption, /\bwho\b|tag (yourself|a friend)|tag your/i)
+})
+
 test('parseAlbumName: never throws on an unfamiliar shape, returns nulls instead', () => {
   const r = parseAlbumName('Some Random Album Title')
   assert.equal(r.teams, null)
@@ -32,7 +53,7 @@ test('caption: never claims the selection is Nino\'s "favorites" — it is an un
     albumName: RE7KHO_ALBUM_NAME, galleryUrl: 'https://ninochavez.co/photography/albums/x', selectedOf: '8 of 120', series: 'other',
   })
   assert.doesNotMatch(caption, /favorites/i)
-  assert.match(caption, /8 of 120 from the gallery/)
+  assert.match(caption, /Eight frames here, out of 120 in the full gallery\./)
 })
 
 test('caption: "#grassvolleyball" only appears for the letspepper (grass triples) series — Re7kho is an indoor match', () => {
@@ -51,7 +72,7 @@ test('caption: a high-school album never contains a player name, a score, or "ta
   assert.doesNotMatch(caption, /\bwon\b|\bwins\b|\bdefeat|\bscore\b|\bfinal\b/i)
   assert.match(caption, /JCA at ACC/)
   assert.match(caption, /Sept\. 22, 2026/)
-  assert.match(caption, /8 of 120/)
+  assert.match(caption, /out of 120/)
 })
 
 test('caption: points to the profile link, not letspepper.com/gallery or the direct album URL, when the album is not in the letspepper series', () => {

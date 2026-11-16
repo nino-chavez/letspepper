@@ -79,7 +79,9 @@ export function parseAlbumName(albumName = '') {
     const mi = Number(mm) - 1
     if (mi >= 0 && mi < 12) eventDateLabel = `${MONTHS[mi]} ${Number(dd)}, ${yyyy}`
   }
-  const teamsPart = parts.find((p) => /\bat\b/i.test(p) && !/^\d/.test(p)) || null
+  // "A at B" (high school, club) or "A vs B" / "A vs. B" (college names often read this way:
+  // "Lewis vs Loyola, Final Fall Preview").
+  const teamsPart = parts.find((p) => /\b(at|vs\.?|v\.)(?=\s)/i.test(p) && !/^\d/.test(p)) || null
   const title = parts[0] || albumName
   return { title, teams: teamsPart, eventDateLabel }
 }
@@ -95,6 +97,21 @@ export function shortAlbumName(albumName = '', fallback) {
   return parseAlbumName(albumName).teams || fallback || albumName || 'album'
 }
 
+const NUMBER_WORDS = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten']
+
+/** "10 of 89" -> "Ten frames here, out of 89 in the full gallery." A shape it cannot read
+ * falls back to the old "<selectedOf> from the gallery." rather than guessing a number. */
+export function selectionSentence(selectedOf = '') {
+  const m = String(selectedOf).match(/^\s*(\d+)\s+of\s+(\d+)\s*$/)
+  if (!m) return `${selectedOf} from the gallery.`
+  const picked = Number(m[1])
+  const total = Number(m[2])
+  const word = NUMBER_WORDS[picked] || String(picked)
+  const noun = picked === 1 ? 'frame' : 'frames'
+  if (picked >= total) return `${word} ${noun} from the gallery.`
+  return `${word} ${noun} here, out of ${total} in the full gallery.`
+}
+
 /**
  * `series` is the routing decision already made upstream (build-gallery-announce.mjs's
  * --series/gallery_scope check) — passed in rather than re-derived here, so this module
@@ -106,7 +123,7 @@ export function buildGalleryAnnounceCaption({
   const parsed = parseAlbumName(albumName)
   const teamsLine = teams || parsed.teams
   const dateLine = eventDateLabel || parsed.eventDateLabel
-  const headline = [teamsLine, dateLine].filter(Boolean).join(', ') || parsed.title
+  const headline = [teamsLine, dateLine].filter(Boolean).join(' · ') || parsed.title
 
   const lines = [headline]
   if (venue) lines.push(venue)
@@ -120,9 +137,12 @@ export function buildGalleryAnnounceCaption({
     lines.push(schoolTags.map((t) => `@${t.handle}`).join(' · '))
   }
   lines.push('')
-  // "from the gallery", not "favorites" — the pick is an unattended heuristic
-  // selection, not a claim about what Nino personally likes best.
-  lines.push(`${selectedOf} from the gallery.`)
+  // Warmer invitation (Nino, 2026-11-16: "warmer and more engaging"), still facts only:
+  // the count the selector reports, an invitation to swipe, and a question about the
+  // photos themselves. "from the gallery", never "favorites" — the pick is an unattended
+  // heuristic selection, not a claim about what Nino personally likes best. The question
+  // asks which FRAME, never who is in it: no invitation to identify anyone (minors).
+  lines.push(`${selectionSentence(selectedOf)} Swipe through, and tell us which frame is your pick.`)
   lines.push('')
   if (series === 'lpo') {
     lines.push(`Full gallery: letspepper.com/gallery`)
@@ -135,7 +155,7 @@ export function buildGalleryAnnounceCaption({
     // text. The profile link points at ninochavez.co/photography/links, which lists
     // recent galleries; naming the album keeps this post's call to action pointing
     // at THIS gallery after newer ones are published.
-    lines.push(`Full gallery: tap the profile link and open ${shortAlbumName(albumName, albumName)}`)
+    lines.push(`Full gallery: tap the profile link and open ${shortAlbumName(albumName, albumName)}.`)
   }
   lines.push('')
   lines.push('Motion. Emotion. Frame by Frame.')
