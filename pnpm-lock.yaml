@@ -9,68 +9,68 @@ importers:
   .:
     dependencies:
       '@fontsource/bebas-neue':
-        specifier: ^5.3.0
+        specifier: ^5.0.0
         version: 5.3.0
       '@fontsource/inter':
-        specifier: ^5.3.0
+        specifier: ^5.0.0
         version: 5.3.0
       '@fontsource/space-mono':
-        specifier: ^5.3.0
+        specifier: ^5.0.0
         version: 5.3.0
       '@supabase/supabase-js':
-        specifier: ^2.119.2
+        specifier: ^2.98.0
         version: 2.119.2
       clsx:
-        specifier: ^2.1.1
+        specifier: ^2.1.0
         version: 2.1.1
       framer-motion:
-        specifier: ^11.18.2
+        specifier: ^11.0.0
         version: 11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next:
-        specifier: ^14.2.35
+        specifier: ^14.2.0
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react:
-        specifier: ^18.3.1
+        specifier: ^18.3.0
         version: 18.3.1
       react-dom:
-        specifier: ^18.3.1
+        specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
       tailwind-merge:
-        specifier: ^2.6.2
+        specifier: ^2.2.0
         version: 2.6.2
     devDependencies:
       '@types/node':
-        specifier: ^20.19.43
+        specifier: ^20.0.0
         version: 20.19.43
       '@types/react':
-        specifier: ^18.3.31
+        specifier: ^18.3.0
         version: 18.3.31
       '@types/react-dom':
-        specifier: ^18.3.7
+        specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.31)
       autoprefixer:
-        specifier: ^10.6.2
+        specifier: ^10.4.0
         version: 10.6.2(postcss@8.5.33)
       eslint:
-        specifier: ^8.57.1
+        specifier: ^8.0.0
         version: 8.57.1
       eslint-config-next:
-        specifier: ^14.2.35
+        specifier: ^14.2.0
         version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
       playwright:
-        specifier: ^1.65.1
+        specifier: ^1.64.1
         version: 1.65.1
       postcss:
-        specifier: ^8.5.33
+        specifier: ^8.4.0
         version: 8.5.33
       sharp:
-        specifier: ^0.35.5
+        specifier: ^0.35.4
         version: 0.35.5(@types/node@20.19.43)
       tailwindcss:
-        specifier: ^3.4.19
+        specifier: ^3.4.0
         version: 3.4.19
       typescript:
-        specifier: ^5.9.3
+        specifier: ^5.4.0
         version: 5.9.3
       wrangler:
         specifier: 4.50.0
