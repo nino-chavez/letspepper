@@ -1,14 +1,21 @@
 {
   "version": 1,
   "surface": "website",
-  "reviewedAt": "2026-10-12T01:23:18.714Z",
+  "reviewedAt": "2026-11-19T15:06:51.263Z",
   "reviewedBy": "Claude Opus 5.5 (Claude Code), for Nino Chavez",
-  "method": "No visible copy changed; the fingerprint moved with the next/font arguments in layout.tsx and the new font files. Walked preview 4512eb58 (b2fd9a2): / at 1440x823 and at 375 wide (no sideways scroll, hero sets GRASSROOTS. / PLAYER-OWNED. / BUILT TO / COMPETE. on four lines), and /about at 1440. Headings measure Bebas Neue, body Inter, nav and accents Space Mono; the html __variable_ classes match the served CSS. Production showed Impact headings and system-face body text. Headlines now set lighter and narrower than the Impact visitors saw.",
+  "method": "No visible copy changed; the fingerprint moved with API-route validation strings and a new lib module. Walked preview api-input-hardening.letspepper.pages.dev (8669a7c) headless and compared each page's visible text, after scrolling to the end, with letspepper.com: identical on /, /flavors/poblano-open, /gallery, the Jalapeno Open July 2026 album, /vote, /awards, /photo-vote, /predictions and /hot-takes. /flavors/jalapeno-open, /flavors/bell-pepper-open and /standings differ only in the Rally HQ sections (FINAL badge, champion, stat leaders), because previews carry no RALLY_HQ_API_KEY; the earlier warm-gallery-caption preview shows the same. The photo page and its download (200, attachment) were checked; the album ZIP link answers 503 on the preview until ZIP_SIGNING_SECRET is set.",
   "fingerprint": "copy",
-  "sourceDigest": "sha256:3e204bea2d0482ba81299d2013c990fdcb42b2501e740e8d4655c32bc30fa3e0",
-  "sourceFiles": 120,
+  "sourceDigest": "sha256:caa19c7ae5f5312e0857effce4f27704dc56f8539102467b6082ab93edb86314",
+  "sourceFiles": 121,
   "scope": [
     "home",
-    "about"
+    "events",
+    "standings",
+    "gallery",
+    "vote",
+    "awards",
+    "photo-vote",
+    "predictions",
+    "hot-takes"
   ]
 }
