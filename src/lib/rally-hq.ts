@@ -31,6 +31,13 @@ export interface RallyFan {
 
 const DEFAULT_RALLY_HQ_URL = 'https://rallyhq.app'
 
+/**
+ * Encode every value placed in a Rally HQ path or query so it stays one segment.
+ * Requests carry this site's key, so a value must never change which Rally HQ
+ * endpoint is called.
+ */
+const seg = (value: string) => encodeURIComponent(value)
+
 function config(): { url: string; key: string } | null {
   // The API key is the only required secret. The base URL is a constant that
   // defaults to production and is overridable only for local/staging — making it
@@ -83,7 +90,7 @@ export function issueFan(displayName: string | null): Promise<RallyFan | null> {
 
 /** Set/clear a fan's nickname on Rally HQ (keeps the unified leaderboard named). */
 export function updateFanName(fanToken: string, displayName: string | null): Promise<RallyFan | null> {
-  return call<RallyFan>(`/api/v1/fans/${fanToken}`, {
+  return call<RallyFan>(`/api/v1/fans/${seg(fanToken)}`, {
     method: 'PATCH',
     body: JSON.stringify({ displayName }),
   })
@@ -99,7 +106,7 @@ export interface RallyTeam {
  *  truth for who's actually entered). */
 export async function getTournamentTeams(slug: string): Promise<RallyTeam[]> {
   const teams = await call<Array<{ id: string; name: string; seed: number | null }>>(
-    `/api/v1/tournaments/${slug}/teams`,
+    `/api/v1/tournaments/${seg(slug)}/teams`,
     { method: 'GET' },
   )
   return (teams ?? []).map((t) => ({ id: t.id, name: t.name, seed: t.seed ?? null }))
@@ -118,7 +125,7 @@ export async function submitChampionPick(
   const cfg = config()
   if (!cfg) return { ok: false, error: 'Rally HQ is not configured.' }
   try {
-    const res = await fetch(`${cfg.url}/api/v1/tournaments/${slug}/predictions`, {
+    const res = await fetch(`${cfg.url}/api/v1/tournaments/${seg(slug)}/predictions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fanToken, predictedTeamId }),
@@ -166,7 +173,7 @@ export async function getSeasonLeaderboard(
   scope: 'season' | 'all_time' = 'all_time',
 ): Promise<SeasonLeaderEntry[]> {
   const data = await call<{ rankings: RhqRankingEntry[] }>(
-    `/api/v1/events/${eventSlug}/rankings?scope=${scope}`,
+    `/api/v1/events/${seg(eventSlug)}/rankings?scope=${seg(scope)}`,
     { method: 'GET' },
   )
   const rankings = data?.rankings ?? []
@@ -221,7 +228,7 @@ export async function getCommunityLeaderboard(
   scope: 'season' | 'all_time' = 'all_time',
 ): Promise<CommunityEntry[]> {
   const data = await call<{ leaderboard: RhqCommunityEntry[] }>(
-    `/api/v1/events/${eventSlug}/community?scope=${scope}`,
+    `/api/v1/events/${seg(eventSlug)}/community?scope=${seg(scope)}`,
     { method: 'GET' },
   )
   return (data?.leaderboard ?? []).map((e) => ({
@@ -257,7 +264,7 @@ interface RhqAwardCategory {
  */
 export async function getAwardCandidates(eventSlug: string): Promise<Record<string, AwardNominee[]>> {
   const data = await call<{ categories: RhqAwardCategory[] }>(
-    `/api/v1/events/${eventSlug}/award-candidates`,
+    `/api/v1/events/${seg(eventSlug)}/award-candidates`,
     { method: 'GET' },
   )
   const out: Record<string, AwardNominee[]> = {}
@@ -306,7 +313,7 @@ interface SeriesTournamentMeta { slug: string; name: string; date: string }
  */
 async function getSeriesTournaments(eventSlug: string): Promise<SeriesTournamentMeta[]> {
   const ranks = await call<{ rankings: { finishes: { tournamentSlug: string; tournamentName: string; date: string }[] }[] }>(
-    `/api/v1/events/${eventSlug}/rankings?scope=all_time`,
+    `/api/v1/events/${seg(eventSlug)}/rankings?scope=all_time`,
     { method: 'GET' },
   )
   const tourneys = new Map<string, SeriesTournamentMeta>()
@@ -336,9 +343,9 @@ export async function getSeasonResults(
     tourneys.map(async (meta) => {
       // Placements + the roster join (the v1 teams read now carries `roster`).
       const [resultsData, rosterTeams] = await Promise.all([
-        call<RhqResults>(`/api/v1/tournaments/${meta.slug}/results`, { method: 'GET' }),
+        call<RhqResults>(`/api/v1/tournaments/${seg(meta.slug)}/results`, { method: 'GET' }),
         call<{ id: string; name: string; roster: string[] | null }[]>(
-          `/api/v1/tournaments/${meta.slug}/teams?per_page=100`,
+          `/api/v1/tournaments/${seg(meta.slug)}/teams?per_page=100`,
           { method: 'GET' },
         ),
       ])
@@ -388,7 +395,7 @@ interface RhqMatchRaw {
 async function getAllMatches(slug: string): Promise<RhqMatchRaw[]> {
   const out: RhqMatchRaw[] = []
   for (let page = 1; ; page += 1) {
-    const data = await call<RhqMatchRaw[]>(`/api/v1/tournaments/${slug}/matches?per_page=100&page=${page}`, { method: 'GET' })
+    const data = await call<RhqMatchRaw[]>(`/api/v1/tournaments/${seg(slug)}/matches?per_page=100&page=${page}`, { method: 'GET' })
     if (!data || data.length === 0) break
     out.push(...data)
     if (data.length < 100) break
@@ -410,8 +417,8 @@ export async function getMatchStatLeaders(eventSlug: string): Promise<{ tourname
   if (!latest) return null
 
   const [teamsData, resultsData, matches] = await Promise.all([
-    call<RhqTeamFull[]>(`/api/v1/tournaments/${latest.slug}/teams?per_page=100`, { method: 'GET' }),
-    call<RhqResults>(`/api/v1/tournaments/${latest.slug}/results`, { method: 'GET' }),
+    call<RhqTeamFull[]>(`/api/v1/tournaments/${seg(latest.slug)}/teams?per_page=100`, { method: 'GET' }),
+    call<RhqResults>(`/api/v1/tournaments/${seg(latest.slug)}/results`, { method: 'GET' }),
     getAllMatches(latest.slug),
   ])
 
@@ -479,24 +486,24 @@ export async function submitEngagementPoints(
 
 /** Live pool standings (wins/losses/point-diff per team, grouped by pool). */
 export async function getPools(slug: string): Promise<RhqPool[]> {
-  return (await call<RhqPool[]>(`/api/public/v1/tournaments/${slug}/pools`, { method: 'GET' })) ?? []
+  return (await call<RhqPool[]>(`/api/public/v1/tournaments/${seg(slug)}/pools`, { method: 'GET' })) ?? []
 }
 
 /** The registered field (name, pool, seed, status) — no captain identity. */
 export async function getRoster(slug: string): Promise<RhqTeam[]> {
-  return (await call<RhqTeam[]>(`/api/public/v1/tournaments/${slug}/teams`, { method: 'GET' })) ?? []
+  return (await call<RhqTeam[]>(`/api/public/v1/tournaments/${seg(slug)}/teams`, { method: 'GET' })) ?? []
 }
 
 /** Match schedule (court, matchup, status), in the tournament's own ordering. */
 export async function getSchedule(slug: string): Promise<RhqScheduleMatch[]> {
   return (
-    (await call<RhqScheduleMatch[]>(`/api/public/v1/tournaments/${slug}/schedule`, { method: 'GET' })) ?? []
+    (await call<RhqScheduleMatch[]>(`/api/public/v1/tournaments/${seg(slug)}/schedule`, { method: 'GET' })) ?? []
   )
 }
 
 /** Elimination bracket, grouped by round. Empty until pool play completes. */
 export async function getBracket(slug: string): Promise<RhqBracketRound[]> {
-  return (await call<RhqBracketRound[]>(`/api/public/v1/tournaments/${slug}/bracket`, { method: 'GET' })) ?? []
+  return (await call<RhqBracketRound[]>(`/api/public/v1/tournaments/${seg(slug)}/bracket`, { method: 'GET' })) ?? []
 }
 
 /**
@@ -506,7 +513,7 @@ export async function getBracket(slug: string): Promise<RhqBracketRound[]> {
  */
 export async function getMatches(slug: string, status?: string): Promise<RhqMatch[]> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : ''
-  return (await call<RhqMatch[]>(`/api/public/v1/tournaments/${slug}/matches${qs}`, { method: 'GET' })) ?? []
+  return (await call<RhqMatch[]>(`/api/public/v1/tournaments/${seg(slug)}/matches${qs}`, { method: 'GET' })) ?? []
 }
 
 /**
@@ -515,5 +522,5 @@ export async function getMatches(slug: string, status?: string): Promise<RhqMatc
  * polling fallback for the Headless-tier SSE `/live` stream.
  */
 export async function getSummary(slug: string): Promise<RhqSummary | null> {
-  return call<RhqSummary>(`/api/public/v1/tournaments/${slug}/summary`, { method: 'GET' })
+  return call<RhqSummary>(`/api/public/v1/tournaments/${seg(slug)}/summary`, { method: 'GET' })
 }

@@ -3,6 +3,7 @@ import { resolveFanToken } from '@/lib/fan-bridge'
 import { getTournamentTeams, submitChampionPick } from '@/lib/rally-hq'
 import { isValidUUID, badRequest, forbidden, serverError, ok } from '../_lib/validate'
 import { tournaments, isCancelled } from '@/lib/tournaments'
+import { isKnownRhqSlug } from '@/lib/rhq-slugs'
 
 /**
  * Champion pick — Rally HQ-backed (ADR-0007). Unlike the local culture props,
@@ -14,7 +15,7 @@ import { tournaments, isCancelled } from '@/lib/tournaments'
 /** GET ?tournament=<slug> — the champion-pick options (RHQ teams). */
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get('tournament')
-  if (!slug) return badRequest('tournament is required')
+  if (!isKnownRhqSlug(slug)) return badRequest('tournament is required')
 
   const teams = await getTournamentTeams(slug)
   return ok({ teams })
@@ -27,13 +28,13 @@ export async function POST(request: Request) {
 
   const { device_id, tournament, predicted_team_id, nickname } = body
   if (!isValidUUID(device_id)) return badRequest('Invalid device_id')
-  if (typeof tournament !== 'string' || !tournament) return badRequest('tournament is required')
+  if (!isKnownRhqSlug(tournament)) return badRequest('tournament is required')
   if (typeof predicted_team_id !== 'string' || !predicted_team_id) {
     return badRequest('predicted_team_id is required')
   }
 
   // The same lock the pick card shows: no picks for a cancelled event or after
-  // first serve. Rally HQ slugs this site doesn't list pass through to Rally HQ.
+  // first serve. Only this site's own events are accepted (isKnownRhqSlug above).
   const event = Object.values(tournaments).find((t) => t.rhqSlug === tournament)
   if (event && (isCancelled(event) || Date.now() >= Date.parse(event.startsAt))) {
     return forbidden('Champion picks are closed for this event')

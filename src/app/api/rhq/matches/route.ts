@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getMatches } from '@/lib/rally-hq'
 import { badRequest, ok } from '@/app/api/_lib/validate'
+import { isKnownRhqSlug } from '@/lib/rhq-slugs'
 
 export const runtime = 'edge'
 
@@ -11,7 +12,7 @@ export const runtime = 'edge'
  */
 export const GET = async (request: NextRequest) => {
   const slug = request.nextUrl.searchParams.get('slug')
-  if (!slug) return badRequest('slug is required')
+  if (!isKnownRhqSlug(slug)) return badRequest('slug is required')
   const status = request.nextUrl.searchParams.get('status') ?? undefined
   return ok({ matches: await getMatches(slug, status) })
 }
