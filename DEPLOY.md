@@ -25,7 +25,15 @@ The one owner of deploy facts for this repo. README.md, CLAUDE.md and AGENTS.md 
 
 The site and scheduler deploy separately. `.github/workflows/deploy-social-worker.yml` runs the publisher and scheduler tests on every pull request that touches `scripts/social-publish`, and tests then deploys `letspepper-reels-worker` after relevant changes merge to `main`. Its pull-request run is not one of the three required checks, so read its result before merging. It uses the existing `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` GitHub secrets; absent credentials skip with a notice. Platform build connections could not be verified with the account-ops token, so this test-gated workflow owns scheduler deployment.
 
-`scripts/social-publish/worker/wrangler.jsonc` owns both crons, the queue and insights database bindings, and campaign priority. The hourly cron publishes. The daily cron only reads Instagram insights into the `social-insights` D1 database ([`INSIGHTS.md`](scripts/social-publish/INSIGHTS.md)). Before each deploy, the workflow applies `scripts/social-publish/worker/migrations` to that database, which needs D1 edit permission on `CLOUDFLARE_API_TOKEN`. Publisher credentials remain Worker secrets. Approved queues reach production through `scripts/social-publish/seed-kv.mjs`; deploying code does not seed a queue. Verify the deployment run, remote Worker bindings and both crons, then `/status` and `/insights/status` with the existing trigger credential. Never call `/run` to verify a schedule: it can publish due content. `/insights/run` only reads.
+`scripts/social-publish/worker/wrangler.jsonc` owns the four crons, the queue and insights database bindings, and campaign priority. The crons, dispatched in `scheduled()` in `worker/src/index.js`:
+
+| Cron (UTC) | What it does |
+|---|---|
+| `0 * * * *` | Publishes due queue items |
+| `30 14 * * *` | Reads Instagram insights into the `social-insights` D1 database ([`INSIGHTS.md`](scripts/social-publish/INSIGHTS.md)) |
+| `45 * * * *` | Archives Stories (`STORIES_CRON`, `worker/src/insights.js`) |
+| `15 11 * * *` | Refreshes the daily registrations rollup (`REGISTRATIONS_CRON`, `worker/src/registrations.js`) |
+ Before each deploy, the workflow applies `scripts/social-publish/worker/migrations` to that database, which needs D1 edit permission on `CLOUDFLARE_API_TOKEN`. Publisher credentials remain Worker secrets. Approved queues reach production through `scripts/social-publish/seed-kv.mjs`; deploying code does not seed a queue. Verify the deployment run, remote Worker bindings and all four crons, then `/status` and `/insights/status` with the existing trigger credential. Never call `/run` to verify a schedule: it can publish due content. `/insights/run` only reads.
 
 The read-only Instagram dashboard, `630-instagram-insights`, deploys separately through `.github/workflows/deploy-insights-dashboard.yml` from `scripts/social-publish/insights-dashboard`. It shares the insights database and never applies migrations. Its `DASHBOARD_PASSPHRASE` secret comes from `Cloudflare 630-instagram-insights` in 1Password; without it the page refuses every sign-in. See `INSIGHTS.md`, "The dashboard".
 
@@ -33,11 +41,13 @@ For 630, `IG_630_ACCESS_TOKEN` comes from `Meta 630 Publisher` in 1Password. Mis
 
 ## Database
 - Supabase (URL in `wrangler.toml` `[vars]`: `https://skywzpcekhntecegyjoj.supabase.co`)
-- **Migrations**: none in repo — schema managed elsewhere or via dashboard. TODO confirm.
+- **Migrations**: `database/migrations/` holds the schema for this site's `lp_` tables (`001` to `004`). Each was applied by hand in the Supabase SQL editor, in file order; nothing records which have run. Add a new file for every schema change and say in its pull request when it was applied.
+- **Shared project**: the photography site owns the project's other tables, including `photo_metadata` and `album_settings`, in its own `supabase/migrations`. This site only reads them.
 
 ## Environment variables
 - **In `wrangler.toml` `[vars]`**: `SUPABASE_URL`, `NEXT_PUBLIC_CF_STREAM_SUBDOMAIN` (public, OK to be committed)
 - **Pages project, production** (verified): `NEXT_PUBLIC_CF_STREAM_SUBDOMAIN`, `NODE_VERSION`, `PNPM_VERSION`, `RALLY_HQ_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`
+- **`ZIP_SIGNING_SECRET`** (production only, secret): signs album ZIP links for the shared `zip.ninochavez.co` Worker. It must equal that Worker's `ZIP_SIGNING_SECRET` (1Password: `Cloudflare photography`, field `zip_signing_secret`). Without it, `/api/zip-url` answers 503 and the album page's download button reports that the ZIP could not be prepared
 - **Pages project, preview** (verified): the same, without `RALLY_HQ_API_KEY`
 - **Where they live**: Cloudflare Pages dashboard, Settings > Variables
 - **Build cache override**: `wrangler.toml` owns `NPM_CONFIG_CACHE=/tmp/letspepper-npm-cache`. Pages replaces dashboard plain-text variables with the Wrangler file before installing tools, so an API-only override does not reach Corepack bootstrap. This isolates npm from the restored home-directory cache; checksum validation stays enabled. Verify the cache path in the hosted build log when diagnosing an install failure.

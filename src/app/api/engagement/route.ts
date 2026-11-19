@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
   const { device_id, source, ref, nickname } = body
   if (!isValidUUID(device_id)) return badRequest('Invalid device_id')
-  if (typeof source !== 'string' || !(source in POINTS)) return badRequest('Unknown source')
+  if (typeof source !== 'string' || !Object.hasOwn(POINTS, source)) return badRequest('Unknown source')
   if (source === 'award_vote' && !AWARDS_VOTING_OPEN) return forbidden('Awards voting is closed')
   if (typeof ref !== 'string' || !ref) return badRequest('ref is required')
 

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { badRequest, ok } from '@/app/api/_lib/validate'
+import { isKnownRhqSlug } from '@/lib/rhq-slugs'
 
 /**
  * Shared handler for the event-page read modules (/api/rhq/*). Takes a `?slug=`
@@ -14,6 +15,6 @@ export async function rhqViewRoute<T>(
   fetcher: (slug: string) => Promise<T>
 ) {
   const slug = request.nextUrl.searchParams.get('slug')
-  if (!slug) return badRequest('slug is required')
+  if (!isKnownRhqSlug(slug)) return badRequest('slug is required')
   return ok({ [key]: await fetcher(slug) })
 }

@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { isValidUUID, badRequest, forbidden, serverError, ok } from '../_lib/validate'
 import { AWARDS_VOTING_OPEN } from '@/lib/awards-data'
 
+const SCOPE_SHAPE = /^[a-z0-9_-]+:[a-z0-9_-]+$/
+
 /** POST — cast or update a vote (upsert by device_id + scope) */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
@@ -10,7 +12,8 @@ export async function POST(request: Request) {
 
   const { device_id, scope, choice } = body
   if (!isValidUUID(device_id)) return badRequest('Invalid device_id')
-  if (typeof scope !== 'string' || !scope) return badRequest('scope is required')
+  // Scopes are `kind:id` (awards:mvp, mvp:bell-pepper-open, photo:season-2025).
+  if (typeof scope !== 'string' || !SCOPE_SHAPE.test(scope)) return badRequest('scope is required')
   if (typeof choice !== 'string' || !choice) return badRequest('choice is required')
   if (scope.startsWith('awards:') && !AWARDS_VOTING_OPEN) return forbidden('Awards voting is closed')
 
@@ -53,11 +56,12 @@ export async function GET(request: NextRequest) {
     return serverError()
   }
 
-  // Group by scope -> { choice: count }
-  const tallies: Record<string, Record<string, number>> = {}
+  // Group by scope -> { choice: count }. Scope and choice are stored visitor
+  // text, so both levels are prototype-free: a name like "__proto__" is a plain key.
+  const tallies: Record<string, Record<string, number>> = Object.create(null)
   for (const row of data) {
-    if (!tallies[row.scope]) tallies[row.scope] = {}
-    tallies[row.scope][row.choice] = (tallies[row.scope][row.choice] || 0) + 1
+    const byChoice = (tallies[row.scope] ??= Object.create(null) as Record<string, number>)
+    byChoice[row.choice] = (byChoice[row.choice] ?? 0) + 1
   }
 
   return ok({ tallies })

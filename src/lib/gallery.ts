@@ -31,6 +31,27 @@ async function fetchLPOAlbumKeys(): Promise<string[]> {
   return (data || []).map((row) => row.album_key)
 }
 
+/**
+ * True when `albumKey` is one of this site's albums (`gallery_scope = 'lpo'`).
+ * Reads use the service-role client, which bypasses the photography site's
+ * row rules, so every single-album or single-photo read checks this first.
+ */
+export async function isLPOAlbumKey(albumKey: string): Promise<boolean> {
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(albumKey)) return false
+  const { data, error } = await supabase
+    .from('album_settings')
+    .select('album_key')
+    .eq('album_key', albumKey)
+    .eq('gallery_scope', 'lpo')
+    .maybeSingle()
+
+  if (error) {
+    console.error('[Gallery] Error checking album scope:', error.message)
+    return false
+  }
+  return data !== null
+}
+
 // ---------------------------------------------------------------------------
 // Album queries
 // ---------------------------------------------------------------------------
@@ -127,6 +148,7 @@ export async function fetchAlbumPhotos(
 ): Promise<{ photos: Photo[]; totalCount: number }> {
   const { albumKey, page = 1, pageSize = 48 } = options
   const offset = (page - 1) * pageSize
+  if (!(await isLPOAlbumKey(albumKey))) return { photos: [], totalCount: 0 }
 
   const [{ data, error }, { count }] = await Promise.all([
     supabase
@@ -206,6 +228,7 @@ export async function fetchPhoto(photoId: string): Promise<Photo | null> {
     .single()
 
   if (error || !data) return null
+  if (!(await isLPOAlbumKey(String(data.album_key ?? '')))) return null
   return transformRow(data)
 }
 
@@ -214,6 +237,7 @@ export async function fetchPhoto(photoId: string): Promise<Photo | null> {
 // ---------------------------------------------------------------------------
 
 export async function fetchAlbumVideos(albumKey: string): Promise<Video[]> {
+  if (!(await isLPOAlbumKey(albumKey))) return []
   const { data, error } = await supabase
     .from('video_metadata')
     .select(

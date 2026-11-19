@@ -21,6 +21,28 @@ export function cfImageUrl(id: string, variant: CFVariant): string {
   return `https://imagedelivery.net/${CF_ACCOUNT_HASH}/${id}/${variant}`
 }
 
+const CF_VARIANTS: readonly string[] = ['thumbnail', 'grid', 'medium', 'large', 'public']
+const CF_IMAGE_ID = /^[A-Za-z0-9_-]+$/
+
+/**
+ * True only for a URL `cfImageUrl` could have built: https, this account's hash,
+ * one image ID and a named variant, with nothing else in the URL. Server routes
+ * that fetch an image check this before fetching.
+ */
+export function isOwnCfImageUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'https:' || url.hostname !== 'imagedelivery.net') return false
+  if (url.port || url.username || url.password || url.search || url.hash) return false
+  const [lead, hash, id, variant, ...rest] = url.pathname.split('/')
+  return lead === '' && rest.length === 0 && hash === CF_ACCOUNT_HASH && CF_IMAGE_ID.test(id ?? '') && CF_VARIANTS.includes(variant ?? '')
+}
+
 /**
  * next/image `loader` for a Cloudflare Images ID passed as `src`.
  *
