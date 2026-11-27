@@ -115,13 +115,21 @@ export async function publishPageReel({ api, upload, sleep, token, pageId, item,
 
   item.facebook_finish_sent_at = now().toISOString()
   save()
-  const finish = await api(`${pageId}/video_reels`, {
-    upload_phase: 'finish',
-    video_id: item.facebook_video_id,
-    video_state: draft ? 'DRAFT' : 'PUBLISHED',
-    description: item.facebook_caption ?? '',
-    ...(item.facebook_title ? { title: item.facebook_title } : {}),
-  }, 'POST', token)
+  let finish
+  try {
+    finish = await api(`${pageId}/video_reels`, {
+      upload_phase: 'finish',
+      video_id: item.facebook_video_id,
+      video_state: draft ? 'DRAFT' : 'PUBLISHED',
+      description: item.facebook_caption ?? '',
+      ...(item.facebook_title ? { title: item.facebook_title } : {}),
+    }, 'POST', token)
+  } catch (e) {
+    // A definite refusal (say, a missing pages_manage_posts) means the finish did not land: clear the
+    // mark so a run after the fix finishes this same video, instead of waiting on it forever.
+    if (definiteRefusal(e)) { delete item.facebook_finish_sent_at; save() }
+    throw e
+  }
   if (finish?.success !== true) return fail(`Facebook Reel finish was not accepted: ${JSON.stringify(finish)}`)
   return waitFor({ api, sleep, token, item, poll, done, settle, fail, want })
 }

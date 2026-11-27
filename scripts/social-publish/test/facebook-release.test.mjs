@@ -459,6 +459,34 @@ test('PLANTED a saved Facebook video is never uploaded twice: a re-run reads its
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
+test('a finish Meta refused outright is sent again on the same video after the fix; one whose answer was lost is not', async () => {
+  // Post-commit review of b17d182: a finish refused with a permission error left the "finish sent"
+  // mark, so every later run only waited on a video that would never publish.
+  const { publishPageReel } = await import('../facebook-page.mjs')
+  const refusal = Object.assign(new Error('(#200) requires pages_manage_posts'), { http: 403, code: 200 })
+  const lost = Object.assign(new Error('fetch failed'), {})
+  const runWith = async (finishError) => {
+    const item = { facebook_video_id: 'v1', facebook_uploaded: true, video_url: 'https://r2.test/reel.mp4', facebook_caption: 'c' }
+    let finishes = 0; let published = false
+    const api = async (path, params) => {
+      if (path === 'v1') return { status: { video_status: 'ready', uploading_phase: { status: 'complete' }, processing_phase: { status: 'complete' }, publishing_phase: { status: published ? 'complete' : 'not_started', publish_status: published ? 'published' : 'not_started' } } }
+      if (params.upload_phase === 'finish') { finishes++; if (finishes === 1) throw finishError; published = true; return { success: true } }
+      throw new Error(`unexpected ${path}`)
+    }
+    const args = { api, upload: async () => ({ success: true }), sleep: async () => {}, token: 't', pageId: 'p', item, save: () => {}, poll: { attempts: 2, intervalMs: 0 } }
+    await assert.rejects(publishPageReel(args))
+    const second = await publishPageReel(args)
+    return { item, finishes, second }
+  }
+  const refused = await runWith(refusal)
+  assert.equal(refused.finishes, 2, 'the refused finish is sent again on the same video')
+  assert.equal(refused.second.ok, true)
+  const unknown = await runWith(lost)
+  assert.equal(unknown.finishes, 1, 'a finish whose answer was lost is never sent twice')
+  assert.equal(unknown.second.ok, false)
+  assert.ok(unknown.item.facebook_finish_sent_at)
+})
+
 test('an account with no Page credential in accounts.json cannot carry a Facebook destination', () => {
   const dir = fixtureDir()
   try {
