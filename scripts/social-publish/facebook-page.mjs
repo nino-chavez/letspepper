@@ -130,7 +130,11 @@ export async function publishPageReel({ api, upload, sleep, token, pageId, item,
     if (definiteRefusal(e)) { delete item.facebook_finish_sent_at; save() }
     throw e
   }
-  if (finish?.success !== true) return fail(`Facebook Reel finish was not accepted: ${JSON.stringify(finish)}`)
+  if (finish?.success !== true) {
+    // Meta answered, and not with success: the finish did not land either, so it may be sent again.
+    delete item.facebook_finish_sent_at
+    return fail(`Facebook Reel finish was not accepted: ${JSON.stringify(finish)}`)
+  }
   return waitFor({ api, sleep, token, item, poll, done, settle, fail, want })
 }
 

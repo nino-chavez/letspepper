@@ -470,17 +470,26 @@ test('a finish Meta refused outright is sent again on the same video after the f
     let finishes = 0; let published = false
     const api = async (path, params) => {
       if (path === 'v1') return { status: { video_status: 'ready', uploading_phase: { status: 'complete' }, processing_phase: { status: 'complete' }, publishing_phase: { status: published ? 'complete' : 'not_started', publish_status: published ? 'published' : 'not_started' } } }
-      if (params.upload_phase === 'finish') { finishes++; if (finishes === 1) throw finishError; published = true; return { success: true } }
+      if (params.upload_phase === 'finish') {
+        finishes++
+        if (finishes === 1) { if (finishError instanceof Error) throw finishError; return finishError }
+        published = true; return { success: true }
+      }
       throw new Error(`unexpected ${path}`)
     }
     const args = { api, upload: async () => ({ success: true }), sleep: async () => {}, token: 't', pageId: 'p', item, save: () => {}, poll: { attempts: 2, intervalMs: 0 } }
-    await assert.rejects(publishPageReel(args))
+    const first = await publishPageReel(args).catch((e) => ({ ok: false, threw: e }))
+    assert.equal(first.ok, false)
     const second = await publishPageReel(args)
     return { item, finishes, second }
   }
   const refused = await runWith(refusal)
   assert.equal(refused.finishes, 2, 'the refused finish is sent again on the same video')
   assert.equal(refused.second.ok, true)
+  // Review of dc8d294: Meta answering 200 without success is a definite answer too.
+  const notAccepted = await runWith({ success: false })
+  assert.equal(notAccepted.finishes, 2, 'a finish Meta answered without success is sent again on the same video')
+  assert.equal(notAccepted.second.ok, true)
   const unknown = await runWith(lost)
   assert.equal(unknown.finishes, 1, 'a finish whose answer was lost is never sent twice')
   assert.equal(unknown.second.ok, false)
