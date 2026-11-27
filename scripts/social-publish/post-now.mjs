@@ -18,6 +18,13 @@
  * immediate delivery publishes as before, a scheduled one is queued and hosted for its time and
  * left for post-reels.mjs to publish when due.
  *
+ * A release with a Facebook destination (release-contract.mjs `destinations`, `facebook`) also
+ * publishes to the account's paired Page, with the Page's own reviewed caption, through
+ * post-reels.mjs. The Page credential (FB_ACCESS_TOKEN, else accounts.json fb_token_ref) and the
+ * Instagram one are both read before the queue write, so neither destination can go out while
+ * the other was never going to. --facebook-draft saves a Facebook-only Reel as a Page DRAFT
+ * instead of publishing it — the proof run. An unknown flag is refused rather than ignored.
+ *
  * --graph-route is REQUIRED. An ad hoc post to one of Nino's accounts goes out
  * by hand (native Instagram or Meta Business Suite — the `meta-publish` skill
  * owns the choice) unless he named the Graph API for it. Pass what he said; it
@@ -60,7 +67,7 @@ import { queueDir, queueCheckout } from './queue-dir.mjs'
 import { updateQueueFile } from './queue-store.mjs'
 import { audioConfiguration, audioFromArgs } from './reel-audio.mjs'
 import { assertItemMatchesPackage, assertLocalFiles, validateReviewPackage } from './review-package.mjs'
-import { loadRelease, measure, releaseItem, verify, refusalText, describeDelivery, ReleaseError, REFUSED_RELEASE } from './release-contract.mjs'
+import { loadRelease, measure, releaseItem, verify, refusalText, describeDelivery, destinationsOf, ReleaseError, REFUSED_RELEASE } from './release-contract.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const EVENT = 'adhoc'
@@ -74,6 +81,13 @@ const args = Object.fromEntries(
     return a
   }, [])
 )
+// A flag this script does not know is refused, not ignored: a mistyped --facebook-draft would
+// otherwise fall through to a live publish.
+const KNOWN_FLAGS = ['account', 'file', 'caption', 'alt-text', 'story', 'cover', 'collab', 'tag', 'audio-id', 'audio-volume', 'video-volume',
+  'prepare-only', 'dry-run', 'release', 'review-package', 'graph-route', 'bucket', 'public-base', 'facebook-draft']
+for (const flag of Object.keys(args)) {
+  if (!KNOWN_FLAGS.includes(flag)) { console.error(`Unknown flag --${flag}; nothing was queued, uploaded or published. post-now.mjs takes: ${KNOWN_FLAGS.map((f) => `--${f}`).join(' ')}`); process.exit(1) }
+}
 const list = (v) => (typeof v === 'string' ? v.split(',').map((s) => s.trim()).filter(Boolean) : [])
 const dryRun = !!args['dry-run']
 const bucket = typeof args.bucket === 'string' ? args.bucket : 'flickday-social'
@@ -112,6 +126,20 @@ if (!account || !file) {
 const registry = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
 if (!registry[account]) { console.error(`Unknown account "${account}". Known: ${Object.keys(registry).join(', ')}`); process.exit(1) }
 if (!existsSync(file)) { console.error(`No such file: ${file}`); process.exit(1) }
+
+// Destinations come from the package; without one, a post-now post is Instagram only, as always.
+const dests = fromRelease ? destinationsOf(fromRelease.release) : ['instagram']
+const toInstagram = dests.includes('instagram'), toFacebook = dests.includes('facebook')
+const facebookDraft = !!args['facebook-draft']
+if (facebookDraft) {
+  const r = fromRelease?.release
+  if (!r || toInstagram || !toFacebook || r.media_type !== 'REELS' || r.delivery?.immediate !== true || args['prepare-only']) {
+    console.error('--facebook-draft saves a Facebook-only Reel (destinations ["facebook"], delivery {"immediate": true}) as a Page draft, so nothing goes live anywhere. ' +
+      `${!r ? 'It needs --release.' : toInstagram ? 'This package also publishes to Instagram.' : r.media_type !== 'REELS' ? `This package is a ${r.media_type}.` : args['prepare-only'] ? 'It cannot be combined with --prepare-only.' : 'This package is scheduled.'} Nothing was queued, uploaded or published.`)
+    process.exit(1)
+  }
+}
+if (args['prepare-only'] && !toInstagram) { console.error('--prepare-only prepares an Instagram container, and this package has no Instagram destination. Nothing was queued, uploaded or published.'); process.exit(1) }
 
 const KIND = { '.jpg': 'IMAGE', '.jpeg': 'IMAGE', '.png': 'IMAGE', '.mp4': 'REELS', '.mov': 'REELS' }
 const inferred = KIND[extname(file).toLowerCase()]
@@ -202,12 +230,34 @@ if (fromRelease) {
   }
 }
 
+const IG_REF = registry[account].token_ref || 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'
+const FB_REF = registry[account].fb_token_ref || null
+const where = [toInstagram && `@${registry[account].handle}`, toFacebook && `the Facebook Page ${registry[account].page_id}${facebookDraft ? ' (as a draft)' : ''}`].filter(Boolean).join(' and ')
+
 if (dryRun) {
-  console.log(`[dry-run] would upload + ${scheduledAhead ? `queue for ${item.scheduledAt}` : 'publish'} to @${registry[account].handle}:\n`)
+  console.log(`[dry-run] would upload + ${scheduledAhead ? `queue for ${item.scheduledAt}` : 'publish'} to ${where}:\n`)
   console.log(JSON.stringify(item, null, 2))
   console.log(`\nroute: one-off, "${args['graph-route']}" — recorded on the item by post-reels.mjs when it publishes`)
   process.exit(0)
 }
+
+// Both credentials before the queue write, the upload or any Graph call. A missing Page credential
+// must not let the Instagram half go out first; a missing Instagram one must not let the Page go.
+// Never printed. A scheduled post reads them when it is published, not now.
+function credential(envName, ref, what) {
+  if (process.env[envName]) return process.env[envName]
+  if (!ref) { console.error(`No ${what} credential for "${account}": accounts.json has no ${envName === 'FB_ACCESS_TOKEN' ? 'fb_token_ref' : 'token_ref'}. Nothing was queued, uploaded or published.`); process.exit(1) }
+  try {
+    const value = execFileSync('op', ['read', ref], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+    if (!value) throw new Error('empty')
+    return value
+  } catch (e) {
+    console.error(`No ${what} credential: set ${envName}, or check the 1Password item ${ref} (op read failed: ${e.code || 'error'}). Nothing was queued, uploaded or published.`)
+    process.exit(1)
+  }
+}
+const token = !scheduledAhead && toInstagram ? credential('IG_ACCESS_TOKEN', IG_REF, 'Instagram') : null
+const fbToken = !scheduledAhead && toFacebook && !args['prepare-only'] ? credential('FB_ACCESS_TOKEN', FB_REF, 'Facebook Page') : null
 
 // Another session may have appended since the read above; take the id again under the lock so two
 // posts in the same minute never share one ledger entry.
@@ -216,7 +266,7 @@ updateQueueFile(queuePath, q, (fresh) => {
   id = item.id
   fresh.items.push(item)
 })
-console.log(`Queued ${id} [${media_type}] → @${registry[account].handle}\n`)
+console.log(`Queued ${id} [${media_type}] → ${where}\n`)
 
 // Copy is part of the publish payload. Gate the rendered queue before any
 // upload or Graph API mutation; a local queue write is recoverable, a live post
@@ -236,15 +286,15 @@ execFileSync('node', [join(HERE, 'upload-r2.mjs'),
 if (scheduledAhead) {
   console.log(`\nQueued and hosted; not published — due ${describeDelivery(item.release.delivery)} (${item.scheduledAt}).`)
   console.log('When due, publish it with:')
-  console.log(`  IG_ACCESS_TOKEN=$(op read "${registry[account].token_ref || 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'}") \\`)
+  if (toInstagram) console.log(`  IG_ACCESS_TOKEN=$(op read "${IG_REF}") \\`)
+  if (toFacebook) console.log(`  FB_ACCESS_TOKEN=$(op read "${FB_REF}") \\`)
   console.log(`    node scripts/social-publish/post-reels.mjs --event adhoc --id ${id} --count 1 --graph-route "<Nino's words>"`)
   console.log('--force does not pull it forward: the delivery time is part of what was reviewed.')
   process.exit(0)
 }
 
-const token = process.env.IG_ACCESS_TOKEN ||
-  execFileSync('op', ['read', registry[account].token_ref || 'op://Developer Secrets/Meta Lets Pepper Instagram Publisher/credential'], { encoding: 'utf8' }).trim()
-
 console.log('')
-execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id, '--graph-route', args['graph-route'], ...(args['prepare-only'] ? ['--prepare-only'] : [])],
-  { stdio: 'inherit', env: { ...process.env, IG_ACCESS_TOKEN: token } })
+const env = { ...process.env, ...(token ? { IG_ACCESS_TOKEN: token } : {}), ...(fbToken ? { FB_ACCESS_TOKEN: fbToken } : {}) }
+execFileSync('node', [join(HERE, 'post-reels.mjs'), '--event', EVENT, '--count', '1', '--id', id, '--graph-route', args['graph-route'],
+  ...(args['prepare-only'] ? ['--prepare-only'] : []), ...(facebookDraft ? ['--facebook-draft'] : [])],
+  { stdio: 'inherit', env })
