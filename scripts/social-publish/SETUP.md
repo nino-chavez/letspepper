@@ -104,8 +104,11 @@ picture as the silent upload. `--audio-id` records native catalog music;
 `--audio-representation embedded` records already-mixed audio. Never attach both.
 
 This first version supports reviewed single images, Reels and Stories for
-Instagram. Reviewed carousels and Facebook crossposts are refused; they need
-per-child or destination-specific review fields before extension. Legacy items
+Instagram. Reviewed carousels and Facebook crossposts are refused in this
+format (`--review-package`); they need per-child or destination-specific review
+fields before extension. A Facebook Page destination goes through a
+`release.json` instead: see [Facebook Page destination](#facebook-page-destination-releasejson)
+under the release contract. Legacy items
 without review markers keep their existing behavior and object keys. Removing
 the package while leaving review markers does not downgrade it to legacy.
 
@@ -171,6 +174,8 @@ Why it exists: on 2026-10-18 the TPS day-one Reel went out with four release mis
 | `cover` | Reels only: `{"file": "cover.jpg"}` (`review` adds `sha256`) or `null`. |
 | `alt_text` | Feed image only, optional. |
 | `delivery` | `{"immediate": true}`, or `{"scheduled_at": "YYYY-MM-DDTHH:mm", "timezone": "<IANA zone>"}` with the time as local wall time and no offset. A time already past is refused at review, and at publish once it is more than 15 minutes behind. |
+| `destinations` | Optional. `["instagram"]` when absent, as every package was before 2026-11-27; `["instagram", "facebook"]` or `["facebook"]` add the paired Facebook Page. See [Facebook Page destination](#facebook-page-destination-releasejson). |
+| `facebook` | Required with a Facebook destination, refused without one: `{"caption": "<the Page caption>"}`, plus optional `title` (Reels) and `alt_text` (images). |
 | `notes` | Free text for the reviewer. Not checked. |
 | `review` | Written by `review`, below. Not by hand. |
 
@@ -196,6 +201,42 @@ Delivery comes from the file; there is no silent "now". `{"immediate": true}` pu
 The queue item carries `release` — the hashes, mentions, delivery and review record — and `post-reels.mjs` checks it against that record again before every publish, because a scheduled run is hours later and the ledger is a file. Then it fetches the hosted object it is about to hand Meta (`video_url` / `image_url`, and `cover_url`) and hashes it against the reviewed hash: a ledger can point its URL anywhere and still agree with itself, so only the bytes at the URL say what goes out. That costs one download per publish; a URL that cannot be fetched is a refusal, not a pass. The route receipt it writes is bound to the release block too.
 
 Tests: `test/release-contract.test.mjs`. Each refusal was first run against the gate as it stood before it existed and failed there (the digest could not see media bytes or delivery; the publisher sent a mismatched item to the Graph stub; a late schedule published at once; a repointed ledger URL published other bytes); the runs are recorded on the PR that added them. The video-stream cases need `ffmpeg` and skip without it.
+
+### Facebook Page destination (release.json)
+
+A package can also publish to the Facebook Page its account pairs with (`accounts.json` `page_id`). Why it exists: on 2026-11-27 the Atlanta Reckoning off-the-court Reel went to Instagram from its package and its Page half was held. The contract had no way to say "and the Page, with this copy", and the 630 credential had no Page permission.
+
+A Facebook-only package, for a Reel whose Instagram half is already live:
+
+```json
+{
+  "account": "630",
+  "media_type": "REELS",
+  "source": { "file": "/Users/nino/Workspace/create/export/1125.mp4" },
+  "caption": "", "mentions": [], "user_tags": [], "collaborators": [],
+  "audio_configuration": null, "cover": null,
+  "destinations": ["facebook"],
+  "facebook": { "caption": "<the Page caption>", "title": null },
+  "delivery": { "immediate": true }
+}
+```
+
+- **Instagram-only packages are unchanged.** `destinations` and `facebook` are recorded only when the Page is a destination. An Instagram-only package reviews to the same twelve-field record and digest as before, so every existing record, receipt and saved container still matches. Dropping the Page from a reviewed crosspost, or adding it to a reviewed Instagram-only item, is refused as `destinations`.
+- **The Page caption is its own.** `facebook.caption` is required (`""` for none) and is never borrowed from the Instagram caption. For 630, the Page copy keeps the body without an Instagram handle line.
+- **Facebook only** is for a post whose Instagram half already went out. Its Instagram fields must be empty (`caption: ""`, the arrays `[]`, `cover: null`, no `alt_text`), because none of them would be sent, and Nino approves only what goes out.
+- **What does not cross.** The Page gets the media and its own caption. Instagram `user_tags`, `mentions`, `collaborators`, the cover and alt text stay on Instagram; `review` lists them under `not on facebook`. Instagram catalog music cannot cross and is refused. No Page Stories or carousels through this route.
+- **Reels spec at review.** A Page Reel must be 3 to 90 s, 9:16, at least 540×960 and 24 to 60 fps ([Reels Publishing API](https://developers.facebook.com/docs/video-api/guides/reels-publishing/), read 2026-11-27). `review` measures the file with ffprobe and refuses outside that. The Reels API takes no cover parameter, so Meta picks the frame; `review` says so.
+- **Credential.** The Page leg uses `FB_ACCESS_TOKEN`, else the account's `fb_token_ref`, never the Instagram token. `review` refuses a Facebook destination for an account with no `fb_token_ref`. `post-now.mjs` reads both credentials before the queue write, so one half cannot go out while the other was never going to. The stored credential is exchanged for a Page token with `GET /{page-id}?fields=access_token` when Graph offers one, and used as it is otherwise. For 630 the ref is `Meta 630 Page Publisher`; its renewal is in the 630 repo's `docs/internal/ops/META-PUBLISHING.md`.
+- **Publish.** `post-now.mjs --release` and `post-reels.mjs` publish Instagram first, then the Page. Each keeps its own state (`status` and `facebook_status`, as in the Worker), and one failing does not change the other. A Facebook-only item's `status` reads `not_requested`.
+  - A Reel: `POST /{page-id}/video_reels` with `upload_phase=start`; `POST` the returned `upload_url` with `file_url` set to the hosted, hash-checked R2 copy; `upload_phase=finish` with `video_state=PUBLISHED` and `description` set to the Page caption; then poll `GET /{video-id}?fields=status` until `publish_status` is `published`.
+  - An image: `POST /{page-id}/photos` with `url`, `message`, `published=true` and `alt_text_custom`.
+  - The ledger records `facebook_post_id` and `facebook_permalink`. Meta allows 30 API Reels per Page per rolling 24 hours.
+- **No double posts.** The video id is saved right after `start`. Every later run reads that video's status first: published means posted; otherwise the same video is uploaded or finished, never a second one; a status that cannot be read holds the item. A photo has no such object, so a photo publish whose answer was lost is held until someone checks the Page. If it is not there, publish again from the package, which makes a new item.
+- **Draft proof.** `--facebook-draft` finishes a Facebook-only Reel with an immediate delivery as a Page draft (`video_state=DRAFT`) instead of publishing it, and marks the item `facebook_status: "draft"`. That is terminal: Meta documents no API step to publish a draft, so the real post is a new run from the package, and the draft is deleted or published in Business Suite. Refused on a crosspost, a scheduled delivery or an image. `--prepare-only` leaves the Page untouched.
+- **Flags are checked.** `post-now.mjs` and `post-reels.mjs` refuse an unknown flag before anything runs, so a mistyped `--facebook-draft` cannot fall through to a live publish. `post-reels.mjs --account` cannot send a release-bound item to another account than the reviewed one (exit `4`).
+- **Not the Worker.** A Worker campaign item with a Facebook channel keeps the Worker's Page path (`worker/src/index.js`, `publishFacebookItem`). From `post-reels.mjs` such an item publishes Instagram only, as before. `facebook-page.mjs` mirrors the Worker's Reel steps rather than sharing them, so check a change to one against the other.
+
+Tests: `test/facebook-release.test.mjs`. The tests marked PLANTED were run against the publisher before this change (`e0e311e`) and failed there, including a mistyped `--facebok-draft` that was ignored and published. The run is recorded on the PR that added them. The Reel cases need `ffmpeg` and `ffprobe` and skip without them.
 
 ## One-time setup
 
@@ -264,7 +305,7 @@ Paste each `instagram_business_account.id` into the matching `ig_user_id` in `ac
 
 ### 630 partner Instagram account
 
-The scheduled Worker uses `IG_630_ACCESS_TOKEN` for account `630`, from `op://Developer Secrets/Meta 630 Publisher/credential`. It fails before any Graph request when that binding is absent. Owned accounts continue using `IG_ACCESS_TOKEN`. The 630 grant has no verified Facebook publishing permission; 630 queue items therefore use `channels: ["instagram"]`, while Facebook uses Business Suite. Engagement sweeps exclude this partner account.
+The scheduled Worker uses `IG_630_ACCESS_TOKEN` for account `630`, from `op://Developer Secrets/Meta 630 Publisher/credential`. It fails before any Graph request when that binding is absent. Owned accounts continue using `IG_ACCESS_TOKEN`. That Instagram grant has no Facebook publishing permission, and the Worker has no 630 Page binding, so 630 Worker queue items stay `channels: ["instagram"]`. A 630 Page post goes through a reviewed `release.json` with a Facebook destination and the separate `Meta 630 Page Publisher` credential (`accounts.json` `fb_token_ref`), a Page token from Nino's sign-in to the `Lets Pepper Page Publisher` app: see [Facebook Page destination](#facebook-page-destination-releasejson). The 630 repo's `docs/internal/ops/META-PUBLISHING.md` owns that credential's renewal and the route. Engagement sweeps exclude this partner account.
 
 Reels with `cover_file` must have `cover_url` before scheduling. The Worker sends that exact URL; without a custom cover it honors an explicit `thumb_offset` before its legacy random-frame fallback. `DEPLOY.md` owns deployment and verification. The 630 publishing procedure owns its default API route and content approval.
 
@@ -1220,6 +1261,7 @@ that item via `post-reels.mjs --id`. Reads the token from 1Password itself if
 
 ## Capabilities
 - **Multi-account:** `--account <slug>` or per-item `account` field → posts to any owned IG account from the one token.
+- **Facebook Pages, one-off (2026-11-27):** a reviewed `release.json` with a Facebook destination publishes a Reel or an image to the paired Page from `post-now.mjs --release`, with its own reviewed caption and the account's Page credential (`fb_token_ref`). See "Facebook Page destination (release.json)" above.
 - **Facebook Pages:** Worker items with `"channels":["instagram","facebook"]` publish an image, Reel, or (2026-09-25) a CAROUSEL to the paired Page and preserve independent destination state. A carousel crosspost uploads each child as an unpublished photo then attaches them all to one `/feed` post (see "Gallery announcements" above) — needs a real Page token, not the System User fallback.
 - **Facebook Reel collaborators:** matching owned collaborator handles become Page collaborator invitations; invitation errors are recorded without rewriting a successful Reel receipt. **Not extended to a carousel crosspost** — that publishes with no Facebook-side collaborator.
 - **User tags:** item `user_tags: ["flickday.media"]` → `user_tags=[{username}]` on the post.

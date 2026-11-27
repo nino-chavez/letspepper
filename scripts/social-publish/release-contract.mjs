@@ -45,11 +45,24 @@
  *     "cover": null,                          REELS only: {"file": "cover.jpg"} (review adds "sha256") or null
  *     "alt_text": "...",                      IMAGE only, optional
  *     "delivery": { "immediate": true },      or {"scheduled_at": "2026-10-19T07:00", "timezone": "America/Chicago"}
+ *     "destinations": ["instagram", "facebook"],  optional; absent means ["instagram"], as before
+ *     "facebook": { "caption": "..." },       required with a facebook destination, refused without one:
+ *                                             the Page's own caption, never the Instagram one;
+ *                                             "title" (Reels) and "alt_text" (images) optional
  *     "notes": "...",                         optional free text for the reviewer; not checked
  *     "review": { ... }                       written by `review`; digest, per-field digests, reviewed_at
  *   }
  *   Every array is required, so an empty list is a decision and a missing one is a refusal.
  *   Unknown keys are refused rather than dropped.
+ *
+ * Facebook Page destination (2026-11-27): the Atlanta Reckoning Reel went to Instagram from its
+ * package and the Page half was held, because the contract had no way to say "and the Page, with
+ * this copy". A Facebook destination binds two more fields, `destinations` and `facebook`, which
+ * are recorded only when the Page is a destination: an Instagram-only package reviews to exactly
+ * the twelve-field record it always did, so no existing record, receipt or container moves. A
+ * Facebook-only package (the Instagram half already out) may carry nothing Instagram-only, since
+ * none of it would be sent. A Page Reel is checked against Meta's Reels spec at review. The Page
+ * publish itself is facebook-page.mjs, called from post-reels.mjs.
  *
  *   node scripts/social-publish/release-contract.mjs review <release.json>   measure, record, print what will go out
  *   node scripts/social-publish/release-contract.mjs check  <release.json>   what post-now --release would decide (exit 4 on mismatch)
@@ -72,10 +85,16 @@ export const REFUSED_RELEASE = 4
 export const LATE_GRACE_MS = 15 * 60_000
 /** The fields the review record binds, in the order a refusal lists them. */
 export const CONTRACT_FIELDS = ['account', 'media_type', 'source.sha256', 'source.video_md5', 'cover.sha256', 'caption', 'mentions', 'user_tags', 'collaborators', 'audio_configuration', 'alt_text', 'delivery']
+/** Bound only when the Facebook Page is a destination (or the record already binds them), so Instagram-only records keep their twelve fields. */
+export const FACEBOOK_FIELDS = ['destinations', 'facebook']
+/** Meta's Reels spec for a Page Reel (Reels Publishing API, read 2026-11-27). */
+export const FACEBOOK_REEL_SPEC = { minSeconds: 3, maxSeconds: 90, ratio: 9 / 16, minWidth: 540, minHeight: 960, minFps: 24, maxFps: 60 }
 const DIGEST_EVENT = 'release' // the event label the review digest is computed under; the item's account is in the hash
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const TOP_KEYS = ['account', 'media_type', 'source', 'caption', 'mentions', 'user_tags', 'collaborators', 'audio_configuration', 'cover', 'alt_text', 'delivery', 'notes', 'review']
+const TOP_KEYS = ['account', 'media_type', 'source', 'caption', 'mentions', 'user_tags', 'collaborators', 'audio_configuration', 'cover', 'alt_text', 'delivery', 'destinations', 'facebook', 'notes', 'review']
+const DESTINATIONS = ['instagram', 'facebook']
+const FACEBOOK_KEYS = ['caption', 'title', 'alt_text']
 const MEDIA_TYPES = ['REELS', 'IMAGE', 'STORIES']
 const VIDEO_EXT = ['.mp4', '.mov']
 const IMAGE_EXT = ['.jpg', '.jpeg', '.png']
@@ -131,6 +150,49 @@ function deliveryProblems(d) {
   return [`delivery: exactly one of the two shapes — ${DELIVERY_HOW}`]
 }
 
+/** Where a package goes. Absent is the Instagram-only package every release.json was before 2026-11-27. */
+export const destinationsOf = (release) => (release?.destinations === undefined ? ['instagram'] : release.destinations)
+
+const DESTINATIONS_HOW = '["instagram"], ["instagram", "facebook"] or ["facebook"], each once'
+
+function destinationProblems(release, type) {
+  const p = []
+  const dests = destinationsOf(release)
+  if (!Array.isArray(dests) || !dests.length || dests.some((d) => !DESTINATIONS.includes(d)) || new Set(dests).size !== dests.length) {
+    return [`destinations: where this post goes — ${DESTINATIONS_HOW}; leave it out for Instagram only`]
+  }
+  const toFacebook = dests.includes('facebook'), toInstagram = dests.includes('instagram')
+  if (toFacebook) {
+    if (type === 'STORIES') p.push('destinations: this publisher sends no Facebook Page Stories — publish the Story to Instagram only')
+    const fb = release.facebook
+    if (!isObj(fb)) p.push('facebook: a Facebook destination needs its own block, {"caption": "<the Page caption>"} — the Instagram caption is never reused for the Page')
+    else {
+      for (const k of Object.keys(fb)) if (!FACEBOOK_KEYS.includes(k)) p.push(`facebook.${k}: unknown field — the publisher would drop it silently, so it is refused instead`)
+      if (typeof fb.caption !== 'string') p.push('facebook.caption: the Page caption itself, inline and required ("" for none) — it is never borrowed from the Instagram caption')
+      if (fb.title !== undefined && fb.title !== null) {
+        if (type !== 'REELS') p.push(`facebook.title: a title applies to a Page Reel only, not ${type}`)
+        else if (typeof fb.title !== 'string') p.push('facebook.title: a string, or null for none')
+      }
+      if (fb.alt_text !== undefined) {
+        if (type !== 'IMAGE') p.push(`facebook.alt_text: alt text applies to a Page photo only, not ${type}`)
+        else if (typeof fb.alt_text !== 'string') p.push('facebook.alt_text: must be a string')
+      }
+    }
+    if (release.audio_configuration) p.push('audio_configuration: Instagram catalog music cannot go to the Facebook Page — null, or publish Instagram and the Page as separate packages')
+  } else if (release.facebook !== undefined) {
+    p.push('facebook: Facebook is not in destinations, so this Page copy would be dropped — add "facebook" to destinations, or remove the block')
+  }
+  if (!toInstagram) {
+    // Facebook only: whatever is Instagram-only would not go out, so it may not sit in the package Nino approves.
+    const why = 'Instagram is not a destination, so it would not go out'
+    if (typeof release.caption === 'string' && release.caption) p.push(`caption: ${why} — the Page caption is facebook.caption; leave caption ""`)
+    for (const f of ['mentions', 'user_tags', 'collaborators']) if (Array.isArray(release[f]) && release[f].length) p.push(`${f}: ${why} — leave it []`)
+    if (release.cover != null) p.push(`cover: the cover is sent to Instagram only; ${why} — null`)
+    if (release.alt_text !== undefined) p.push(`alt_text: ${why} — the Page photo's alt text is facebook.alt_text`)
+  }
+  return p
+}
+
 /** Shape problems as "field: why" strings; [] when the package is well formed. Reads nothing from disk. */
 export function validateRelease(release) {
   if (!isObj(release)) return ['release: must be a JSON object']
@@ -175,6 +237,7 @@ export function validateRelease(release) {
     else if (type !== 'IMAGE') p.push(`alt_text: Meta has alt text on a feed image only, not ${type}`)
   }
   p.push(...deliveryProblems(release.delivery))
+  p.push(...destinationProblems(release, type))
   if (release.notes !== undefined && typeof release.notes !== 'string') p.push('notes: free text, a string')
   if (release.review !== undefined && !isObj(release.review)) p.push('review: written by `release-contract.mjs review`, not by hand')
   return p
@@ -274,6 +337,42 @@ function durationOf(path) {
   } catch { return null }
 }
 
+/**
+ * Duration, displayed size and frame rate of a video's first stream via ffprobe, for the Page Reel
+ * spec. A rotated phone clip is measured as it displays. Throws when ffprobe cannot read it.
+ */
+export function reelSpec(path, { ffprobe = 'ffprobe' } = {}) {
+  let out
+  try {
+    out = execFileSync(ffprobe, ['-v', 'error', '-select_streams', 'v:0', '-show_streams', '-show_format', '-of', 'json', path], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (e) {
+    if (e.code === 'ENOENT') throw new Error(`ffprobe is required to check ${path} against Meta's Reels spec and was not found on PATH`)
+    throw new Error(`ffprobe could not read ${path}: ${String(e.stderr || e.message).trim()}`)
+  }
+  const j = JSON.parse(out)
+  const s = j.streams?.[0]
+  if (!s) throw new Error(`${path} has no video stream`)
+  const rate = (r) => { const [n, d] = String(r || '0/1').split('/').map(Number); return d ? n / d : 0 }
+  const rotation = Math.abs(Number(s.tags?.rotate ?? s.side_data_list?.find((x) => x.rotation !== undefined)?.rotation ?? 0)) % 180
+  const [width, height] = rotation === 90 ? [s.height, s.width] : [s.width, s.height]
+  return { duration: Number(j.format?.duration ?? s.duration), width, height, fps: rate(s.avg_frame_rate) || rate(s.r_frame_rate) }
+}
+
+/** A Page Reel against Meta's Reels spec, as problems on source.file. */
+export function reelSpecProblems(spec, S = FACEBOOK_REEL_SPEC) {
+  const p = []
+  const say = (m) => p.push(problem('source.file', `${m} (Meta's Reels spec, for the Facebook destination)`))
+  if (!(spec.duration >= S.minSeconds && spec.duration <= S.maxSeconds)) say(`${spec.duration.toFixed(2)} s long — a Page Reel is ${S.minSeconds} to ${S.maxSeconds} s`)
+  if (!(Math.abs(spec.width / spec.height - S.ratio) <= 0.01)) say(`${spec.width}×${spec.height} is not 9:16`)
+  if (spec.width < S.minWidth || spec.height < S.minHeight) say(`${spec.width}×${spec.height} is under the ${S.minWidth}×${S.minHeight} minimum`)
+  if (!(spec.fps >= S.minFps - 0.01 && spec.fps <= S.maxFps + 0.01)) say(`${Math.round(spec.fps * 100) / 100} fps — a Page Reel is ${S.minFps} to ${S.maxFps} fps`)
+  return p
+}
+
+function registryOf() {
+  try { return JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts ?? {} } catch { return {} }
+}
+
 /** Hash what is on disk right now. Throws ReleaseError (exit 1) when a named file is missing or unreadable. */
 export function measure(release, dir, { ffmpeg, path = join(dir, 'release.json') } = {}) {
   const file = resolve(dir, release.source.file)
@@ -299,6 +398,17 @@ export function measure(release, dir, { ffmpeg, path = join(dir, 'release.json')
 export function releaseItem(release, measured, { id = null, now = new Date(), path = null } = {}) {
   const type = release.media_type
   const audio = release.audio_configuration ? audioConfiguration({ media_type: type, audio_configuration: release.audio_configuration }) : undefined
+  const dests = destinationsOf(release)
+  // The Page destination in the Worker's own item fields (channels, facebook_*), so digestOf() and a
+  // route receipt bind the Page copy exactly as they do for a Worker crosspost. An Instagram-only
+  // package adds none of them: its item is byte-for-byte what it was.
+  const facebook = dests.includes('facebook') ? {
+    channels: dests,
+    facebook_status: 'pending',
+    facebook_caption: release.facebook.caption,
+    ...(release.facebook.title ? { facebook_title: release.facebook.title } : {}),
+    ...(release.facebook.alt_text ? { facebook_alt_text: release.facebook.alt_text } : {}),
+  } : {}
   return {
     id,
     account: release.account,
@@ -313,7 +423,9 @@ export function releaseItem(release, measured, { id = null, now = new Date(), pa
     user_tags: release.user_tags,
     collaborators: release.collaborators,
     scheduledAt: deliveryInstant(release.delivery, now).toISOString(),
-    status: 'pending',
+    // `status` is the Instagram leg, as it always was; a Facebook-only item says so rather than wait forever.
+    status: dests.includes('instagram') ? 'pending' : 'not_requested',
+    ...facebook,
     release: {
       ...(path ? { path } : {}),
       source: { file: measured.file, sha256: measured.sha256, video_md5: measured.video_md5 },
@@ -341,11 +453,28 @@ export function contractFields(item) {
     audio_configuration: item?.audio_configuration ? audioConfiguration(item) : null,
     alt_text: item?.alt_text ?? null,
     delivery: r.delivery ?? null,
+    destinations: Array.isArray(item?.channels) ? item.channels : ['instagram'],
+    facebook: wantsFacebook(item)
+      ? { caption: item.facebook_caption ?? null, title: item.facebook_title ?? null, alt_text: item.facebook_alt_text ?? null }
+      : null,
   }
 }
 
+/** Whether an item carries the Facebook Page destination (the Worker's own test, release-bound or not). */
+export const wantsFacebook = (item) => Array.isArray(item?.channels) && item.channels.includes('facebook')
+
+/**
+ * The fields a record binds for this item: the twelve, plus the Facebook pair when the item carries
+ * the Page or the record already binds it — so dropping the Page from a reviewed crosspost, or adding
+ * it to a reviewed Instagram-only item, is a difference and never a skipped field.
+ */
+export const boundFields = (item, recorded = null) => [
+  ...CONTRACT_FIELDS,
+  ...FACEBOOK_FIELDS.filter((f) => wantsFacebook(item) || (isObj(recorded) && recorded[f] !== undefined)),
+]
+
 export const hash16 = (value) => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex').slice(0, 16)
-export const fieldDigests = (fields) => Object.fromEntries(CONTRACT_FIELDS.map((f) => [f, hash16(fields[f])]))
+export const fieldDigests = (fields, names = CONTRACT_FIELDS) => Object.fromEntries(names.map((f) => [f, hash16(fields[f])]))
 
 /** digestOf() over the item as reviewed: no id, no hosted URLs (there are none at review time), a fixed event label. */
 export function contractDigest(item) {
@@ -353,7 +482,7 @@ export function contractDigest(item) {
 }
 
 export function reviewOf(item, now = new Date()) {
-  return { digest: contractDigest(item), fields: fieldDigests(contractFields(item)), reviewed_at: now.toISOString() }
+  return { digest: contractDigest(item), fields: fieldDigests(contractFields(item), boundFields(item)), reviewed_at: now.toISOString() }
 }
 
 const describe = (v) => {
@@ -379,10 +508,15 @@ export function compareReview(item) {
   if (!isObj(review) || typeof review.digest !== 'string' || !isObj(review.fields)) {
     return [problem('review', 'this post has no review record — run `release-contract.mjs review <release.json>` and publish from that file')]
   }
-  const fields = contractFields(item), digests = fieldDigests(fields)
+  const names = boundFields(item, review.fields)
+  const fields = contractFields(item), digests = fieldDigests(fields, names)
   const problems = []
-  for (const f of CONTRACT_FIELDS) {
-    if (review.fields[f] === undefined) problems.push(problem(f, 'not in the review record (it predates this field) — review again'))
+  for (const f of names) {
+    if (review.fields[f] === undefined) {
+      problems.push(problem(f, FACEBOOK_FIELDS.includes(f)
+        ? 'this item carries a Facebook Page destination that the review record does not — what was reviewed went to Instagram only'
+        : 'not in the review record (it predates this field) — review again'))
+    }
     else if (review.fields[f] !== digests[f]) problems.push(problem(f, `now ${describe(fields[f])}, which is not what was reviewed`))
   }
   if (!problems.length && review.digest !== contractDigest(item)) problems.push(problem('review.digest', 'every field matches its record but the digest formula changed since the review — review again'))
@@ -457,25 +591,45 @@ export function verify(release, item, measured, { now = new Date() } = {}) {
 // review / check
 // ---------------------------------------------------------------------------------------------
 
-function summarize(path, release, item, measured) {
-  let handle = null
-  try { handle = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts?.[release.account]?.handle ?? null } catch { /* no registry beside this file */ }
+function summarize(path, release, item, measured, spec = null) {
+  const acct = registryOf()[release.account] ?? {}
+  const handle = acct.handle ?? null
   const list = (arr, at = '') => (arr.length ? arr.map((h) => `${at}${isObj(h) ? h.username : h}`).join(', ') : '(none — decided empty)')
   const audio = item.audio_configuration
   const duration = measured.video_md5 ? durationOf(measured.file) : null
+  const dests = destinationsOf(release)
+  const toFacebook = dests.includes('facebook'), toInstagram = dests.includes('instagram')
+  const where = toFacebook && toInstagram ? 'instagram + facebook' : toFacebook ? 'facebook only — nothing goes to Instagram' : 'instagram only — no Facebook Page post'
+  // What Nino approves for the Page: its own copy, the measured Reel, and what does not cross.
+  const notCrossing = toFacebook && toInstagram
+    ? [['user_tags', release.user_tags.length], ['mentions', release.mentions.length], ['collaborators', release.collaborators.length], ['cover', release.cover != null], ['alt_text', release.alt_text !== undefined]].filter(([, on]) => on).map(([f]) => f)
+    : []
+  const facebookRows = toFacebook ? [
+    ['facebook page', `${acct.page_id ?? '(no page_id in accounts.json)'}${handle ? ` (the Page paired with @${handle})` : ''}`],
+    ['facebook caption', release.facebook.caption ? `${describe(release.facebook.caption)} (${release.facebook.caption.length} chars)` : '(none — decided empty)'],
+    ...(release.media_type === 'REELS' ? [
+      ['facebook title', release.facebook.title ? describe(release.facebook.title) : 'none'],
+      ['facebook reel', spec ? `${spec.duration.toFixed(2)} s · ${spec.width}×${spec.height} · ${Math.round(spec.fps * 100) / 100} fps — inside Meta's Reels spec (3–90 s, 9:16, ≥540×960, 24–60 fps)` : 'not measured'],
+      ['facebook cover', `none sent — the Reels API takes no cover, so Meta picks a frame${release.cover ? '; the cover above goes to Instagram only' : ''}`],
+    ] : []),
+    ...(release.media_type === 'IMAGE' ? [['facebook alt', release.facebook.alt_text ? describe(release.facebook.alt_text) : 'none']] : []),
+    ...(notCrossing.length ? [['not on facebook', `${notCrossing.join(', ')} (Instagram only; the Page gets the media and its own caption)`]] : []),
+  ] : []
   const rows = [
     ['account', `${release.account}${handle ? ` (@${handle})` : ''}`],
+    ['destinations', where],
     ['media_type', release.media_type],
     ['source', measured.file],
     ['', `sha256 ${measured.sha256}`],
     ...(measured.video_md5 ? [['', `video stream md5 ${measured.video_md5}${duration !== null ? `   duration ${duration.toFixed(2)} s` : ''}`]] : []),
-    ['caption', release.caption ? `${describe(release.caption)} (${release.caption.length} chars)` : '(none — a Story)'],
+    ['caption', release.caption ? `${describe(release.caption)} (${release.caption.length} chars)` : release.media_type === 'STORIES' ? '(none — a Story)' : '(none — no Instagram destination)'],
     ['mentions', list(release.mentions, '@')],
     ['user_tags', list(release.user_tags)],
     ['collaborators', list(release.collaborators)],
     ['audio', audio ? `audio_id ${audio.audio_id}${audio.audio_volume !== undefined ? ` · audio ${audio.audio_volume}` : ''}${audio.video_volume !== undefined ? ` · video ${audio.video_volume}` : ''}` : 'none'],
     ['cover', measured.cover_file ? `${measured.cover_file}  sha256 ${measured.cover_sha256}` : 'none'],
     ...(release.alt_text ? [['alt_text', describe(release.alt_text)]] : []),
+    ...facebookRows,
     ['delivery', release.delivery.immediate ? 'immediate (publishes when post-now runs)' : `${describeDelivery(release.delivery)} = ${item.scheduledAt}`],
     ['review digest', `${release.review.digest}  recorded ${release.review.reviewed_at}`],
   ]
@@ -500,6 +654,14 @@ export function review(path, { now = new Date(), ffmpeg } = {}) {
   if (release.source.video_md5 && measured.video_md5 && release.source.video_md5 !== measured.video_md5) problems.push(problem('source.video_md5', `the package says ${release.source.video_md5} but the video stream hashes to ${measured.video_md5}`))
   if (release.cover?.sha256 && release.cover.sha256 !== measured.cover_sha256) problems.push(problem('cover.sha256', `the package says ${short(release.cover.sha256)} but ${measured.cover_file} hashes to ${short(measured.cover_sha256)}`))
   problems.push(...mentionProblems(release), ...lateProblems(release.delivery, now, 0, { stage: 'review' }))
+  let spec = null
+  if (destinationsOf(release).includes('facebook')) {
+    const acct = registryOf()[release.account]
+    if (!acct?.page_id || !acct?.fb_token_ref) problems.push(problem('facebook', `account "${release.account}" has no Facebook Page credential in accounts.json (page_id and fb_token_ref) — the Page destination cannot be published for it`))
+    if (release.media_type === 'REELS') {
+      try { spec = reelSpec(measured.file); problems.push(...reelSpecProblems(spec)) } catch (e) { problems.push(problem('source.file', e.message)) }
+    }
+  }
   if (problems.length) throw new ReleaseError(path, problems, { exitCode: 1, stage: 'review' })
   release.source = { file: release.source.file, sha256: measured.sha256, video_md5: measured.video_md5 }
   if (release.cover) release.cover = { file: release.cover.file, sha256: measured.cover_sha256 }
@@ -508,7 +670,7 @@ export function review(path, { now = new Date(), ffmpeg } = {}) {
   release.review = reviewOf(item, now)
   item.release.review = release.review
   writeFileSync(path, `${JSON.stringify(release, null, 2)}\n`)
-  return { release, item, measured, summary: summarize(path, release, item, measured) }
+  return { release, item, measured, summary: summarize(path, release, item, measured, spec) }
 }
 
 /** What post-now --release would decide for this package right now, without touching anything. */

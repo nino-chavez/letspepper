@@ -66,6 +66,19 @@
  * post-now item. A failure exits nonzero and retains the ledger for reconciliation.
  * Meta's IG User /media reference documents collaborators, cover_url and Story
  * user_tags (rechecked 2026-10-02). Never silently drop a requested field.
+ *
+ * FACEBOOK PAGE (2026-11-27, facebook-page.mjs): an item queued from a reviewed release.json with
+ * a Facebook destination (`channels` includes "facebook") also publishes to the account's paired
+ * Page — a Reel through Meta's Reels Publishing API, an image through /{page-id}/photos — with its
+ * own reviewed caption, using FB_ACCESS_TOKEN (accounts.json fb_token_ref), never the Instagram
+ * token. Each destination keeps its own state (status / facebook_status), as in the Worker, and a
+ * Facebook-only item never touches Instagram. --facebook-draft finishes a Facebook-only Reel as a
+ * Page DRAFT instead of publishing it: a proof run, terminal for its item. --prepare-only leaves
+ * the Page untouched. A Worker campaign item with a Facebook channel keeps the Worker's Page path;
+ * from here it publishes Instagram only, as before.
+ *
+ * Flags are checked: an unknown one is refused before anything runs, because a mistyped
+ * --facebook-draft would otherwise be ignored and the Reel published.
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
@@ -82,6 +95,7 @@ import { openQueueFile } from './queue-store.mjs'
 import { audioParams } from './reel-audio.mjs'
 import { assertLocalHostedBinding, assertHostedBindingShape } from './review-package.mjs'
 import { compareReview, lateProblems, hostedProblems, refusalText, REFUSED_RELEASE } from './release-contract.mjs'
+import { pageToken, publishPageReel, publishPagePhoto } from './facebook-page.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GRAPH = process.env.GRAPH_BASE || 'https://graph.facebook.com/v25.0'
@@ -95,16 +109,23 @@ const args = Object.fromEntries(
     return a
   }, [])
 )
+const KNOWN_FLAGS = ['event', 'count', 'account', 'id', 'force', 'dry-run', 'prepare-only', 'graph-route', 'facebook-draft']
+for (const flag of Object.keys(args)) {
+  if (!KNOWN_FLAGS.includes(flag)) { console.error(`Unknown flag --${flag}; nothing was run. post-reels.mjs takes: ${KNOWN_FLAGS.map((f) => `--${f}`).join(' ')}`); process.exit(1) }
+}
 const event = args.event
 const count = Number(args.count ?? 2)
 const force = !!args.force
 const dryRun = !!args['dry-run']
 const prepareOnly = !!args['prepare-only']
+const facebookDraft = !!args['facebook-draft']
 const accountOverride = typeof args.account === 'string' ? args.account : null
 const idFilter = typeof args.id === 'string' ? args.id : null
 
 const TOKEN = process.env.IG_ACCESS_TOKEN
+const FB_TOKEN = process.env.FB_ACCESS_TOKEN
 if (!event) { console.error('Required: --event <slug>'); process.exit(1) }
+if (facebookDraft && prepareOnly) { console.error('--facebook-draft and --prepare-only are different runs: a draft saves the Page Reel; --prepare-only prepares an Instagram container. Pick one.'); process.exit(1) }
 
 const registry = JSON.parse(readFileSync(join(HERE, 'accounts.json'), 'utf8')).accounts
 const queuePath = join(queueDir(), `${event}.json`)
@@ -130,7 +151,13 @@ if (ids.some((id) => typeof id !== 'string' || !id.trim()) || new Set(ids).size 
 }
 
 const now = Date.now()
-const ready = (it) => it.status !== 'posted' && (!it.cover_file || !!it.cover_url) &&
+// Destinations, as the Worker reads them: no `channels` is Instagram only. The Page goes out from
+// here only for a release-bound item, whose Page copy was reviewed (release-contract.mjs).
+const wantsInstagram = (it) => !Array.isArray(it.channels) || it.channels.includes('instagram')
+const wantsFacebook = (it) => !!it.release && Array.isArray(it.channels) && it.channels.includes('facebook')
+const igPending = (it) => wantsInstagram(it) && it.status !== 'posted'
+const fbPending = (it) => wantsFacebook(it) && !['posted', 'draft'].includes(it.facebook_status || 'pending')
+const ready = (it) => (igPending(it) || fbPending(it)) && (!it.cover_file || !!it.cover_url) &&
   (it.media_type === 'CAROUSEL' ? Array.isArray(it.children) && it.children.length : (it.video_url || it.image_url))
 // A hold or a veto blocks BOTH destinations and is never opened by --force: --force
 // exists to skip a future scheduledAt, not to skip a hold window nobody has cleared
@@ -156,7 +183,7 @@ const due = q.items.filter((it) => ready(it) && (!idFilter || it.id === idFilter
 
 if (!due.length) {
   if (idFilter) { console.error(`No due item with id "${idFilter}" (missing, already posted, or not hosted).`); process.exit(1) }
-  const remaining = q.items.filter((it) => it.status !== 'posted')
+  const remaining = q.items.filter((it) => igPending(it) || fbPending(it))
   const notReady = remaining.filter((it) => !ready(it)).length
   if (!remaining.length) console.log('Queue empty — all posted.')
   else if (notReady) console.log(`Nothing due: ${notReady} item(s) not yet hosted — run upload-r2.mjs.`)
@@ -184,12 +211,33 @@ assertGraphRoute({ event, items: batch, reasonFlag: args['graph-route'], script:
 // when the cheaper checks have already refused).
 for (const it of batch) {
   if (!it.release) continue
+  // --account would publish a reviewed post somewhere it was not reviewed for; the account is part of the release.
+  if (accountOverride && accountOverride !== it.account) {
+    console.error(refusalText(it.release.path || `${event}/${it.id}`, [{ field: 'account', message: `--account ${accountOverride} would publish this release to another account than the reviewed "${it.account}"` }]))
+    process.exit(REFUSED_RELEASE)
+  }
   const problems = [...compareReview(it), ...lateProblems(it.release.delivery, new Date(now))]
   if (!problems.length) problems.push(...await hostedProblems(it))
   if (problems.length) { console.error(refusalText(it.release.path || `${event}/${it.id}`, problems)); process.exit(REFUSED_RELEASE) }
 }
 
-if (!dryRun && !TOKEN) { console.error('Set IG_ACCESS_TOKEN for the selected account (see accounts.json token_ref and SETUP.md).'); process.exit(1) }
+// A Page draft is a proof run: only a Facebook-only Reel, now, can be "saved, not published" with
+// nothing going live anywhere. Anything else is refused before a Graph call.
+if (facebookDraft) {
+  for (const it of batch) {
+    if (!(wantsFacebook(it) && !wantsInstagram(it) && it.media_type === 'REELS' && it.release?.delivery?.immediate === true)) {
+      console.error(`--facebook-draft saves a Facebook-only Reel with an immediate delivery as a Page draft; ${it.id} is ${wantsInstagram(it) ? 'also an Instagram post' : `a ${it.media_type} with delivery ${JSON.stringify(it.release?.delivery ?? null)}`}. Nothing was run.`)
+      process.exit(1)
+    }
+  }
+}
+
+// Both credentials before the first side effect, so one destination cannot go out while the other
+// was never going to: the Instagram token for an Instagram leg, the Page credential for a Page leg.
+const needInstagram = batch.some(igPending)
+const needFacebook = !prepareOnly && batch.some(fbPending)
+if (!dryRun && needInstagram && !TOKEN) { console.error('Set IG_ACCESS_TOKEN for the selected account (see accounts.json token_ref and SETUP.md).'); process.exit(1) }
+if (!dryRun && needFacebook && !FB_TOKEN) { console.error('Set FB_ACCESS_TOKEN to the Facebook Page credential for the selected account (accounts.json fb_token_ref, SETUP.md "Facebook Page destination"). Nothing was run.'); process.exit(1) }
 
 // Refuse to publish when the current caption queue breaks its reader contract.
 // This runs before the first Graph API call and audits only JSON caption fields.
@@ -201,9 +249,9 @@ execFileSync('node', [join(HERE, '..', '..', 'tools', 'lib', 'encounter-audit.mj
 // the first Graph call. A run that stopped at the token or the audit leaves none.
 if (!dryRun) save()
 
-async function api(path, params, method = 'POST') {
+async function api(path, params, method = 'POST', token = TOKEN) {
   const url = new URL(`${GRAPH}/${path}`)
-  const body = new URLSearchParams({ ...params, access_token: TOKEN })
+  const body = new URLSearchParams({ ...params, access_token: token })
   const res = method === 'GET' ? await fetch(`${url}?${body}`) : await fetch(url, { method, body })
   const json = await res.json()
   if (!res.ok || json.error) {
@@ -284,15 +332,8 @@ async function buildContainer(ig, it) {
 
 console.log(`${dryRun ? '[dry-run] ' : ''}${prepareOnly ? 'Preparing' : 'Publishing'} ${batch.length} of ${due.length} due items...\n`)
 
-let ok = 0
-for (const it of batch) {
-  const slug = accountOverride || it.account
-  if (dryRun) {
-    console.log(`would post: ${it.id} → @${registry[slug]?.handle || slug} [${it.media_type || 'REELS'}]` +
-      `${it.collaborators?.length ? ` collab:${it.collaborators.join(',')}` : ''}` +
-      `${it.user_tags?.length ? ` tags:${it.user_tags.join(',')}` : ''}`)
-    continue
-  }
+// The Instagram leg of one item. True when it posted (or prepared, with --prepare-only).
+async function publishInstagram(it, slug) {
   try {
     assertHostedBindingShape(effectiveReviewItem(it),it.review_package?.delivery.intent,new Date(),{publish:true})
     const ig = igIdFor(it)
@@ -320,14 +361,14 @@ for (const it of batch) {
       if (status === 'UNKNOWN') {
         it.status = 'error'; it.error = `could not confirm whether container ${containerId} already published — not rebuilding; run again`
         save(); console.error(`HELD: ${it.error}`)
-        continue
+        return false
       }
       if (status !== 'PUBLISHED' && it.ig_container_digest !== payload) containerId = null // built from another payload — rebuild
       else if (status === 'PUBLISHED') {
         it.status = 'posted'; it.posted_at = new Date().toISOString()
         it.error = 'published by a prior run — ig_media_id unknown, reconcile via GET /{ig}/media'
-        save(); console.log('already published by a prior run — marked posted'); ok++
-        continue
+        save(); console.log('already published by a prior run — marked posted')
+        return true
       }
       else if (status !== 'FINISHED' && status !== 'IN_PROGRESS') containerId = null // expired/errored — rebuild
     }
@@ -343,19 +384,70 @@ for (const it of batch) {
     await waitFinished(containerId)
     if (prepareOnly) {
       it.status = 'prepared'; it.prepared_at = new Date().toISOString(); it.error = null
-      save(); console.log(`prepared (container ${containerId}); not published`); ok++
-      continue
+      save(); console.log(`prepared (container ${containerId}); not published`)
+      return true
     }
     const { id: mediaId } = await publishWithRetry(ig, containerId, 5, () => assertHostedBindingShape(effectiveReviewItem(it),it.review_package?.delivery.intent,new Date(),{publish:true}))
     it.status = 'posted'; it.ig_media_id = mediaId; it.posted_at = new Date().toISOString(); it.error = null
     save()
     console.log(`posted (media ${mediaId})`)
-    ok++
+    return true
   } catch (e) {
     it.status = 'error'; it.error = e.message; save()
     console.error(`FAILED: ${e.message}`)
+    return false
   }
 }
-if (!dryRun) console.log(`\n${ok}/${batch.length} ${prepareOnly ? 'prepared' : 'posted'}. ${q.items.filter((i) => i.status !== 'posted').length} not yet posted.`)
+
+// The Page leg of one release-bound item (facebook-page.mjs). True when it posted, or saved a draft.
+async function publishFacebook(it, slug) {
+  const acct = registry[slug]
+  process.stdout.write(`→ ${it.id} (Facebook Page ${acct?.page_id ?? '?'}) ... `)
+  try {
+    if (!acct?.page_id) throw new Error(`accounts.json: ${slug} has no page_id`)
+    const token = await pageToken({ api, token: FB_TOKEN, pageId: acct.page_id })
+    const upload = async (url, headers) => {
+      const res = await fetch(url, { method: 'POST', headers })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error?.message || `Facebook Reel upload failed (HTTP ${res.status})`)
+      return json
+    }
+    const r = it.media_type === 'REELS'
+      ? await publishPageReel({ api, upload, sleep, token, pageId: acct.page_id, item: it, save, draft: facebookDraft })
+      : it.media_type === 'IMAGE'
+        ? await publishPagePhoto({ api, token, pageId: acct.page_id, item: it, save })
+        : { ok: false, message: `this publisher sends a ${it.media_type} to the Page only as a Reel or a photo` }
+    if (r.ok) console.log(r.message)
+    else console.error(`${r.held ? 'HELD' : 'FAILED'}: ${r.message}`)
+    return r.ok
+  } catch (e) {
+    // Any saved video id stays on the item: the next run reads its status before sending anything.
+    it.facebook_status = 'error'; it.facebook_error = e.message; save()
+    console.error(`FAILED: ${e.message}`)
+    return false
+  }
+}
+
+let ok = 0
+for (const it of batch) {
+  const slug = accountOverride || it.account
+  if (dryRun) {
+    const where = [igPending(it) && 'instagram', fbPending(it) && `facebook page ${registry[slug]?.page_id ?? '?'}${facebookDraft ? ' (draft)' : ''}`].filter(Boolean).join(' + ')
+    console.log(`would post: ${it.id} → @${registry[slug]?.handle || slug} [${it.media_type || 'REELS'}] ${where}` +
+      `${it.collaborators?.length ? ` collab:${it.collaborators.join(',')}` : ''}` +
+      `${it.user_tags?.length ? ` tags:${it.user_tags.join(',')}` : ''}`)
+    continue
+  }
+  // Each destination keeps its own state; one failing never changes the other's (the Worker's rule).
+  let good = true
+  if (igPending(it)) good = (await publishInstagram(it, slug)) && good
+  if (fbPending(it)) {
+    if (prepareOnly) console.log(`  ${it.id}: Facebook Page not touched — --prepare-only prepares the Instagram container only`)
+    else good = (await publishFacebook(it, slug)) && good
+  }
+  if (good) ok++
+}
+const outstanding = q.items.filter((i) => igPending(i) || fbPending(i)).length
+if (!dryRun) console.log(`\n${ok}/${batch.length} ${prepareOnly ? 'prepared' : facebookDraft ? 'saved as Page drafts' : 'posted'}. ${outstanding} not yet posted.`)
 
 if (!dryRun && ok < batch.length) process.exitCode = 1

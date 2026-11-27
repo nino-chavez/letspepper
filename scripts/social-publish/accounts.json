@@ -1,5 +1,5 @@
 {
-  "_comment": "Instagram destinations. The three owned accounts use Almost Flickday System User credentials; 630 uses separate partner Facebook User OAuth (token_ref). Resolve ig_user_id from the linked Page; direct Page reads may work when /me/accounts is empty. A registry entry alone is neither API access nor publish authorization.",
+  "_comment": "Instagram destinations, and the Facebook Page each one pairs with. The three owned accounts use Almost Flickday System User credentials; 630 uses separate partner Facebook User OAuth (token_ref for Instagram, fb_token_ref for its Page). Resolve ig_user_id from the linked Page; direct Page reads may work when /me/accounts is empty. A registry entry alone is neither API access nor publish authorization. fb_token_ref is what lets a reviewed release.json carry a Facebook destination for that account (release-contract.mjs).",
   "accounts": {
     "letspepper": {
       "handle": "letspepper.open",
@@ -22,7 +22,8 @@
       "page_id": "569987303404898",
       "business_id": "315859855990883",
       "token_ref": "op://Developer Secrets/Meta 630 Publisher/credential",
-      "access_model": "partner Facebook User OAuth; separate from Almost Flickday System Users"
+      "fb_token_ref": "op://Developer Secrets/Meta 630 Page Publisher/credential",
+      "access_model": "partner Facebook User OAuth; separate from Almost Flickday System Users. Instagram: Page token from Lets Pepper Publisher. Facebook Page: Page token from Lets Pepper Page Publisher (2026-11-27)."
     }
   }
 }
